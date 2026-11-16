@@ -177,7 +177,7 @@ def car(name, design, L, W, paint='car_paint', roof_sign=False, driver=True):
     y0, y1 = st[0][0], st[-1][0]
     # lamp clusters tucked into the body corners
     for front in (True, False):
-        mc = V._cluster(name, (y1 - y0) - 0.42, W * 0.93, belt - (0.04 if front else 0.0), mats, front)
+        mc = V._cluster(name, (y1 - y0) - 0.22, W * 0.9, belt - (0.04 if front else 0.0), mats, front)
         V._join(body, mc)
         bpy.data.meshes.remove(mc)
     mb = MB()
@@ -193,8 +193,9 @@ def car(name, design, L, W, paint='car_paint', roof_sign=False, driver=True):
     # grille, bumpers (rounded via bevel later), plates
     zb = 0.38
     mb.box(-w * 0.5, w * 0.5, y1 - 0.2, y1 - 0.1, belt - 0.4, belt - 0.24, DARK)          # grille (set into nose)
-    mb.box(-0.26, 0.26, y1 - 0.1, y1 - 0.085, zb + 0.06, zb + 0.17, PLATE)
-    mb.box(-0.26, 0.26, y0 + 0.085, y0 + 0.1, zb + 0.24, zb + 0.35, PLATE)
+    mb.box(-0.26, 0.26, y1 - 0.035, y1 - 0.02, zb + 0.06, zb + 0.17, PLATE)
+    mb.box(-0.26, 0.26, y0 + 0.02, y0 + 0.035, zb + 0.24, zb + 0.35, PLATE)
+    mb.box(-w * 0.85, w * 0.85, y0 + 0.03, y0 + 0.3, zb - 0.02, zb + 0.12, DARK)              # rear diffuser
     if roof > 1.65:   # crossover tailgate glass + rear wiper
         mb.box(-w * 0.7, w * 0.7, y0 + 0.02, y0 + 0.06, belt + 0.1, roof - 0.16, GLASS)
         mb.box(-0.02, 0.35, y0 + 0.1, y0 + 0.11, belt + 0.12, belt + 0.14, DARK)
