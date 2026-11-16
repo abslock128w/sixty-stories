@@ -187,9 +187,17 @@ def p_boat(name, L, kind):
     return _finish(mb, name, ['paint_white', 'plywood', 'car_glass', 'fabric_red'])
 
 
+def p_roadplate(name):
+    mb = MB()
+    mb.box(-1.2, 1.2, -0.8, 0.8, 0.0, 0.025, 0)
+    for x in (-1.15, 1.15):
+        mb.box(x - 0.03, x + 0.03, -0.75, 0.75, 0.025, 0.03, 1)
+    return _finish(mb, name, ['metal_dark', 'paint_black'], bevel=0.01)
+
+
 def register():
     ads = [a for a in SG.INFO if 0.6 <= a['aspect'] <= 0.8]
-    PR.BUILD.update(meter=p_meter, bench=p_bench, bikerack=p_bikerack, camera=p_camera, drainpipe=p_drainpipe,
+    PR.BUILD.update(roadplate=p_roadplate, meter=p_meter, bench=p_bench, bikerack=p_bikerack, camera=p_camera, drainpipe=p_drainpipe,
                     ferry=lambda n: p_boat(n, 38.0, 'ferry'), tug=lambda n: p_boat(n, 22.0, 'tug'))
     for k in range(3):
         PR.BUILD['utilbox_%d' % k] = (lambda a: (lambda n: p_utilbox(n, a)))(ads[k * 3 % len(ads)])
@@ -226,6 +234,8 @@ def dress(cols, specs):
                     add('litter_%d' % r.randrange(4), (side * r.uniform(LY.ROAD_HALF - 0.6, LY.HERO_AVE_W / 2 - 0.5), y,
                                                        ST.SIDEWALK_Z if r.random() < 0.6 else 0.0), r.uniform(0, 6.28))
             y += r.uniform(5, 12)
+    for k in range(30):
+        add('roadplate', (r.choice(ST.lane_centres()) + r.uniform(-0.5, 0.5), r.uniform(-900, 1300), 0.0), r.uniform(-0.1, 0.1))
     # tactile strips + road arrows + cameras at intersections
     mb = MB()
     for yc in ys:

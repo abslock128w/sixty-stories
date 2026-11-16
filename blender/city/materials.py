@@ -524,17 +524,31 @@ def m_asphalt(name):
     rough = nb.math('SUBTRACT', rough, nb.math('MULTIPLY', tr, 0.25))
     base = nb.mix(nb.math('MULTIPLY', wet, 0.5), base, (0.02, 0.02, 0.02, 1))
     # cracks: thin voronoi edge network masked by noise, sealed-crack tar lines, and potholes
-    cv = nb.n('ShaderNodeTexVoronoi', feature='DISTANCE_TO_EDGE', i_Vector=pos, i_Scale=0.45)
-    cm = nb.n('ShaderNodeTexNoise', i_Vector=pos, i_Scale=0.12, i_Detail=2.0)
-    crack = nb.math('MULTIPLY', nb.math('LESS_THAN', cv.outputs['Distance'], 0.018),
-                    nb.math('GREATER_THAN', cm.outputs['Fac'], 0.55))
+    # cracks: noise-distorted (organic, not cellular) edge network, sparse
+    dn = nb.n('ShaderNodeTexNoise', i_Vector=pos, i_Scale=0.9, i_Detail=4.0)
+    dpos = nb.vmath('ADD', pos, nb.vmath('SCALE', nb.vmath('SUBTRACT', dn.outputs['Color'], (0.5, 0.5, 0.5)), scale=2.2))
+    cv = nb.n('ShaderNodeTexVoronoi', feature='DISTANCE_TO_EDGE', i_Vector=dpos, i_Scale=0.32)
+    cm = nb.n('ShaderNodeTexNoise', i_Vector=pos, i_Scale=0.07, i_Detail=2.0)
+    crack = nb.math('MULTIPLY', nb.math('LESS_THAN', cv.outputs['Distance'], 0.01),
+                    nb.math('GREATER_THAN', cm.outputs['Fac'], 0.6))
+    # aggregate: small light stones + fine roughness variation
+    ag = nb.n('ShaderNodeTexVoronoi', i_Vector=pos, i_Scale=70.0)
+    stone = nb.math('MULTIPLY', nb.math('LESS_THAN', ag.outputs['Distance'], 0.22), 0.35)
+    base = nb.mix(stone, base, (0.16, 0.155, 0.15, 1))
+    # oil drips down the lane centres
+    oil_n = nb.n('ShaderNodeTexNoise', i_Vector=nb.vmath('MULTIPLY', pos, (1.5, 0.4, 1.0)), i_Scale=1.2, i_Detail=3.0)
+    lanec = nb.math('LESS_THAN', nb.math('ABSOLUTE', nb.math('SUBTRACT', lane, 0.5)), 0.12)
+    oil = nb.math('MULTIPLY', nb.math('MULTIPLY', lanec, inav), nb.math('GREATER_THAN', oil_n.outputs['Fac'], 0.56))
+    base = nb.mix(nb.math('MULTIPLY', oil, 0.75), base, (0.015, 0.014, 0.014, 1))
     base = nb.mix(nb.math('MULTIPLY', crack, 0.85), base, (0.012, 0.012, 0.012, 1))
     seal = nb.n('ShaderNodeTexVoronoi', feature='DISTANCE_TO_EDGE', i_Vector=pos, i_Scale=0.11)
     sealm = nb.math('MULTIPLY', nb.math('LESS_THAN', seal.outputs['Distance'], 0.012),
                     nb.math('GREATER_THAN', cm.outputs['Fac'], 0.62))
     base = nb.mix(nb.math('MULTIPLY', sealm, 0.9), base, (0.018, 0.018, 0.02, 1))
     rough = nb.mix(sealm, rough, 0.3, dtype='FLOAT')
-    hb = nb.math('ADD', n2.outputs['Fac'], nb.math('MULTIPLY', crack, -1.5))
+    rough = nb.mix(nb.math('MULTIPLY', oil, 0.8), rough, 0.18, dtype='FLOAT')
+    rough = nb.math('ADD', rough, nb.math('MULTIPLY', stone, -0.25))
+    hb = nb.math('ADD', nb.math('ADD', n2.outputs['Fac'], nb.math('MULTIPLY', crack, -1.5)), nb.math('MULTIPLY', stone, 0.8))
     bump = nb.n('ShaderNodeBump', i_Strength=0.3, i_Distance=0.01, i_Height=hb)
     p = nb.principled(**{'Base Color': base, 'Roughness': rough, 'Normal': bump.outputs['Normal']})
     nb.out(p.outputs[0])
@@ -745,6 +759,22 @@ def m_steel_prow(name):
     return m
 
 
+def m_paint_worn(name, col):
+    """Road paint worn by tyres: noisy loss patches showing dark asphalt, rougher edges, grime."""
+    nb, m = _new(name)
+    geo = nb.n('ShaderNodeNewGeometry')
+    pos = geo.outputs['Position']
+    n1 = nb.n('ShaderNodeTexNoise', i_Vector=nb.vmath('MULTIPLY', pos, (3.0, 0.8, 3.0)), i_Scale=1.6, i_Detail=6.0)
+    n2 = nb.n('ShaderNodeTexNoise', i_Vector=pos, i_Scale=14.0, i_Detail=3.0)
+    wear = nb.math('GREATER_THAN', nb.math('ADD', n1.outputs['Fac'], nb.math('MULTIPLY', n2.outputs['Fac'], 0.35)), 0.78)
+    dirt = nb.n('ShaderNodeMapRange', i_Value=n1.outputs['Fac'], **{'i_To Min': 0.65, 'i_To Max': 1.0})
+    base = nb.mix(1.0, _c4(col), dirt.outputs[0], blend='MULTIPLY')
+    base = nb.mix(wear, base, (0.05, 0.05, 0.05, 1))
+    p = nb.principled(**{'Base Color': base, 'Roughness': nb.mix(wear, 0.55, 0.85, dtype='FLOAT')})
+    nb.out(p.outputs[0])
+    return m
+
+
 BUILDERS = {}
 
 
@@ -770,8 +800,8 @@ def _reg():
     B['asphalt'] = m_asphalt
     B['sidewalk'] = m_sidewalk
     B['curb'] = lambda n: m_simple(n, (0.33, 0.33, 0.34), rough=0.6, noise_amt=0.3, noise_scale=12.0, bump=0.2)
-    B['paint_white'] = lambda n: m_simple(n, (0.62, 0.62, 0.6), rough=0.6, noise_amt=0.35, noise_scale=2.0)
-    B['paint_yellow'] = lambda n: m_simple(n, (0.65, 0.45, 0.06), rough=0.6, noise_amt=0.35, noise_scale=2.0)
+    B['paint_white'] = lambda n: m_paint_worn(n, (0.62, 0.62, 0.6))
+    B['paint_yellow'] = lambda n: m_paint_worn(n, (0.65, 0.45, 0.06))
     B['bike_green'] = lambda n: m_simple(n, (0.08, 0.25, 0.10), rough=0.7, noise_amt=0.3, noise_scale=1.0)
     B['water'] = m_water
     B['car_paint'] = m_car_paint

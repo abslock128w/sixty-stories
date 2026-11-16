@@ -144,9 +144,6 @@ def arch(mb, x, y, r, side):
     pts = [(xs, y + math.cos(math.pi * k / n) * R, r + math.sin(math.pi * k / n) * R) for k in range(n + 1)]
     pts = [(xs, y + R, 0.12)] + pts + [(xs, y - R, 0.12)]
     mb.poly(pts if side > 0 else pts[::-1], DARK)
-    for a, b in zip(pts[1:-2], pts[2:-1]):   # lip
-        q = [a, b, (b[0] + side * 0.02, b[1] * 1.0, b[2] + 0.03), (a[0] + side * 0.02, a[1], a[2] + 0.03)]
-        mb.poly(q if side > 0 else q[::-1], PAINT)
 
 def details(mb, L, W, prof, front_z, cab=False):
     y1, y0 = L / 2, -L / 2
