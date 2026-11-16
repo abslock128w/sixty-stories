@@ -59,7 +59,7 @@ def m_ad_light(name):
     pos = nb.vmath('MULTIPLY', geo.outputs['Position'], (22.0, 22.0, 22.0))
     w = nb.n('ShaderNodeTexWave', i_Vector=pos, wave_type='BANDS', bands_direction='Z', i_Scale=1.0, i_Distortion=0.0)
     grid = nb.math('MULTIPLY_ADD', w.outputs['Fac'], 0.25, 0.8)
-    s = nb.math('MULTIPLY', nb.math('MULTIPLY_ADD', nb.ctrl('street_emit'), 2.2, 1.6), grid)
+    s = nb.math('MULTIPLY', nb.math('MULTIPLY_ADD', nb.ctrl('street_emit'), 1.6, 0.85), grid)
     p = nb.principled(**{'Base Color': nb.mix(1.0, c, (0.15, 0.15, 0.15, 1), blend='MULTIPLY'), 'Roughness': 0.08,
                          'Specular IOR Level': 0.9})
     nb.out(MAT.emission_add(nb, p.outputs[0], c, s))

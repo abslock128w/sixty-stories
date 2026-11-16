@@ -328,7 +328,7 @@ def _car(name, L, W, H, cab_h, glass_h, paint='car_paint', roof_sign=False, hood
     mb.box(-w + 0.05, w - 0.05, y1 - 0.05, y1 + 0.06, zb, zb + 0.22, RUB)
     mb.box(-w + 0.05, w - 0.05, y0 - 0.06, y0 + 0.05, zb, zb + 0.22, RUB)
     if roof_sign:
-        mb.box(-0.4, 0.4, -0.12 + (gp[3][0] + gp[2][0]) / 2, 0.12 + (gp[3][0] + gp[2][0]) / 2, top + 0.03, top + 0.33, SIGN)
+        mb.box(-0.3, 0.3, -0.07 + (gp[3][0] + gp[2][0]) / 2, 0.07 + (gp[3][0] + gp[2][0]) / 2, top + 0.03, top + 0.21, SIGN)
     return _finish(mb, name, [paint, 'car_glass', 'rubber', 'chrome', 'headlight', 'taillight', 'sign_white'])
 
 

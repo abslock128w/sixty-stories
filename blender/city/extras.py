@@ -165,6 +165,85 @@ def p_banner(name):
     return _finish(mb, name, ['metal_dark', 'fabric_navy', 'fabric_red'])
 
 
+def p_drain(name):
+    mb = MB()
+    mb.box(-0.45, 0.45, -0.25, 0.25, 0.0, 0.008, 0)
+    for k in range(7):
+        x = -0.38 + k * 0.127
+        mb.box(x - 0.025, x + 0.025, -0.2, 0.2, 0.008, 0.016, 1)
+    return _finish(mb, name, ['room_dark', 'metal_dark'])
+
+
+def p_trashbags(name):
+    mb = MB()
+    r = random.Random(4)
+    for k in range(5):
+        x, y = r.uniform(-0.6, 0.6), r.uniform(-0.35, 0.35)
+        rr = r.uniform(0.28, 0.4)
+        rings = [(0.0, rr * 0.7), (rr * 0.5, rr), (rr * 1.2, rr * 0.9), (rr * 1.7, rr * 0.4), (rr * 1.9, 0.05)]
+        for (z0, r0), (z1, r1) in zip(rings[:-1], rings[1:]):
+            cyl(mb, x, y, z0, z1, r0, r1, n=9, mat=0 if k % 3 else 1, cap=(z1 == rings[-1][0]))
+    return _finish(mb, name, ['paint_black', 'fabric_cream'])
+
+
+def p_cafe(name):
+    """Outdoor cafe set: round table, two chairs, parasol."""
+    mb = MB()
+    cyl(mb, 0, 0, 0.72, 0.75, 0.38, 0.38, n=14, mat=0)
+    cyl(mb, 0, 0, 0.0, 0.72, 0.03, 0.03, n=6, mat=1)
+    cyl(mb, 0, 0, 0.0, 0.03, 0.25, 0.25, n=10, mat=1)
+    for a in (0.3, 3.4):
+        x, y = math.cos(a) * 0.65, math.sin(a) * 0.65
+        mb.box(x - 0.2, x + 0.2, y - 0.2, y + 0.2, 0.44, 0.47, 1)
+        for dx, dy in ((-0.17, -0.17), (0.17, -0.17), (-0.17, 0.17), (0.17, 0.17)):
+            mb.box(x + dx - 0.012, x + dx + 0.012, y + dy - 0.012, y + dy + 0.012, 0, 0.44, 1)
+        bx, by = x + math.cos(a) * 0.19, y + math.sin(a) * 0.19
+        mb.box(bx - 0.2 * abs(math.sin(a)) - 0.02, bx + 0.2 * abs(math.sin(a)) + 0.02,
+               by - 0.2 * abs(math.cos(a)) - 0.02, by + 0.2 * abs(math.cos(a)) + 0.02, 0.47, 0.85, 1)
+    cyl(mb, 0, 0, 0.75, 2.3, 0.02, 0.02, n=6, mat=1)
+    cyl(mb, 0, 0, 2.05, 2.35, 1.2, 0.04, n=10, mat=2)
+    return _finish(mb, name, ['metal_alu', 'metal_dark', 'fabric_cream'])
+
+
+def p_bike(name):
+    mb = MB()
+    for y in (-0.55, 0.55):
+        for k in range(16):
+            a0, a1 = 2 * math.pi * k / 16, 2 * math.pi * (k + 1) / 16
+            p0 = (0, y + math.cos(a0) * 0.34, 0.34 + math.sin(a0) * 0.34)
+            p1 = (0, y + math.cos(a1) * 0.34, 0.34 + math.sin(a1) * 0.34)
+            mb.box(-0.015, 0.015, min(p0[1], p1[1]) - 0.015, max(p0[1], p1[1]) + 0.015,
+                   min(p0[2], p1[2]) - 0.015, max(p0[2], p1[2]) + 0.015, 0)
+    for (a, b) in (((-0.55, 0.34), (-0.05, 0.78)), ((-0.05, 0.78), (0.45, 0.78)), ((0.45, 0.78), (0.55, 0.34)),
+                   ((-0.55, 0.34), (0.0, 0.34)), ((0.0, 0.34), (-0.05, 0.78)), ((0.0, 0.34), (0.45, 0.78))):
+        n = 6
+        for i in range(n):
+            y0 = a[0] + (b[0] - a[0]) * i / n
+            z0 = a[1] + (b[1] - a[1]) * i / n
+            y1 = a[0] + (b[0] - a[0]) * (i + 1) / n
+            z1 = a[1] + (b[1] - a[1]) * (i + 1) / n
+            mb.box(-0.018, 0.018, min(y0, y1) - 0.018, max(y0, y1) + 0.018, min(z0, z1) - 0.018, max(z0, z1) + 0.018, 1)
+    mb.box(-0.1, 0.1, -0.12, 0.05, 0.84, 0.88, 0)
+    mb.box(-0.28, 0.28, 0.45, 0.48, 0.95, 0.98, 0)
+    mb.box(-0.02, 0.02, 0.44, 0.48, 0.78, 0.97, 0)
+    return _finish(mb, name, ['rubber', 'fabric_red'])
+
+
+def p_barrier(name):
+    """Construction barrier (orange/white striped) with a cone pair."""
+    mb = MB()
+    for x in (-0.9, 0.9):
+        mb.box(x - 0.04, x + 0.04, -0.3, 0.3, 0, 0.05, 1)
+        mb.box(x - 0.03, x + 0.03, -0.03, 0.03, 0, 1.0, 1)
+    for z in (0.55, 0.85):
+        for k in range(6):
+            x0 = -1.0 + k / 3
+            mb.box(x0, x0 + 1 / 3, -0.02, 0.02, z, z + 0.18, k % 2)
+    for x in (1.4, 1.8):
+        cyl(mb, x, 0.3, 0.0, 0.7, 0.16, 0.03, n=10, mat=2)
+    return _finish(mb, name, ['fabric_cream', 'metal_dark', 'sig_amber'])
+
+
 # ----------------------------------------------------------------- people
 def _person(name, h, pose):
     """Better-proportioned pedestrian: tapered limbs, shoulders, head; pose stride / stand / phone."""
@@ -241,7 +320,8 @@ def p_step_van(name):
 MAT.BUILDERS['paint_black'] = lambda n: MAT.m_simple(n, (0.012, 0.012, 0.014), rough=0.2, coat=1.0, noise_amt=0.0)
 MAT.BUILDERS['paint_brown'] = lambda n: MAT.m_simple(n, (0.20, 0.12, 0.06), rough=0.45, noise_amt=0.05, grime_k=0.2)
 PR.BUILD.update(town_car=p_town_car, hatch=p_hatch, pickup=p_pickup, step_van=p_step_van, subway=p_subway,
-                bollard=p_bollard, mailbox=p_mailbox, planter=p_planter, flag=p_flag, banner=p_banner)
+                bollard=p_bollard, drain=p_drain, trashbags=p_trashbags, cafe=p_cafe, bike=p_bike,
+                barrier=p_barrier, mailbox=p_mailbox, planter=p_planter, flag=p_flag, banner=p_banner)
 REMAP = {'sedan': [('sedan', 4), ('town_car', 3), ('hatch', 2)], 'suv': [('suv', 3), ('pickup', 1)],
          'van': [('van', 2), ('step_van', 1)], 'truck': [('truck', 1)]}
 
@@ -308,6 +388,30 @@ def dress_street(cols, specs):
                 for k in range(r.randint(1, 5)):
                     x = r.choice((-1, 1)) * r.uniform(LY.HERO_AVE_W / 2 + 0.8, LY.HERO_AVE_W / 2 + 3.8)
                     add(r.choice(PEOPLE[:2] + PEOPLE[4:5]), (x, yc + r.uniform(-4.5, 4.5), 0.0), r.choice((0, math.pi)))
+    # storm drains at every curb before the crosswalks
+    for yc in ys:
+        for side in (-1, 1):
+            for sy in (-1, 1):
+                add('drain', (side * (LY.ROAD_HALF - 0.45), yc + sy * (LY.ST_W / 2 + 5.2), 0.0), math.pi / 2)
+    # vignettes along the avenue frontages: trash bags, cafe seating, chained bikes, repairs
+    for s in specs:
+        if s['ring'] != 'near' or s['kind'] != 'ave':
+            continue
+        w = SG.avenue_walls(s)
+        if w is None:
+            continue
+        k = r.random()
+        y = r.uniform(w.y0 + 3, w.y1 - 3)
+        xk = w.fx + w.sx
+        if k < 0.25:
+            add('trashbags', (w.fx + w.sx * (LY.HERO_AVE_W / 2 - LY.ROAD_HALF - 1.0), y, ST.SIDEWALK_Z), r.uniform(0, 3))
+        elif k < 0.45:
+            for j in range(r.randint(2, 4)):
+                add('cafe', (w.fx + w.sx * 1.4, y + j * 2.1, ST.SIDEWALK_Z), r.uniform(0, 3))
+        elif k < 0.6:
+            add('bike', (w.fx + w.sx * (LY.HERO_AVE_W / 2 - LY.ROAD_HALF - 0.9), y, ST.SIDEWALK_Z), r.uniform(-0.1, 0.1))
+        elif k < 0.68:
+            add('barrier', (w.fx + w.sx * 2.5, y, ST.SIDEWALK_Z), math.pi / 2)
     # dense walking crowds on both avenue sidewalks
     for side in (-1, 1):
         y = -1000.0

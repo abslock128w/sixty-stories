@@ -523,7 +523,19 @@ def m_asphalt(name):
     rough = nb.mix(wet, rnoise.outputs[0], 0.08, dtype='FLOAT')
     rough = nb.math('SUBTRACT', rough, nb.math('MULTIPLY', tr, 0.25))
     base = nb.mix(nb.math('MULTIPLY', wet, 0.5), base, (0.02, 0.02, 0.02, 1))
-    bump = nb.n('ShaderNodeBump', i_Strength=0.2, i_Distance=0.01, i_Height=n2.outputs['Fac'])
+    # cracks: thin voronoi edge network masked by noise, sealed-crack tar lines, and potholes
+    cv = nb.n('ShaderNodeTexVoronoi', feature='DISTANCE_TO_EDGE', i_Vector=pos, i_Scale=0.45)
+    cm = nb.n('ShaderNodeTexNoise', i_Vector=pos, i_Scale=0.12, i_Detail=2.0)
+    crack = nb.math('MULTIPLY', nb.math('LESS_THAN', cv.outputs['Distance'], 0.018),
+                    nb.math('GREATER_THAN', cm.outputs['Fac'], 0.55))
+    base = nb.mix(nb.math('MULTIPLY', crack, 0.85), base, (0.012, 0.012, 0.012, 1))
+    seal = nb.n('ShaderNodeTexVoronoi', feature='DISTANCE_TO_EDGE', i_Vector=pos, i_Scale=0.11)
+    sealm = nb.math('MULTIPLY', nb.math('LESS_THAN', seal.outputs['Distance'], 0.012),
+                    nb.math('GREATER_THAN', cm.outputs['Fac'], 0.62))
+    base = nb.mix(nb.math('MULTIPLY', sealm, 0.9), base, (0.018, 0.018, 0.02, 1))
+    rough = nb.mix(sealm, rough, 0.3, dtype='FLOAT')
+    hb = nb.math('ADD', n2.outputs['Fac'], nb.math('MULTIPLY', crack, -1.5))
+    bump = nb.n('ShaderNodeBump', i_Strength=0.3, i_Distance=0.01, i_Height=hb)
     p = nb.principled(**{'Base Color': base, 'Roughness': rough, 'Normal': bump.outputs['Normal']})
     nb.out(p.outputs[0])
     return m
@@ -543,7 +555,13 @@ def m_sidewalk(name):
     gum = nb.n('ShaderNodeTexVoronoi', i_Vector=pos, i_Scale=6.0)
     gm = nb.math('LESS_THAN', gum.outputs['Distance'], 0.05)
     base = nb.mix(gm, base, (0.12, 0.12, 0.12, 1))
-    bump = nb.n('ShaderNodeBump', i_Strength=0.3, i_Distance=0.005, i_Height=br.outputs['Fac'])
+    cv = nb.n('ShaderNodeTexVoronoi', feature='DISTANCE_TO_EDGE', i_Vector=pos, i_Scale=1.3)
+    cm = nb.n('ShaderNodeTexNoise', i_Vector=pos, i_Scale=0.35, i_Detail=2.0)
+    crack = nb.math('MULTIPLY', nb.math('LESS_THAN', cv.outputs['Distance'], 0.012),
+                    nb.math('GREATER_THAN', cm.outputs['Fac'], 0.58))
+    base = nb.mix(nb.math('MULTIPLY', crack, 0.8), base, (0.05, 0.05, 0.05, 1))
+    hb = nb.math('ADD', br.outputs['Fac'], nb.math('MULTIPLY', crack, -0.6))
+    bump = nb.n('ShaderNodeBump', i_Strength=0.3, i_Distance=0.005, i_Height=hb)
     p = nb.principled(**{'Base Color': base, 'Roughness': 0.85, 'Normal': bump.outputs['Normal']})
     nb.out(p.outputs[0])
     return m

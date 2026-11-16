@@ -41,6 +41,8 @@ VIEWS = {
     'r_close2': dict(loc=(-10.8, -63.1, 10.5), at=(-17.0, -63.1, 10.2), lens=28, exp=1.8),
     'r_office': dict(loc=(-8.0, 100.0, 25.0), at=(19.0, 118.0, 25.0), lens=28, exp=0.8),
     'dbg': dict(loc=(-14.2, 112.74, 7.6), at=(-20.0, 112.74, 7.4), lens=24, exp=0.8),
+    's_street': dict(loc=(1.5, -60.0, 8.0), at=(0.0, 300.0, 16.0), lens=22),
+    's_dusk': dict(loc=(1.5, -60.0, 8.0), at=(0.0, 300.0, 16.0), lens=22, dusk=1.0, exp=0.3),
     'k': dict(loc=(150, 700, 420), at=(-40, -250, 80), lens=30),
     'i': dict(loc=(30, 300, 74), at=(0, 381, 73), lens=35),
 }
@@ -97,7 +99,7 @@ def main():
     for name in views:
         v = VIEWS[name] if name in VIEWS else VIEWS[name[0]]
         dusk = float(opt['dusk']) if opt['dusk'] is not None else v.get('dusk', 0.0)
-        lighting.apply_preset(scene, v.get('preset', 'canyon' if name[0] in 'bh' else 'none'), dusk)
+        lighting.apply_preset(scene, v.get('preset', 'canyon' if (name[0] in 'bh' or name.startswith('s_street')) else 'none'), dusk)
         ctrl = bpy.data.objects['LIGHT_CTRL']
         for kv in (opt.get('set') or '').split(','):
             if '=' in kv:
