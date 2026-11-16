@@ -137,3 +137,55 @@ The 95 text shop signs from round 1 remain.
 - Ours is foggier and flatter. The reference keeps near towers crisp and fades only the far distance.
 - Building silhouettes are still too uniform. There are few named-landmark-grade crowns.
 - The park and bridges exist but are not in the `a` camera's view.
+
+## 2026-11-16, Stage 1b: building identity, vehicles, signage integration
+
+Proofs: `s_street.png`, `s_dusk.png`, `car_close.png` (1280 px, 32 spp, 4 threads, about 85 s each, about 3.2 GB).
+
+### Now in the scene
+
+**New archetypes** (`library.py`, now 25 in total)
+- White-stone bank: heavy cornice, rusticated granite-tone base.
+- Terracotta apartments with fire escapes.
+- Red-brick Deco tower with a copper-patina crown.
+- Terracotta Deco hotel, also with a patina crown.
+- White Deco tower.
+- Dark steel-and-glass grid (deep 0.45 m fins).
+- Green-glass office.
+
+**Facade palettes**
+- Existing masonry palettes brightened and widened, so neighbouring frontages differ in value and hue.
+
+**Base, middle and top treatment**
+- Archetypes flagged `base_trim` get thicker base piers in the trim material plus a string course at the top of the shop zone.
+
+**Curtain-wall shopfronts are now real bays**
+- Stall riser, bay mullions, a door frame on every third bay, and the sign band.
+- This replaces the bare striped glass.
+
+**Signage**
+- Big billboards are capped at about 10 m tall and 75% of the frontage.
+- New layer of paste-up posters at street level, 1.1–1.6 m, on masonry bases.
+- Overall layering is now: posters, then lightboxes, then mid boards and blades, then a few big boards.
+
+**Vehicles v2** (`vehicles.py`)
+- Lofted bodies with a raked windscreen and backlight, tumblehome greenhouse, pillars, and glass assigned per face.
+- Wheel-arch liners, round tyres with shoulders, dished 5-spoke rims, hub caps.
+- Head-lamp units with chrome surrounds, grille, bumpers, front and rear plates, door shut lines, mirrors.
+- Pickup with an open bed.
+- Vans and trucks: cab with raked windscreen, side glass, mirrors and grille; ad liveries from the atlas on the cargo sides.
+- Bus: window bands, pillars, livery stripe, destination sign.
+
+**New vehicle types**
+- 40 motorcycles with riders.
+- Cyclists ridden in the bike lane.
+
+### Still short
+
+- **Car bodies are still faceted** up close:
+  - The cross-section has only 9 points per side.
+  - No body creases.
+  - Tyres show from the side only.
+- **Signage is still flat panels on frames.** It is not built into the architecture as the reference's wraps and vertical LED columns are.
+- **The east-side glass podium still reads uniform from distance.**
+- **Building identity is better but still not a lineup of nameable landmarks.** The left wall reads as varied masonry, but there are no strongly distinct silhouettes at street height.
