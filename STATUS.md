@@ -171,3 +171,4 @@ at medium effort. An hourly scheduled task re-wakes the main session; on wake, r
   Token discipline: one agent at a time; no big workflows while limits keep hitting.
 - 17:13 UTC: Mac (M5 Air, repo abslock128w/sixty-stories, ./render_mac.sh) CPU-only is ~1.4x the cloud (657 s vs ~950 s/frame); GPU was slower. Split s1: CLOUD renders EVEN frames (render_frames.py --frames 0-46 --stride 2 --threads 4), MAC renders ODD frames (--frames 1-47 --stride 2) and pushes them with git add -f.
 - 17:14 UTC: owner: cloud only (Mac throttles). Cloud back on full s1: render_frames.py --shot s1 --threads 4.
+- 17:23 UTC: owner sent two reference stills (refs/ref_street.webp, refs/ref_aerial.webp: a AAA game's Manhattan) as the BASELINE for city quality. Render stopped (17ish s1 frames will be stale). CITY builder round 6 launched to close the gap (street density, signage, facade variety, landmarks). Site link has the 15-frame cut.
