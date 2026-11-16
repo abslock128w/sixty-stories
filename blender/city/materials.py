@@ -372,22 +372,101 @@ def m_stone(name, ashlar=(1.6, 0.62), rough=0.78, grime_k=0.45, bevel=False, tow
 
 
 def m_brick(name):
+    """Brick v2: running bond with per-brick colour (hash per brick), recessed mortar joints, chipped
+    edges, clinker headers, efflorescence and soot streaks. World-space facade coordinates."""
     nb, m = _new(name)
     bc = nb.attr('bcol')
     geo, sep, nsep, h = facade_coords(nb)
-    vec = nb.n('ShaderNodeCombineXYZ', i_X=h, i_Y=sep.outputs['Z'], i_Z=0.0)
-    br = nb.n('ShaderNodeTexBrick', i_Vector=vec.outputs[0], i_Color1=(1.0, 1.0, 1.0, 1), i_Color2=(0.62, 0.6, 0.58, 1),
-              i_Mortar=(2.2, 2.1, 1.9, 1), i_Scale=1.0, **{'i_Mortar Size': 0.008, 'i_Brick Width': 0.215,
-                                                         'i_Row Height': 0.072, 'i_Mortar Smooth': 0.1, 'i_Bias': 0.0})
-    base = nb.mix(1.0, bc.outputs['Color'], br.outputs['Color'], blend='MULTIPLY')
-    noise = nb.n('ShaderNodeTexNoise', i_Vector=geo.outputs['Position'], i_Scale=0.6, i_Detail=4.0)
-    fine = nb.n('ShaderNodeMapRange', i_Value=noise.outputs['Fac'], **{'i_To Min': 0.8, 'i_To Max': 1.2})
-    base = nb.mix(1.0, base, fine.outputs[0], blend='MULTIPLY')
+    z = sep.outputs['Z']
+    RH, BL = 0.075, 0.225
+    row = nb.math('FLOOR', nb.math('DIVIDE', z, RH))
+    off = nb.math('MULTIPLY', nb.math('FRACT', nb.math('MULTIPLY', row, 0.5)), BL)
+    hu = nb.math('DIVIDE', nb.math('ADD', h, off), BL)
+    col = nb.math('FLOOR', hu)
+    fu = nb.math('FRACT', hu)
+    fv = nb.math('FRACT', nb.math('DIVIDE', z, RH))
+    mort = nb.math('MAXIMUM', nb.math('MAXIMUM', nb.math('LESS_THAN', fu, 0.045), nb.math('GREATER_THAN', fu, 0.995)),
+                   nb.math('LESS_THAN', fv, 0.14))
+    cell = nb.n('ShaderNodeCombineXYZ', i_X=col, i_Y=row, i_Z=nb.math('MULTIPLY', bc.outputs['Alpha'], 977.0))
+    wn = nb.n('ShaderNodeTexWhiteNoise', noise_dimensions='3D', i_Vector=cell.outputs[0])
+    r1 = wn.outputs['Value']
+    tone = nb.ramp(r1, [(0.0, (0.55, 0.50, 0.48)), (0.10, (0.78, 0.72, 0.68)), (0.35, (1.0, 1.0, 1.0)),
+                        (0.70, (1.12, 1.06, 1.0)), (0.88, (1.25, 1.12, 1.0)), (0.96, (0.42, 0.36, 0.34))])
+    brick = nb.mix(1.0, bc.outputs['Color'], tone, blend='MULTIPLY')
+    # surface mottling inside each brick + fired-clay speckle
+    n1 = nb.n('ShaderNodeTexNoise', i_Vector=geo.outputs['Position'], i_Scale=9.0, i_Detail=5.0, i_Roughness=0.6)
+    mott = nb.n('ShaderNodeMapRange', i_Value=n1.outputs['Fac'], **{'i_To Min': 0.82, 'i_To Max': 1.12}).outputs[0]
+    brick = nb.mix(1.0, brick, mott, blend='MULTIPLY')
+    mortar_c = nb.mix(nb.math('MULTIPLY', n1.outputs['Fac'], 0.6), (0.50, 0.48, 0.44, 1), (0.30, 0.29, 0.27, 1))
+    base = nb.mix(mort, brick, mortar_c)
+    # efflorescence (white bloom) and soot from grime
+    ef = nb.n('ShaderNodeTexNoise', i_Vector=nb.vmath('MULTIPLY', geo.outputs['Position'], (2.0, 2.0, 0.3)), i_Scale=1.2,
+              i_Detail=4.0)
+    efm = nb.n('ShaderNodeMapRange', i_Value=ef.outputs['Fac'], **{'i_From Min': 0.62, 'i_From Max': 0.75}).outputs[0]
+    base = nb.mix(nb.math('MULTIPLY', efm, 0.35), base, (0.62, 0.60, 0.56, 1))
     g = grime(nb, geo, sep, 0.5)
     base = nb.mix(g, base, (0.10, 0.09, 0.085, 1), blend='MULTIPLY')
-    bump = nb.n('ShaderNodeBump', i_Strength=0.3, i_Distance=0.005, i_Height=br.outputs['Fac'])
-    p = nb.principled(**{'Base Color': base, 'Roughness': 0.85, 'Normal': bump.outputs['Normal'],
+    # relief: recessed joints, slightly domed / chipped faces
+    chip = nb.n('ShaderNodeTexNoise', i_Vector=geo.outputs['Position'], i_Scale=40.0, i_Detail=3.0)
+    edge = nb.math('MINIMUM', nb.math('MINIMUM', fu, nb.math('SUBTRACT', 1.0, fu)), nb.math('MULTIPLY', nb.math('ABSOLUTE', nb.math('SUBTRACT', fv, 0.57)), 0.3))
+    hgt = nb.math('SUBTRACT', nb.math('SUBTRACT', 1.0, nb.math('MULTIPLY', mort, 1.0)),
+                  nb.math('MULTIPLY', nb.math('LESS_THAN', nb.math('ADD', edge, nb.math('MULTIPLY', chip.outputs['Fac'], 0.04)), 0.05), 0.4))
+    hgt = nb.math('ADD', hgt, nb.math('MULTIPLY', n1.outputs['Fac'], 0.15))
+    bump = nb.n('ShaderNodeBump', i_Strength=0.55, i_Distance=0.006, i_Height=hgt)
+    rough = nb.math('ADD', nb.math('MULTIPLY', mort, 0.08), nb.math('MULTIPLY_ADD', r1, 0.12, 0.78))
+    p = nb.principled(**{'Base Color': base, 'Roughness': rough, 'Normal': bump.outputs['Normal'],
                          'Specular IOR Level': 0.35})
+    nb.out(p.outputs[0])
+    return m
+
+
+def m_concrete(name):
+    """Cast concrete: blotchy value variation, formwork panel lines and tie holes, water stains,
+    roughness variation."""
+    nb, m = _new(name)
+    geo, sep, nsep, h = facade_coords(nb)
+    pos = geo.outputs['Position']
+    z = sep.outputs['Z']
+    b1 = nb.n('ShaderNodeTexNoise', i_Vector=pos, i_Scale=0.35, i_Detail=6.0, i_Roughness=0.6)
+    b2 = nb.n('ShaderNodeTexNoise', i_Vector=pos, i_Scale=6.0, i_Detail=4.0)
+    base = nb.ramp(b1.outputs['Fac'], [(0.3, (0.30, 0.295, 0.28)), (0.5, (0.42, 0.41, 0.39)), (0.7, (0.50, 0.49, 0.47))])
+    fine = nb.n('ShaderNodeMapRange', i_Value=b2.outputs['Fac'], **{'i_To Min': 0.9, 'i_To Max': 1.08}).outputs[0]
+    base = nb.mix(1.0, base, fine, blend='MULTIPLY')
+    pu = nb.math('FRACT', nb.math('DIVIDE', h, 2.4))
+    pv = nb.math('FRACT', nb.math('DIVIDE', z, 1.2))
+    joint = nb.math('MAXIMUM', nb.math('LESS_THAN', pu, 0.004), nb.math('LESS_THAN', pv, 0.008))
+    tu = nb.math('SUBTRACT', nb.math('FRACT', nb.math('DIVIDE', h, 0.6)), 0.5)
+    tv = nb.math('SUBTRACT', nb.math('FRACT', nb.math('DIVIDE', nb.math('ADD', z, 0.3), 0.6)), 0.5)
+    tie = nb.math('LESS_THAN', nb.math('ADD', nb.math('MULTIPLY', tu, tu), nb.math('MULTIPLY', tv, tv)), 0.0025)
+    vert = nb.math('LESS_THAN', nb.math('ABSOLUTE', nsep.outputs['Z']), 0.5)
+    marks = nb.math('MULTIPLY', nb.math('MAXIMUM', joint, tie), vert)
+    base = nb.mix(nb.math('MULTIPLY', marks, 0.7), base, (0.16, 0.155, 0.15, 1))
+    g = grime(nb, geo, sep, 0.45)
+    base = nb.mix(g, base, (0.12, 0.115, 0.11, 1), blend='MULTIPLY')
+    hgt = nb.math('SUBTRACT', b2.outputs['Fac'], nb.math('MULTIPLY', marks, 1.5))
+    bump = nb.n('ShaderNodeBump', i_Strength=0.25, i_Distance=0.01, i_Height=hgt)
+    rough = nb.math('ADD', nb.math('MULTIPLY_ADD', b1.outputs['Fac'], 0.2, 0.72), nb.math('MULTIPLY', g, -0.1))
+    p = nb.principled(**{'Base Color': base, 'Roughness': rough, 'Normal': bump.outputs['Normal'], 'Specular IOR Level': 0.4})
+    nb.out(p.outputs[0])
+    return m
+
+
+def m_metal_worn(name, col, rough=0.38, metal=0.8):
+    """Painted / bare metal with brushed anisotropy, scratches, and rust at lower edges and joints."""
+    nb, m = _new(name)
+    geo = nb.n('ShaderNodeNewGeometry')
+    pos = geo.outputs['Position']
+    sep = nb.n('ShaderNodeSeparateXYZ', i_Vector=pos)
+    sc = nb.n('ShaderNodeTexNoise', i_Vector=nb.vmath('MULTIPLY', pos, (40.0, 40.0, 1.5)), i_Scale=3.0, i_Detail=2.0)
+    scratch = nb.n('ShaderNodeMapRange', i_Value=sc.outputs['Fac'], **{'i_From Min': 0.62, 'i_From Max': 0.7}).outputs[0]
+    rn = nb.n('ShaderNodeTexNoise', i_Vector=pos, i_Scale=4.0, i_Detail=6.0)
+    rust = nb.n('ShaderNodeMapRange', i_Value=rn.outputs['Fac'], **{'i_From Min': 0.6, 'i_From Max': 0.72}).outputs[0]
+    base = nb.mix(nb.math('MULTIPLY', scratch, 0.5), _c4(col), (0.35, 0.34, 0.33, 1))
+    base = nb.mix(nb.math('MULTIPLY', rust, 0.8), base, (0.22, 0.09, 0.03, 1))
+    r = nb.math('ADD', rough, nb.math('ADD', nb.math('MULTIPLY', rust, 0.45), nb.math('MULTIPLY', scratch, -0.15)))
+    bump = nb.n('ShaderNodeBump', i_Strength=0.15, i_Distance=0.003, i_Height=nb.math('ADD', rn.outputs['Fac'], scratch))
+    p = nb.principled(**{'Base Color': base, 'Metallic': nb.math('MULTIPLY', nb.math('SUBTRACT', 1.0, rust), metal),
+                         'Roughness': r, 'Normal': bump.outputs['Normal'], 'Anisotropic': 0.3})
     nb.out(p.outputs[0])
     return m
 
@@ -532,8 +611,14 @@ def m_asphalt(name):
     crack = nb.math('MULTIPLY', nb.math('LESS_THAN', cv.outputs['Distance'], 0.01),
                     nb.math('GREATER_THAN', cm.outputs['Fac'], 0.6))
     # aggregate: small light stones + fine roughness variation
-    ag = nb.n('ShaderNodeTexVoronoi', i_Vector=pos, i_Scale=70.0)
-    stone = nb.math('MULTIPLY', nb.math('LESS_THAN', ag.outputs['Distance'], 0.22), 0.35)
+    ag = nb.n('ShaderNodeTexVoronoi', i_Vector=pos, i_Scale=45.0)
+    stone = nb.math('MULTIPLY', nb.math('LESS_THAN', ag.outputs['Distance'], 0.25), 0.45)
+    # mid-scale ravelling: lighter worn aggregate in wheel paths, darker fresh repair strips
+    rp = nb.math('LESS_THAN', nb.math('FRACT', nb.math('DIVIDE', nb.math('ADD', sep.outputs['Y'], nb.math('MULTIPLY', x, 3.1)), 41.0)), 0.13)
+    rp = nb.math('MULTIPLY', rp, nb.math('LESS_THAN', nb.math('ABSOLUTE', nb.math('SUBTRACT', lane, 0.5)), 0.38))
+    rp = nb.math('MULTIPLY', rp, inav)
+    base = nb.mix(nb.math('MULTIPLY', rp, 0.8), base, (0.028, 0.028, 0.03, 1))
+    wear = nb.math('MULTIPLY', tr, 0.0)
     base = nb.mix(stone, base, (0.16, 0.155, 0.15, 1))
     # oil drips down the lane centres
     oil_n = nb.n('ShaderNodeTexNoise', i_Vector=nb.vmath('MULTIPLY', pos, (1.5, 0.4, 1.0)), i_Scale=1.2, i_Detail=3.0)
@@ -847,11 +932,11 @@ def _reg():
     B['brick'] = m_brick
     B['trim'] = lambda n: m_simple(n, (0.58, 0.54, 0.47), rough=0.7, noise_amt=0.2, grime_k=0.5, bump=0.2)
     B['terracotta'] = lambda n: m_simple(n, (0.62, 0.50, 0.38), rough=0.6, noise_amt=0.2, grime_k=0.35, bump=0.1)
-    B['metal_dark'] = lambda n: m_simple(n, (0.035, 0.032, 0.03), rough=0.38, metal=0.8, noise_amt=0.3, spec=0.6)
+    B['metal_dark'] = lambda n: m_metal_worn(n, (0.035, 0.032, 0.03))
     B['metal_bronze'] = lambda n: m_simple(n, (0.20, 0.13, 0.07), rough=0.35, metal=1.0, noise_amt=0.3, grime_k=0.3)
     B['metal_alu'] = lambda n: m_simple(n, (0.62, 0.63, 0.64), rough=0.28, metal=1.0, noise_amt=0.1)
     B['steel_deco'] = lambda n: m_simple(n, (0.70, 0.71, 0.72), rough=0.18, metal=1.0, noise_amt=0.15, grime_k=0.25)
-    B['concrete'] = lambda n: m_simple(n, (0.42, 0.41, 0.39), rough=0.85, noise_amt=0.25, grime_k=0.4, bump=0.15)
+    B['concrete'] = m_concrete
     B['panel'] = lambda n: m_simple(n, None, rough=0.55, use_bcol=True, noise_amt=0.12, grime_k=0.25)
     B['wall_bcol'] = lambda n: m_simple(n, None, rough=0.8, use_bcol=True, noise_amt=0.2, grime_k=0.35)
     B['roof'] = m_roof
@@ -870,7 +955,7 @@ def _reg():
     B['rubber'] = lambda n: m_simple(n, (0.02, 0.02, 0.02), rough=0.8, noise_amt=0.1)
     B['chrome'] = lambda n: m_simple(n, (0.8, 0.8, 0.8), rough=0.12, metal=1.0, noise_amt=0.0)
     B['headlight'] = lambda n: m_emit(n, (1.0, 0.93, 0.8), 'car_emit', 4.0)
-    B['taillight'] = lambda n: m_emit(n, (1.0, 0.03, 0.01), 'car_emit', 2.6, bsdf_color=(0.4, 0.02, 0.02))
+    B['taillight'] = lambda n: m_emit(n, (1.0, 0.03, 0.01), 'car_emit', 3.5, bsdf_color=(0.55, 0.03, 0.03))
     B['lamp_emit'] = lambda n: m_emit(n, (1.0, 0.78, 0.5), 'street_emit', 12.0, bsdf_color=(0.9, 0.85, 0.7))
     B['sig_red'] = lambda n: m_emit(n, (1.0, 0.05, 0.02), 'street_emit', 18.0, bsdf_color=(0.3, 0.02, 0.02))
     B['sig_green'] = lambda n: m_emit(n, (0.1, 1.0, 0.55), 'street_emit', 14.0, bsdf_color=(0.02, 0.2, 0.1))

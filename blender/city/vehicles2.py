@@ -177,7 +177,8 @@ def car(name, design, L, W, paint='car_paint', roof_sign=False, driver=True):
     y0, y1 = st[0][0], st[-1][0]
     # lamp clusters tucked into the body corners
     for front in (True, False):
-        mc = V._cluster(name, (y1 - y0) - 0.22, W * 0.9, belt - (0.04 if front else 0.0), mats, front)
+        end = st[-2] if front else st[1]          # station just inside the bumper end
+        mc = V._cluster(name, (y1 - y0) - 0.1, W * 0.9, end[3] + (0.02 if front else -0.02), mats, front)
         V._join(body, mc)
         bpy.data.meshes.remove(mc)
     mb = MB()
