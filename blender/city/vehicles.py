@@ -313,9 +313,9 @@ def car(name, kind, L, W, paint='car_paint', roof_sign=False):
 def _livery_quad(mb, x, y0, y1, z0, z1, side, ad):
     u0, v0, u1, v1 = ad['uv']
     if side > 0:
-        pts = [(x, y1, z0), (x, y0, z0), (x, y0, z1), (x, y1, z1)]
-    else:
         pts = [(x, y0, z0), (x, y1, z0), (x, y1, z1), (x, y0, z1)]
+    else:
+        pts = [(x, y1, z0), (x, y0, z0), (x, y0, z1), (x, y1, z1)]
     mb.quad(*pts, mat=10, uv=[(u0, v0), (u1, v0), (u1, v1), (u0, v1)])
 
 

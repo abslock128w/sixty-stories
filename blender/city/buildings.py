@@ -224,7 +224,9 @@ def build_facade(mb, face, z0, z1, P, rng, bcol, storefront, ext_end, fl_rand, z
             RC = ROOMS if (ROOMS and ROOMS['face_ok'](face)) else None
             rf = (1.0, 0, 0, 0) if RC else (0.0, 0, 0, 0)
             if RC:
-                RC['pts'].add(face.pt((s0 + s1) / 2, -0.05, z0), face.n, b - 0.06, 4.5, P['gh'] - 0.3, 'shop',
+                RC['pts'].add(face.pt((s0 + s1) / 2, -0.05, z0), face.n, b - 0.06, 4.5, P['gh'] - 0.3,
+                              ['shop', 'shop_cafe', 'shop_grocery', 'shop_clothing', 'shop_pharmacy',
+                               'shop_restaurant'][int(hash01(id(face) % 9973, k // 2) * 6)],
                               RC['rng'].random(), 0.0, RC['rng'].random() * 0.75, RC['rng'].random() < 0.5)
             if curtain:
                 face.box(mb, s0, s1, 0, 0.14, z0, z0 + 0.45, S['metal'], A, caps=False)          # stall riser
@@ -236,6 +238,16 @@ def build_facade(mb, face, z0, z1, P, rng, bcol, storefront, ext_end, fl_rand, z
                 face.box(mb, s0, s1, 0, 0.12, ztop_store - 0.6, ztop_store, TS, A, caps=False)
             else:
                 face.box(mb, s0, s1, 0, 0.1, z0, z0 + 0.5, TS, A, caps=False)
+                M_ = S['metal']
+                face.box(mb, s0, s0 + 0.09, 0, 0.12, z0 + 0.5, ztop_store - 1.0, M_, A)
+                face.box(mb, s1 - 0.09, s1, 0, 0.12, z0 + 0.5, ztop_store - 1.0, M_, A)
+                face.box(mb, s0, s1, 0, 0.12, z0 + 2.75, z0 + 2.85, M_, A)                   # transom bar
+                if s1 - s0 > 2.6:
+                    mid = (s0 + s1) / 2
+                    face.box(mb, mid - 0.04, mid + 0.04, 0, 0.1, z0 + 0.5, ztop_store - 1.0, M_, A)
+                if k % 3 == 0:                                                           # recessed door
+                    dx = s0 + 0.3
+                    face.box(mb, dx, dx + 1.0, -0.6, 0.0, z0 + 0.0, z0 + 2.4, M_, A)
                 face.quad(mb, s0, s1, 0, z0 + 0.5, ztop_store - 1.0,
                           S['shop'], {'bcol': bcol, 'win': (rng.random(), 0.0, 0.0, rng.random()), 'wroom': rf})
                 face.box(mb, s0, s1, 0, max(ds, 0.12) + 0.04, ztop_store - 1.0, ztop_store - 0.2, S['metal'], A, caps=False)

@@ -802,7 +802,7 @@ def _reg():
     B['curb'] = lambda n: m_simple(n, (0.33, 0.33, 0.34), rough=0.6, noise_amt=0.3, noise_scale=12.0, bump=0.2)
     B['paint_white'] = lambda n: m_paint_worn(n, (0.62, 0.62, 0.6))
     B['paint_yellow'] = lambda n: m_paint_worn(n, (0.65, 0.45, 0.06))
-    B['bike_green'] = lambda n: m_simple(n, (0.08, 0.25, 0.10), rough=0.7, noise_amt=0.3, noise_scale=1.0)
+    B['bike_green'] = lambda n: m_paint_worn(n, (0.08, 0.25, 0.10))
     B['water'] = m_water
     B['car_paint'] = m_car_paint
     B['cab_yellow'] = lambda n: m_simple(n, (0.85, 0.55, 0.03), rough=0.3, coat=1.0, noise_amt=0.02)
@@ -810,8 +810,8 @@ def _reg():
     B['car_glass'] = lambda n: m_simple(n, (0.01, 0.012, 0.014), rough=0.05, spec=1.0, noise_amt=0.0)
     B['rubber'] = lambda n: m_simple(n, (0.02, 0.02, 0.02), rough=0.8, noise_amt=0.1)
     B['chrome'] = lambda n: m_simple(n, (0.8, 0.8, 0.8), rough=0.12, metal=1.0, noise_amt=0.0)
-    B['headlight'] = lambda n: m_emit(n, (1.0, 0.93, 0.8), 'car_emit', 6.0)
-    B['taillight'] = lambda n: m_emit(n, (1.0, 0.03, 0.01), 'car_emit', 5.0, bsdf_color=(0.4, 0.02, 0.02))
+    B['headlight'] = lambda n: m_emit(n, (1.0, 0.93, 0.8), 'car_emit', 4.0)
+    B['taillight'] = lambda n: m_emit(n, (1.0, 0.03, 0.01), 'car_emit', 2.6, bsdf_color=(0.4, 0.02, 0.02))
     B['lamp_emit'] = lambda n: m_emit(n, (1.0, 0.78, 0.5), 'street_emit', 12.0, bsdf_color=(0.9, 0.85, 0.7))
     B['sig_red'] = lambda n: m_emit(n, (1.0, 0.05, 0.02), 'street_emit', 18.0, bsdf_color=(0.3, 0.02, 0.02))
     B['sig_green'] = lambda n: m_emit(n, (0.1, 1.0, 0.55), 'street_emit', 14.0, bsdf_color=(0.02, 0.2, 0.1))

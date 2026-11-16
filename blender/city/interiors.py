@@ -489,6 +489,98 @@ def r_fire_escape(mb, rng):
         mb.poly(q[::-1], M)
 
 
+def _shop_shell(mb, wall_d=D):
+    shell(mb, depth=wall_d, h=H)
+    for y in (0.7, 1.9, 3.1):
+        for x in (-0.55, 0.55):
+            mb.box(x - 0.08, x + 0.08, y - 0.08, y + 0.08, H - 0.03, H - 0.01, LAMP)   # downlights
+
+
+def r_cafe(mb, rng):
+    _shop_shell(mb)
+    B(mb, -W, 0.2, D - 1.6, D - 1.0, 0, 1.05, WOOD)                 # counter
+    B(mb, -W, 0.25, D - 1.65, D - 0.95, 1.05, 1.1, DARK)
+    B(mb, -0.7, -0.35, D - 1.45, D - 1.15, 1.1, 1.5, METAL)          # espresso machine
+    B(mb, -W, W, D - 0.05, D, 1.6, 2.4, DARK)                       # menu board
+    mb.quad((-0.9, D - 0.051, 1.65), (0.9, D - 0.051, 1.65), (0.9, D - 0.051, 2.35), (-0.9, D - 0.051, 2.35), BOOK, None)
+    B(mb, -W, W, D - 0.4, D, 0.9, 1.4, BOOK)                        # back shelf with cups / bags
+    for y in (0.6, 1.6):                                             # window bar + stools
+        B(mb, -0.95, 0.95, y, y + 0.35, 1.0, 1.05, WOOD)
+        for x in (-0.6, 0.0, 0.6):
+            chair(mb, x, y - 0.3, 1, m=DARK)
+    for x in (-0.4, 0.4):
+        pendant(mb, x, D - 1.3, z=2.2)
+    person(mb, -0.3, D - 0.7, rot=math.pi)
+    person(mb, 0.4, 0.3, rot=0.2)
+
+
+def r_grocery(mb, rng):
+    _shop_shell(mb)
+    for x0 in (-W, W - 0.6):                                         # glowing fridges
+        B(mb, x0, x0 + 0.6, 1.4, D - 0.1, 0, 2.1, METAL)
+        q = (x0 + 0.6 + 0.001) if x0 < 0 else (x0 - 0.001)
+        pts = [(q, 1.45, 0.1), (q, D - 0.15, 0.1), (q, D - 0.15, 2.0), (q, 1.45, 2.0)]
+        mb.poly(pts if x0 < 0 else pts[::-1], SCREEN)
+    for y in (0.4, 1.0):                                             # produce crates at the window
+        for i in range(5):
+            x = -0.9 + i * 0.38
+            B(mb, x, x + 0.34, y, y + 0.45, 0.45, 0.62, WOOD)
+            B(mb, x + 0.03, x + 0.31, y + 0.03, y + 0.42, 0.62, 0.72, rng.choice((BOOK, PLANT, FAB)))
+        B(mb, -0.95, 0.95, y, y + 0.45, 0, 0.45, WOOD)
+    B(mb, -0.3, 0.3, 2.0, D - 0.5, 0, 1.5, WOOD)                    # centre gondola
+    for z in (0.4, 0.8, 1.2):
+        B(mb, -0.33, 0.33, 2.0, D - 0.5, z, z + 0.25, BOOK)
+    person(mb, 0.6, 2.4, rot=math.pi / 2)
+
+
+def r_clothing(mb, rng):
+    _shop_shell(mb)
+    for x in (-0.55, 0.55):                                          # mannequins in the window
+        person(mb, x, 0.5, rot=0.0)
+    for y in (1.6, 2.6, 3.6):                                        # rails with garments
+        B(mb, -0.8, 0.8, y - 0.01, y + 0.01, 1.55, 1.58, METAL)
+        x = -0.78
+        while x < 0.78:
+            w = rng.uniform(0.04, 0.09)
+            B(mb, x, x + w, y - 0.2, y + 0.2, 0.75, 1.55, FAB)
+            x += w + 0.015
+    B(mb, -W, W, D - 0.3, D, 0, 2.4, WALL)
+    B(mb, -0.6, 0.6, D - 0.05, D, 0.4, 2.2, METAL)                  # mirror
+    B(mb, -0.5, 0.5, 1.0, 1.3, 0, 0.9, WOOD)                        # display table
+    B(mb, -0.45, 0.45, 1.05, 1.25, 0.9, 1.0, FAB)
+
+
+def r_pharmacy(mb, rng):
+    _shop_shell(mb)
+    for x0 in (-W, W - 0.4):
+        B(mb, x0, x0 + 0.4, 0.8, D - 0.2, 0, 2.0, CEIL)
+        for z in (0.3, 0.65, 1.0, 1.35, 1.7):
+            y = 0.85
+            while y < D - 0.3:
+                w = rng.uniform(0.05, 0.14)
+                B(mb, x0 + 0.03, x0 + 0.37, y, y + w, z, z + rng.uniform(0.1, 0.25), BOOK)
+                y += w + 0.01
+    B(mb, -0.7, 0.7, D - 1.0, D - 0.5, 0, 1.0, CEIL)                 # counter
+    B(mb, -W, W, D - 0.05, D, 2.2, 2.6, SCREEN)                     # backlit sign
+    ceiling_panel(mb, 0, 1.2, w=0.8, d=0.4)
+    ceiling_panel(mb, 0, 2.8, w=0.8, d=0.4)
+    person(mb, 0.0, D - 0.3, rot=math.pi)
+
+
+def r_restaurant(mb, rng):
+    _shop_shell(mb)
+    for (x, y) in ((-0.5, 0.8), (0.5, 0.8), (-0.5, 2.3), (0.5, 2.3)):
+        table(mb, x - 0.35, x + 0.35, y - 0.35, y + 0.35, h=0.75)
+        B(mb, x - 0.37, x + 0.37, y - 0.37, y + 0.37, 0.75, 0.76, CEIL)   # tablecloth
+        chair(mb, x, y - 0.55, 1)
+        chair(mb, x, y + 0.55, -1)
+        pendant(mb, x, y, z=2.0)
+    person(mb, -0.5, 1.35, rot=math.pi, sit=True)
+    person(mb, 0.5, 2.85, rot=math.pi, sit=True)
+    B(mb, -W, W, D - 0.5, D, 0, 1.1, WOOD)                           # bar
+    B(mb, -W, W, D - 0.25, D, 1.4, 2.4, BOOK)                        # bottle wall
+
+
 DEFS = [
     ('kitchen', lambda mb, r: r_kitchen(mb, r)),
     ('kitchen_p', lambda mb, r: r_kitchen(mb, r, p=True)),
@@ -506,6 +598,11 @@ DEFS = [
     ('shop', r_shop),
     ('ac', r_ac),
     ('fire_escape', r_fire_escape),
+    ('shop_cafe', r_cafe),
+    ('shop_grocery', r_grocery),
+    ('shop_clothing', r_clothing),
+    ('shop_pharmacy', r_pharmacy),
+    ('shop_restaurant', r_restaurant),
 ]
 INDEX = {n: i for i, (n, f) in enumerate(DEFS)}
 
