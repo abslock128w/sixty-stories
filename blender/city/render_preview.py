@@ -49,6 +49,7 @@ VIEWS = {
     'bus_close': dict(loc=(-1.2, -153.0, 1.6), at=(4.5, -141.0, 1.6), lens=28, exp=0.9),
     'xstreet_close': dict(loc=(-9.0, -95.0, 1.8), at=(-1.0, -84.0, 1.4), lens=30, exp=0.9),
     'truck_close': dict(loc=(-3.5, -119.0, 1.7), at=(0.6, -108.5, 1.6), lens=30, exp=0.9),
+    'brick_close': dict(loc=(-11.0, 111.0, 9.0), at=(-17.0, 116.0, 9.5), lens=35, exp=0.9),
     'k': dict(loc=(150, 700, 420), at=(-40, -250, 80), lens=30),
     'i': dict(loc=(30, 300, 74), at=(0, 381, 73), lens=35),
 }

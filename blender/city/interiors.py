@@ -25,9 +25,10 @@ W, D, H = 1.0, 4.5, 3.78     # half width, depth, ceiling height of a module
 # (name, builder) - index order = rtype
 MODULES = []
 USE_MIX = {
-    'residential': [('kitchen', 3), ('kitchen_p', 1), ('living', 3), ('living_p', 1), ('living_b', 2), ('bedroom', 3),
-                    ('storage', 0.4)],
-    'office': [('office', 5), ('office_p', 2), ('meeting', 1.5), ('corridor', 1), ('storage', 0.5)],
+    'residential': [('kitchen', 2.5), ('kitchen_p', 1), ('kitchen_bl', 1), ('living', 2), ('living_p', 1), ('living_b', 2),
+                    ('living_d', 1.5), ('bedroom', 2), ('bedroom_bl', 1.5), ('storage', 0.4)],
+    'office': [('office', 4), ('office_p', 2), ('office_bl', 2), ('office_bl2', 1.5), ('meeting', 1), ('meeting_bl', 1),
+               ('corridor', 1), ('storage', 0.5)],
     'hotel': [('hotel', 6), ('hotel_p', 1), ('corridor', 0.7)],
 }
 
@@ -589,6 +590,24 @@ def r_restaurant(mb, rng):
     B(mb, -W, W, D - 0.25, D, 1.4, 2.4, BOOK)                        # bottle wall
 
 
+def venetian(mb, rng, frac):
+    """Venetian blind slats just inside the glass, lowered to `frac` of the window height."""
+    z1 = H - 0.25
+    z0 = z1 - frac * (H - 1.1)
+    z = z1
+    while z > z0:
+        mb.box(-W + 0.04, W - 0.04, 0.06, 0.1, z - 0.012, z, CEIL)
+        z -= 0.05
+    mb.box(-W + 0.02, W - 0.02, 0.05, 0.12, z1, z1 + 0.06, METAL)
+
+
+def roller(mb, rng, frac, mat):
+    z1 = H - 0.25
+    mb.quad((-W + 0.05, 0.08, z1 - frac * (H - 1.1)), (W - 0.05, 0.08, z1 - frac * (H - 1.1)), (W - 0.05, 0.08, z1),
+            (-W + 0.05, 0.08, z1), mat, None)
+    mb.box(-W + 0.03, W - 0.03, 0.06, 0.12, z1, z1 + 0.08, METAL)
+
+
 DEFS = [
     ('kitchen', lambda mb, r: r_kitchen(mb, r)),
     ('kitchen_p', lambda mb, r: r_kitchen(mb, r, p=True)),
@@ -606,6 +625,12 @@ DEFS = [
     ('shop', r_shop),
     ('ac', r_ac),
     ('fire_escape', r_fire_escape),
+    ('living_d', lambda mb, r: (r_living(mb, r), drapes(mb, r))),
+    ('kitchen_bl', lambda mb, r: (r_kitchen(mb, r), roller(mb, r, 0.45, FAB))),
+    ('office_bl', lambda mb, r: (r_office(mb, r), venetian(mb, r, 0.55))),
+    ('office_bl2', lambda mb, r: (r_office(mb, r, p=True), venetian(mb, r, 0.25))),
+    ('meeting_bl', lambda mb, r: (r_meeting(mb, r), venetian(mb, r, 0.8))),
+    ('bedroom_bl', lambda mb, r: (r_bedroom(mb, r), roller(mb, r, 0.7, WALL))),
     ('shop_cafe', r_cafe),
     ('shop_grocery', r_grocery),
     ('shop_clothing', r_clothing),
