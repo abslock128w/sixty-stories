@@ -32,6 +32,7 @@ import signage as SG  # noqa: E402
 import extras as EX  # noqa: E402
 import vehicles as VH  # noqa: E402
 import extras2 as X2  # noqa: E402
+import vehicles2 as VH2  # noqa: E402
 from cutil import MB, new_object, get_collection  # noqa: E402
 
 OUT = os.path.join(ROOT, "blender", "out")
@@ -279,6 +280,7 @@ def main():
     ST.build_markings(cols, rng)
     SG._atlas(os.path.join(OUT, "city_tex"))
     VH.register([a for a in SG.INFO if 2.0 <= a['aspect'] <= 3.0][:2])
+    VH2.register([a for a in SG.INFO if 2.0 <= a['aspect'] <= 3.0][:2])
     sigs = SL.place_street_furniture(cols, specs, rng)
     SL.build_awnings_and_sheds(cols, specs, rng)
     SL.place_steam(cols, rng)

@@ -332,9 +332,9 @@ def _cluster(name, L, W, belt, mats, front):
                max(y - sy * 0.45, y - sy * 0.05), z0 + 0.01, z1 - 0.01, lens)
         if not front:   # amber indicator + clear reverse lamp strip
             mb.box(x0 + 0.03, x0 + 0.12 if s_ > 0 else x0 + 0.12, min(y + 0.007, y - 0.05), max(y + 0.007, y - 0.05),
-                   z0 + 0.025, z1 - 0.025, 13)
+                   z0 + 0.025, z1 - 0.025, 10)
         else:   # DRL strip
-            mb.box(x0 + 0.03, x1 - 0.03, min(y + 0.008, y - 0.05), max(y + 0.008, y - 0.05), z1 - 0.035, z1 - 0.02, 12)
+            mb.box(x0 + 0.03, x1 - 0.03, min(y + 0.008, y - 0.05), max(y + 0.008, y - 0.05), z1 - 0.035, z1 - 0.02, 11)
     return _bevelled(mb, name + ("_hl" if front else "_tl"), mats, 0.012, 2)
 
 
@@ -345,13 +345,13 @@ def _cabin(mb, L, W, belt, roof, hood, trunk, driver=True):
     mb.box(-w * 0.8, w * 0.8, yd - 0.3, yd, belt - 0.25, belt + 0.02, DARK)
     ys = yd - 0.95
     for x in (-w * 0.45, w * 0.45):
-        mb.box(x - 0.25, x + 0.25, ys - 0.25, ys + 0.25, belt - 0.55, belt - 0.4, 14)
-        mb.box(x - 0.24, x + 0.24, ys - 0.32, ys - 0.2, belt - 0.4, belt + 0.25, 14)
-        mb.box(x - 0.12, x + 0.12, ys - 0.3, ys - 0.22, belt + 0.25, belt + 0.38, 14)
+        mb.box(x - 0.25, x + 0.25, ys - 0.25, ys + 0.25, belt - 0.55, belt - 0.4, 12)
+        mb.box(x - 0.24, x + 0.24, ys - 0.32, ys - 0.2, belt - 0.4, belt + 0.25, 12)
+        mb.box(x - 0.12, x + 0.12, ys - 0.3, ys - 0.22, belt + 0.25, belt + 0.38, 12)
     yr = ys - 0.9
     if yr > -L / 2 + trunk:
-        mb.box(-w * 0.8, w * 0.8, yr - 0.25, yr + 0.25, belt - 0.55, belt - 0.4, 14)
-        mb.box(-w * 0.8, w * 0.8, yr - 0.32, yr - 0.2, belt - 0.4, belt + 0.2, 14)
+        mb.box(-w * 0.8, w * 0.8, yr - 0.25, yr + 0.25, belt - 0.55, belt - 0.4, 12)
+        mb.box(-w * 0.8, w * 0.8, yr - 0.32, yr - 0.2, belt - 0.4, belt + 0.2, 12)
     # steering wheel (left-hand drive: driver on -x)
     xw = -w * 0.45
     n = 12
@@ -363,10 +363,10 @@ def _cabin(mb, L, W, belt, roof, hood, trunk, driver=True):
                max(p0[2], p1[2]) + 0.015, DARK)
     if driver:
         x = xw
-        mb.box(x - 0.2, x + 0.2, ys - 0.2, ys + 0.05, belt - 0.4, belt + 0.2, 15)     # torso
-        cyl(mb, x, ys - 0.07, belt + 0.22, belt + 0.45, 0.09, 0.085, n=10, mat=16)   # head
+        mb.box(x - 0.2, x + 0.2, ys - 0.2, ys + 0.05, belt - 0.4, belt + 0.2, 13)     # torso
+        cyl(mb, x, ys - 0.07, belt + 0.22, belt + 0.45, 0.09, 0.085, n=10, mat=14)   # head
         for sx in (-1, 1):                                                         # arms to the wheel
-            mb.box(x + sx * 0.18 - 0.04, x + sx * 0.18 + 0.04, ys, yd - 0.4, belt + 0.02, belt + 0.1, 15)
+            mb.box(x + sx * 0.18 - 0.04, x + sx * 0.18 + 0.04, ys, yd - 0.4, belt + 0.02, belt + 0.1, 13)
 
 
 def car(name, kind, L, W, paint='car_paint', roof_sign=False):
@@ -384,7 +384,7 @@ def car(name, kind, L, W, paint='car_paint', roof_sign=False):
     mb = MB()
     _cabin(mb, L, W, belt, roofz, hood, trunk, driver=True)
     mb.quad((-W / 2 - 0.25, -L / 2 - 0.3, 0.012), (W / 2 + 0.25, -L / 2 - 0.3, 0.012), (W / 2 + 0.25, L / 2 + 0.3, 0.012),
-            (-W / 2 - 0.25, L / 2 + 0.3, 0.012), mat=17)
+            (-W / 2 - 0.25, L / 2 + 0.3, 0.012), mat=15)
     # door handles, wipers, fuel flap
     w = W / 2
     for yy in (0.05 * L, -0.25 * L):
@@ -412,13 +412,13 @@ def car(name, kind, L, W, paint='car_paint', roof_sign=False):
     return me_det
 
 
-def _livery_quad(mb, x, y0, y1, z0, z1, side, ad):
+def _livery_quad(mb, x, y0, y1, z0, z1, side, ad, mat=10):
     u0, v0, u1, v1 = ad['uv']
     if side > 0:
         pts = [(x, y0, z0), (x, y1, z0), (x, y1, z1), (x, y0, z1)]
     else:
         pts = [(x, y1, z0), (x, y0, z0), (x, y0, z1), (x, y1, z1)]
-    mb.quad(*pts, mat=10, uv=[(u0, v0), (u1, v0), (u1, v1), (u0, v1)])
+    mb.quad(*pts, mat=mat, uv=[(u0, v0), (u1, v0), (u1, v1), (u0, v1)])
 
 
 def boxtruck(name, L, W, H, cabL, paint, ad=None, step=False):

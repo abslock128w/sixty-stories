@@ -613,7 +613,12 @@ def _paint_layers(nb, col, metal=0.5, rough=0.32):
     p = nb.principled(**{'Base Color': base, 'Metallic': nb.math('MULTIPLY', nb.math('SUBTRACT', 1.0, dirt), metal),
                          'Roughness': nb.math('ADD', rough, nb.math('MULTIPLY', dirt, 0.5)), 'Normal': fn.outputs['Normal'],
                          'Coat Weight': nb.math('SUBTRACT', 1.0, dirt), 'Coat Roughness': 0.025})
-    return p
+    # inside of the body shell (seen through the glass) reads as dark trim, not paint
+    inner = nb.principled(**{'Base Color': (0.02, 0.02, 0.022, 1), 'Roughness': 0.8})
+    mx = nb.n('ShaderNodeMixShader', i_Fac=geo.outputs['Backfacing'])
+    nb.link(p.outputs[0], mx.inputs[1])
+    nb.link(inner.outputs[0], mx.inputs[2])
+    return mx
 
 
 def m_car_paint(name):
@@ -639,7 +644,7 @@ def m_car_glass(name):
     nb, m = _new(name)
     fr = nb.n('ShaderNodeLayerWeight', i_Blend=0.3).outputs['Fresnel']
     g = nb.principled(**{'Base Color': (0.01, 0.012, 0.014, 1), 'Roughness': 0.03, 'Specular IOR Level': 1.0})
-    tr = nb.n('ShaderNodeBsdfTransparent', i_Color=(0.42, 0.46, 0.46, 1))
+    tr = nb.n('ShaderNodeBsdfTransparent', i_Color=(0.22, 0.25, 0.25, 1))
     mx = nb.n('ShaderNodeMixShader', i_Fac=nb.math('MINIMUM', nb.math('MULTIPLY_ADD', fr, 1.4, 0.35), 1.0))
     nb.link(tr.outputs[0], mx.inputs[1])
     nb.link(g.outputs[0], mx.inputs[2])

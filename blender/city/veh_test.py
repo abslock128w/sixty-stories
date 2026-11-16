@@ -10,6 +10,8 @@ sc.render.engine = 'CYCLES'
 lighting.setup_lighting(sc, 0.0, haze=False)
 SG._atlas(os.path.join(HERE, "..", "out", "city_tex"))
 VH.register([a for a in SG.INFO if 2.0 <= a['aspect'] <= 3.0][:2])
+import vehicles2 as VH2
+VH2.register([a for a in SG.INFO if 2.0 <= a['aspect'] <= 3.0][:2])
 col = bpy.data.collections.new("T"); sc.collection.children.link(col)
 g = bpy.data.objects.new("ground", bpy.data.meshes.new("g"))
 g.data.from_pydata([(-50, -50, 0), (50, -50, 0), (50, 50, 0), (-50, 50, 0)], [], [(0, 1, 2, 3)]); g.data.materials.append(MAT.get('asphalt'))

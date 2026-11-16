@@ -337,6 +337,30 @@ def build_facade(mb, face, z0, z1, P, rng, bcol, storefront, ext_end, fl_rand, z
         if curtain and fi % 1 == 0:
             # horizontal transom fins at slab level
             face.box(mb, cw, L - cw, 0, dp * 0.6, fz - 0.06, fz + 0.06, TS, A, caps=False)
+        # ---- upper-facade variation (hash-driven: no RNG consumption) ----
+        hv = hash01(bcol[3], int(P['sh'] * 100), P['style'])
+        if not curtain and fi > 0 and fi % (4 + int(hv * 5)) == 0:
+            # projecting stone belt course every few floors (rhythm differs per building)
+            face.box(mb, -0.05, L + ext, 0, max(dp, ds) + 0.12, fz - 0.12, fz + 0.1, TS, A)
+        if P['ribbon'] and fi % 2 == 0:
+            # precast panel joints on slab facades
+            face.box(mb, 0, L, ds - 0.005, ds + 0.004, sz - 0.42, sz - 0.4, S['metal'], A, caps=False)
+    if not curtain and L > 6 and z1 - z0 > 12 and hash01(bcol[3], 'pipe') < 0.55:
+        # rainwater downpipes with brackets near both ends of the face
+        for sp in (cw * 0.5, L - cw * 0.5):
+            face.box(mb, sp - 0.06, sp + 0.06, max(dp, ds) + 0.02, max(dp, ds) + 0.14, z0 + 0.3, z1 - 0.4, S['metal'], A)
+            zz = z0 + 2.0
+            while zz < z1 - 1:
+                face.box(mb, sp - 0.09, sp + 0.09, max(dp, ds), max(dp, ds) + 0.16, zz, zz + 0.06, S['metal'], A)
+                zz += 3.0
+    if not curtain and rows and hash01(bcol[3], 'attic') < 0.6:
+        # attic storey treatment: heavier sill band and blind (bricked-in) alternate bays at the top
+        fz, sz, hz = rows[-1]
+        face.box(mb, -0.05, L + ext, 0, max(dp, ds) + 0.2, sz - 0.3, sz - 0.05, TS, A)
+        for k in range(1, n, 2):
+            s0_ = cw + k * b + pw / 2
+            s1_ = cw + (k + 1) * b - pw / 2
+            face.box(mb, s0_, s1_, 0, ds + 0.01, sz, hz, WS, A, caps=False)
 
 
 SUBS = [  # street-wall sub-buildings: (wall slot, trim slot, colour, style)
