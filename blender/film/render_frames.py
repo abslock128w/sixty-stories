@@ -225,8 +225,28 @@ def worker(o):
     bpy.ops.wm.open_mainfile(filepath=FILM)
     scene = bpy.context.scene
     r = scene.render
-    r.threads_mode = 'FIXED'
-    r.threads = o['threads']
+    if o['threads'] and int(o['threads']) > 0:
+        r.threads_mode = 'FIXED'
+        r.threads = o['threads']
+    else:
+        r.threads_mode = 'AUTO'
+    if os.environ.get('SIXTY_GPU'):   # local machines: render on the GPU (Metal/OptiX/CUDA)
+        try:
+            cp = bpy.context.preferences.addons['cycles'].preferences
+            for dt in (os.environ['SIXTY_GPU'].upper(), 'METAL', 'OPTIX', 'CUDA', 'HIP', 'ONEAPI'):
+                try:
+                    cp.compute_device_type = dt
+                except Exception:
+                    continue
+                cp.get_devices()
+                if any(d.type == dt for d in cp.devices):
+                    for d in cp.devices:
+                        d.use = True
+                    scene.cycles.device = 'GPU'
+                    print('[render_frames] GPU rendering with', dt, [d.name for d in cp.devices], flush=True)
+                    break
+        except Exception as e:
+            print('[render_frames] GPU setup failed, using CPU:', e, flush=True)
     r.use_persistent_data = True
     r.compositor_device = 'CPU'
     r.resolution_x, r.resolution_y, r.resolution_percentage = o['w'], o['h'], 100
