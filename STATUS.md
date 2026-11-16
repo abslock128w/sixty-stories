@@ -170,3 +170,4 @@ at medium effort. An hourly scheduled task re-wakes the main session; on wake, r
   edits (do not publish from it until the workflow is re-run and builds/tests pass).
   Token discipline: one agent at a time; no big workflows while limits keep hitting.
 - 17:13 UTC: Mac (M5 Air, repo abslock128w/sixty-stories, ./render_mac.sh) CPU-only is ~1.4x the cloud (657 s vs ~950 s/frame); GPU was slower. Split s1: CLOUD renders EVEN frames (render_frames.py --frames 0-46 --stride 2 --threads 4), MAC renders ODD frames (--frames 1-47 --stride 2) and pushes them with git add -f.
+- 17:14 UTC: owner: cloud only (Mac throttles). Cloud back on full s1: render_frames.py --shot s1 --threads 4.
