@@ -188,6 +188,10 @@ def make_lots():
         s.update(id=i, ring=ring, height=h, style=_style_for(r, h, near), seed=r.randrange(1 << 30))
         out.append(s)
     _curate(out)
+    # round 6: a park replaces far-ring lots in this rectangle (ids/seeds of all others unchanged)
+    PX0, PX1, PY0, PY1 = 268.0, 732.0, 905.0, 1335.0
+    out = [s for s in out if not (PX0 - 10 <= (s['lot'][0] + s['lot'][1]) / 2 <= PX1 + 10
+                                  and PY0 - 10 <= (s['lot'][2] + s['lot'][3]) / 2 <= PY1 + 10)]
     return out
 
 

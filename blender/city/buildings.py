@@ -8,7 +8,7 @@ import materials as MAT
 from cutil import MB, hash01
 import layout as LY
 
-SLOTS = ['wall', 'trim', 'window', 'spandrel', 'metal', 'roof', 'shop', 'curtain', 'cw_spandrel', 'blank', 'louvre']
+SLOTS = ['wall', 'trim', 'window', 'spandrel', 'metal', 'roof', 'shop', 'curtain', 'cw_spandrel', 'blank', 'louvre', 'patina']
 S = {k: i for i, k in enumerate(SLOTS)}
 
 BRICK_COLS = [(0.225, 0.090, 0.053), (0.270, 0.120, 0.068), (0.315, 0.188, 0.112), (0.180, 0.075, 0.053),
@@ -100,6 +100,7 @@ def mats_for(P):
         'cw_spandrel': MAT.get('cw_spandrel'),
         'blank': MAT.get('brick') if wall != 'panel' else MAT.get('concrete'),
         'louvre': MAT.get('louvre'),
+        'patina': MAT.get('patina'),
     }
     return [m[k] for k in SLOTS]
 
@@ -620,7 +621,7 @@ def build_crown(mb, crown, top, P, rng, bcol, spec, protos_out):
             pts0 = [(cx + r0 * math.cos(2 * math.pi * k / n + math.pi / 8), cy + r0 * math.sin(2 * math.pi * k / n + math.pi / 8)) for k in range(n)]
             for k in range(n):
                 a, b = pts0[k], pts0[(k + 1) % n]
-                mb.poly([(a[0], a[1], cz), (b[0], b[1], cz), (cx, cy, cz + sh)], S['spandrel'] if P['spandrel'] in ('metal_bronze', 'metal_dark') else S['trim'], None, A)
+                mb.poly([(a[0], a[1], cz), (b[0], b[1], cz), (cx, cy, cz + sh)], S['patina'] if hash01(spec['seed'], 'pat') < 0.4 else (S['spandrel'] if P['spandrel'] in ('metal_bronze', 'metal_dark') else S['trim']), None, A)
             extra = cz - z + sh
         else:
             # pyramid roof
@@ -628,7 +629,7 @@ def build_crown(mb, crown, top, P, rng, bcol, spec, protos_out):
             c4 = [(cx - sx / 2, cy - sy / 2), (cx + sx / 2, cy - sy / 2), (cx + sx / 2, cy + sy / 2), (cx - sx / 2, cy + sy / 2)]
             for k in range(4):
                 a, b = c4[k], c4[(k + 1) % 4]
-                mb.poly([(a[0], a[1], cz), (b[0], b[1], cz), (cx, cy, cz + ph)], S['spandrel'], None, A)
+                mb.poly([(a[0], a[1], cz), (b[0], b[1], cz), (cx, cy, cz + ph)], S['patina'] if hash01(spec['seed'], 'pat') < 0.55 else S['spandrel'], None, A)
             extra = cz - z + ph
     elif crown == 'glass':
         kind = rng.choice(['screen', 'slant', 'mast', 'flat'])
@@ -736,7 +737,7 @@ def build_massing(mb, spec, protos_out, detail):
             for k in range(4):
                 a = (cx + r0 * math.cos(k * math.pi / 2 + math.pi / 4), cy + r0 * math.sin(k * math.pi / 2 + math.pi / 4))
                 b = (cx + r0 * math.cos((k + 1) * math.pi / 2 + math.pi / 4), cy + r0 * math.sin((k + 1) * math.pi / 2 + math.pi / 4))
-                mb.poly([(a[0], a[1], cz), (b[0], b[1], cz), (cx, cy, cz + sh)], 2, None, A)
+                mb.poly([(a[0], a[1], cz), (b[0], b[1], cz), (cx, cy, cz + sh)], 3 if hash01(spec['seed'], 'pat') < 0.5 else 2, None, A)
             cz += sh
         extra = cz - z
     elif crown in ('penthouse', 'glass'):
@@ -763,4 +764,4 @@ def build_massing(mb, spec, protos_out, detail):
 
 
 def far_mats():
-    return [MAT.get('far'), MAT.get('roof'), MAT.get('trim')]
+    return [MAT.get('far'), MAT.get('roof'), MAT.get('trim'), MAT.get('patina')]

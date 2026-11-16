@@ -28,6 +28,8 @@ import streetlife as SL  # noqa: E402
 import landmarks as LM  # noqa: E402
 import horizon as HZ  # noqa: E402
 import protos as PR  # noqa: E402
+import signage as SG  # noqa: E402
+import extras as EX  # noqa: E402
 from cutil import MB, new_object, get_collection  # noqa: E402
 
 OUT = os.path.join(ROOT, "blender", "out")
@@ -280,6 +282,13 @@ def main():
     traffic = SL.place_traffic(cols, sigs, rng)
     peds = SL.place_pedestrians(cols, rng)
     log("street", traffic, "peds", peds, f"{time.time() - t0:.1f}s")
+    log("signage", SG.build(cols, specs, os.path.join(OUT, "city_tex")))
+    EX.build_kiosks()
+    log("street dressing", EX.dress_street(cols, specs))
+    log("vehicles remapped", EX.remap_vehicles(cols['vehicles']))
+    log("park trees", EX.build_park(cols))
+    EX.build_bridges(cols)
+    EX.build_industry(cols)
     HZ.build_horizon(cols)
     log("horizon", f"{time.time() - t0:.1f}s")
     MAT.optimise()

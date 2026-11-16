@@ -469,6 +469,12 @@ def m_far(name):
     estr = nb.math('MULTIPLY', nb.math('MULTIPLY', lit, nb.math('MULTIPLY_ADD', r1, 0.6, 0.6)), wem)
     estr = nb.math('MULTIPLY', estr, nb.mix(style, 1.0, 0.55, dtype='FLOAT'))
     estr = nb.math('MULTIPLY', estr, win)
+    # distance LOD: window grids fade into the wall with distance (kills dot repetition in aerials)
+    lpd = nb.n('ShaderNodeLightPath').outputs['Ray Length']
+    dfade = nb.n('ShaderNodeMapRange', i_Value=lpd, **{'i_From Min': 350.0, 'i_From Max': 2200.0, 'i_To Min': 1.0,
+                                                        'i_To Max': 0.35}).outputs[0]
+    estr = nb.math('MULTIPLY', estr, dfade)
+    win = nb.math('MULTIPLY', win, nb.math('MULTIPLY_ADD', dfade, 0.6, 0.4))
     ecol = nb.ramp(wsep.outputs[2], [(0.0, (1.0, 0.62, 0.30)), (0.55, (1.0, 0.76, 0.48)), (0.8, (0.8, 0.9, 1.0))],
                    interp='CONSTANT')
     # wall: bcol with large-scale noise
