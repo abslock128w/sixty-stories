@@ -11,10 +11,17 @@ reproduction of a protected character), and this must not be worked around: no e
 hero's name, costume, emblem, mask, colour blocking, web pattern or logo anywhere in the
 film, site copy, file names or credits. The owner found the first Vesper (graphite
 tactical suit and helmet) too far from a classic comic-book swinger, so VESPER v2 is a
-bold, colourful, skin-tight costume of our own design: deep cobalt blue with bone-white
-panels and gold-amber piping, a masked head with large expressive mirrored-gold lenses in
-an original swept-blade shape, an original kite/diamond emblem, slim wrist launchers,
-swinging on pale high-tensile lines. Site copy says "an original short film". Loading time is explicitly a non-goal ("5 hours is fine"). Quality is
+bold, colourful, skin-tight costume of our own design. After an independent critique
+(blender/hero/REVIEW_v2_round1.md) found the first v2 too close to stock designs, the
+resolved identity is: Vesper is the evening star and flies on a line the way a kite does.
+Electric cobalt with ink-indigo secondary panels; ONE asymmetric bone-white "sail" over
+the left shoulder and arm with straight taut edges; white pointed bracer and greave
+shards; gold bridle lines from two separate swept kite-shaped gold lenses around a
+sculpted faceplate to the nape and down the spine; an open gold kite emblem with one
+small cool-white "evening star" light at its centre (chest and back); real boots, gloves
+and forearm launchers; the line is a taut pale-gold metal cable with a kite-shaped
+grapnel and a T-handle, never web-like. Poses are an aerialist's: a falconer's kneel on
+the perch, a long open layout at the apex, a blade hand to fire. Site copy says "an original short film". Loading time is explicitly a non-goal ("5 hours is fine"). Quality is
 the only goal. The owner is asleep: nobody can answer questions or approve anything. Never
 stop to ask; decide, note the decision in your final report, and keep going.
 

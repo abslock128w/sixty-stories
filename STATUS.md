@@ -108,3 +108,30 @@ at medium effort. An hourly scheduled task re-wakes the main session; on wake, r
   resumeFromRunId}) : finished agents are cached.
   AFTER the tournament: tell FILM builder to set LOOK='final', rebuild with the final
   hero (v2), tune hero under the look, show stills; orchestrator reviews; launch render.
+- 05:07 UTC: THE 5-HOUR USAGE LIMIT WAS HIT (reset 06:50 UTC). All three workflows died
+  mid-run; container restarted at 06:52. Lesson: tokens are the scarce resource. From now
+  on (1) get the render running before spending tokens on anything else, (2) keep a
+  background keep-alive watcher running at all times (a watcher keeps the container
+  alive even while the model is blocked; max 2 h each, restart it at every wake-up),
+  (3) right-size workflows.
+- What survived: look candidates cand_a (ember_teal), cand_b (after_rain), cand_d
+  (incumbent), cand_base, all with 7 stills (cand_c never started: dropped); hero v2
+  round 1 + four critiques (blender/hero/REVIEW_v2_round1.md; scores 3-4/10); six site
+  review lenses = 82 unverified findings in tools/dev/site_findings_unverified.json
+  (16 high; e.g. packs need content-hashed names or republishes serve stale packs).
+- 07:00 UTC RUNNING: (a) HERO builder (agent a02bc4576d18c26a5) on v2 round 2 per the
+  resolved direction now in BIBLE.md (asymmetric white sail, indigo third value, gold
+  bridle lines, evening-star light, real gear, metal line, aerialist poses); ~75 min.
+  (b) WORKFLOW look-judging (run wf_e5a12d72-ac2, task wsf5gsw54): 3 judges ->
+  blender/film/looks/final.py + looklab/cand_final -> 3 critics -> optional refine.
+  (c) keep-alive watcher bm4e5ixzb (expires ~08:55 UTC).
+- NEXT, in order: 1. When looks/final.py is signed off: orchestrator sets LOOK='final'
+  in blender/film/shot_settings.py, runs blender/film/build_film.py, and starts the
+  hero-free shot at once: render_frames.py --shot s1 --threads 4 (detached, setsid nohup).
+  2. When the hero lands: review previews; then FILM builder (agent a1484b2a5b9c9b7d8):
+  rebuild with final hero, hero_tune for the new suit, re-frame s2 (falconer kneel) and
+  s6 (layout), line look, fix render_frames.py (charge only the frame in progress; sweep
+  _tmp at start; per-frame lens_mm in telemetry), one still per shot -> orchestrator
+  review -> full detached render. 3. During the render: small site fix workflow using
+  tools/dev/site_findings_unverified.json (fixers verify each item first), then pack,
+  build, check, publish as a private Artifact; republish as passes land.

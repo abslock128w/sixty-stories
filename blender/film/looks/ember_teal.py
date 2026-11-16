@@ -251,7 +251,7 @@ def materials(scene):
 # per shot camera, parented to it (no falloff, so the level does not depend on lens distance),
 # tilted to come from above, light-linked to the HERO collection only and switched on only
 # while its camera is live. Irradiance per shot (W/m^2):
-FILL = {'s1': 0.0, 's2': 1.2, 's3': 1.5, 's4': 4.0, 's5': 5.0, 's6': 4.0}
+FILL = {'s1': 0.0, 's2': 1.2, 's3': 1.5, 's4': 3.0, 's5': 5.0, 's6': 2.2}
 FILL_COLOR = (0.48, 0.72, 1.0)
 FILL_TILT = -0.45   # radians about the camera X axis (negative = from above)
 

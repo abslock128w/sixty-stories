@@ -106,8 +106,9 @@ def build_body_and_rig(sc):
     set_attr(me, 'rest', P, 'FLOAT_VECTOR')
     wrk, wrk_t = wrinkle_fields(P, d['joints'])
     set_attr(me, 'wrk', wrk); set_attr(me, 'wrk_t', wrk_t)
-    wsd = suit_fields.white_field(P, d['joints'], W, flds['lines'][0][0])
+    wsd, ink = suit_fields.sail_fields(P, d['joints'], W, flds['grip'], flds['inner_f'], flds['side_f'])
     set_attr(me, 'white_sd', wsd)
+    set_attr(me, 'ink_f', ink)
     log('fields', round(time.time() - t, 1), 's')
     d['P_final'] = P; d['F_final'] = F; d['W_final'] = W; d['mask'] = md
     return d, body, rig, flds

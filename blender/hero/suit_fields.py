@@ -436,3 +436,86 @@ def white_field(P, J, weights, p1_left):
         f_boot = (zc - Q[:, 2]) * 0.8
         out[idx] = np.maximum(out[idx], f_boot)
     return np.clip(out, -0.08, 0.08)
+
+
+def _seg_sd(px, pz, a, b):
+    """signed distance in the (x, z) plane to the infinite line a->b; + on the left of a->b"""
+    a = np.array(a, float); b = np.array(b, float)
+    d = (b - a) / np.linalg.norm(b - a)
+    return (px - a[0]) * (-d[1]) + (pz - a[1]) * d[0]
+
+
+def sail_fields(P, J, weights, grip, inner_f, side_f):
+    """VESPER v2 round 2 blocking (rest space, metres):
+    white_sd > 0 on bone-white: the asymmetric left 'sail' (left shoulder, pec, scapula,
+    whole left arm and the back of the left hand), a pointed bracer shard on the right
+    outer forearm, a pointed greave shard on each shin.
+    ink_f  > 0.5 on ink indigo: flank blades, inner arms and thighs, palms/finger pads,
+    right hand."""
+    n = len(P)
+    x, y, z = P[:, 0], P[:, 1], P[:, 2]
+    g = lambda pre: sum(weights[k] for k in weights if k.startswith(pre))
+    w_armL = sum(weights[k] for k in weights if k.endswith('.L') and k.startswith(('shoulder01', 'upperarm', 'lowerarm', 'wrist', 'finger', 'metacarpal')))
+    w_armR = sum(weights[k] for k in weights if k.endswith('.R') and k.startswith(('shoulder01', 'upperarm', 'lowerarm', 'wrist', 'finger', 'metacarpal')))
+    w_hand = g(('finger', 'metacarpal'))
+    w_leg = g(('upperleg', 'lowerleg', 'foot', 'toes'))
+    TAIL = (0.168, 0.925)
+    # front edge: right neck base -> left lower ribs -> tail on the left hip (one straight line)
+    f_front = -_seg_sd(x, z, (-0.062, 1.49), TAIL)
+    # back edge: right side of the nape -> left waist -> tail
+    f_back = -_seg_sd(x, z, (-0.048, 1.545), TAIL)
+    yb = np.clip((y - 0.0) / 0.12, 0, 1); yb = yb * yb * (3 - 2 * yb)
+    f_sail = f_front * (1 - yb) + f_back * yb
+    f_sail = np.where(z < TAIL[1] - 0.02, -0.05, f_sail)
+    out = f_sail.copy()
+    # whole left arm white (blend in by weight), back of left hand white, palm dark
+    bl = np.clip((w_armL - 0.15) / 0.5, 0, 1)
+    out = out * (1 - bl) + 0.03 * bl
+    # right arm: cobalt, with a pointed bracer shard on the outer forearm
+    S = 'R'
+    A = np.array(J['lowerarm01.R____head']); B = np.array(J['wrist.R____head'])
+    ax = (B - A); L = np.linalg.norm(ax); ax /= L
+    dors = np.array(J['finger3-1.R____head']) - B
+    outv = np.array([-1.0, 0.0, 0.25]); outv -= ax * outv.dot(ax); outv /= np.linalg.norm(outv)
+    e2 = np.cross(ax, outv)
+    idx = np.nonzero(w_armR > 0.3)[0]
+    Q = P[idx] - A
+    t = Q @ ax / L
+    rr = Q - np.outer(Q @ ax, ax)
+    ang = np.degrees(np.arctan2(rr @ e2, rr @ outv))
+    rad = np.linalg.norm(rr, axis=1)
+    half = np.interp(t, [0.08, 0.30, 0.86, 0.93], [0.0, 30.0, 58.0, 0.0])
+    f_br = np.radians(half - np.abs(ang)) * rad
+    f_br = np.where((t > 0.08) & (t < 0.93), f_br, -0.05)
+    out[idx] = np.where(out[idx] < f_br, f_br, out[idx]) * (w_armR[idx] > 0.5) + out[idx] * (w_armR[idx] <= 0.5)
+    # greaves: pointed shard on each shin, diagonal top, point toward the knee
+    for s, sg in (('L', 1), ('R', -1)):
+        K = np.array(J[f'lowerleg01.{s}____head']); Aa = np.array(J[f'foot.{s}____head'])
+        ax = (K - Aa); L = np.linalg.norm(ax); ax /= L
+        fr = np.array([0.15 * sg, -1.0, 0.0]); fr -= ax * fr.dot(ax); fr /= np.linalg.norm(fr)
+        e2 = np.cross(ax, fr)
+        idx = np.nonzero((np.sign(x) == sg) & (w_leg > 0.4) & (z < 0.62))[0]
+        Q = P[idx] - Aa
+        t = Q @ ax / L
+        rr = Q - np.outer(Q @ ax, ax)
+        ang = np.degrees(np.arctan2(rr @ e2, rr @ fr)) * sg
+        rad = np.linalg.norm(rr, axis=1)
+        # diagonal top: the inner side ends lower than the outer side, point at the knee
+        half = np.interp(t, [0.10, 0.18, 0.55, 0.92], [0.0, 62.0, 48.0, 0.0])
+        cen = np.interp(t, [0.1, 0.92], [8.0, -14.0])
+        f_gr = np.radians(half - np.abs(ang - cen)) * rad
+        f_gr = np.where((t > 0.10) & (t < 0.92), f_gr, -0.05)
+        out[idx] = np.maximum(out[idx], f_gr)
+    # left palm and finger pads dark (white back of the hand)
+    pal = np.clip(grip, 0, 1) * (x > 0)
+    out = np.where(pal > 0.5, np.minimum(out, -0.01), out)
+    white_sd = np.clip(out, -0.08, 0.08)
+    # ---- ink indigo
+    ink = np.zeros(n)
+    ink = np.maximum(ink, np.clip((side_f - 0.35) * 4, 0, 1))
+    limb = np.clip((g(('upperarm', 'lowerarm', 'upperleg', 'lowerleg')) - 0.3) * 3, 0, 1)
+    ink = np.maximum(ink, np.clip((inner_f - 0.2) * 8, 0, 1) * limb)
+    ink = np.maximum(ink, np.clip(grip * 1.5, 0, 1))
+    ink = np.maximum(ink, np.clip((w_armR - 0.3) * 4, 0, 1) * np.clip(w_hand * 3, 0, 1))   # right glove
+    ink = np.where(white_sd > 0, 0.0, ink)
+    return white_sd, ink
