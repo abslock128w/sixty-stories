@@ -436,3 +436,73 @@ New renders in `blender/out/preview/city/`:
 - The sky at the end of the avenue still clips to white.
 - Contact shadows exist only for vehicles, not for street furniture.
 - No light falls on the street from shop interiors, because room surfaces are emission-only.
+
+## 2026-11-16, Pass 03 (CITY_PASS03.md), items 1–3
+
+The `s_street` camera was held fixed. Renders are 1280 px, 64 spp, 4 threads, about 150 s per frame, peak 3.6–3.8 GB, all in `blender/out/preview/city/`.
+
+Scene copies kept before each rebuild:
+- `blender/out/city_pass02.blend`: made by the orchestrator before item 1.
+- `city_pass03.blend`: before the item 1 rebuild.
+- `city_pass04.blend`: before the item 2 rebuild.
+- `city_pass05.blend`: before the item 3 rebuild.
+
+### Item 1: vehicles (`vehicles2.py`)
+
+**What was built**
+- **Cars:** bodies built from clean low-poly cross-section cages, 14→18 points per ring, never collapsed.
+  - Holding loops around every window, Catmull-Clark subdivision level 2 applied at build time.
+  - Glass assigned on cage faces (side windows between pillars, windscreen, rear glass).
+  - Designs: sedan (also used for the town car and the taxi) and crossover (also used for the SUV, hatch and crossover taxi).
+  - Details: mirrors on stalks with chrome glass (no floating blocks); lamp clusters tucked into the body corners; plates; rear diffuser; door handles; seats, dashboard, steering wheel and driver.
+- **Panel van:** curved cab front, side glass at the cab only.
+- **Box truck:** curved high cab with raked windscreen, cargo box with ribs and livery, under-ride bar, chassis, fuel tank.
+- **City bus:** subdivided shell, glazed belt with mullions, front glass panel, destination sign, livery stripe, doors, mirror arms, roof pods, steel disc wheels.
+- **Inside the body:** the inner surface of the shell is dark trim, so it no longer shows paint colour through the glass.
+
+**Visible in `pass03_01_vehicles.png` (vs the previous `overhaul_08`)**
+- Taxis and cars now have curved bodies and raked glass.
+- The truck at the bottom centre has a rounded cab.
+
+**Visible in `pass03_01_car_close.png`**
+- Curved bodies.
+- Tail lamps show only as small lit points; the lamp clusters are mostly inside the body.
+
+### Item 2: materials (`materials.py`)
+
+**What was built**
+- **Brick v2:** running bond with a per-brick colour hash (clinker, light and dark bricks), recessed mortar joints with their own colour, chipped edges, efflorescence bloom, soot.
+- **Concrete:** blotchy value variation, formwork joints at 2.4 x 1.2 m with tie holes, water stains, roughness variation.
+- **`metal_dark` became worn metal:** scratches, rust patches, mild anisotropy.
+- **Asphalt:** larger aggregate, plus darker repair strips along the lanes.
+
+**Visible**
+- `pass03_02_brick_close.png`: individual bricks and mortar are clearly visible on brick piers.
+- `pass03_02_road_close.png`: worn paint and the patched road read.
+- `pass03_02_materials.png` (full street view): no visible change from item 1 at this distance.
+
+**Defects found**
+- Pale speckles on sunlit stone. Direct-light clamp is now set to 8 to tame them; I have not confirmed the fix.
+- A crossover tailgate-glass glitch. Fixed in the item 3 build, but not checked in a close-up.
+
+### Item 3: interiors (`interiors.py`)
+
+**What was built**
+- New window-treatment variants added to the room mix:
+  - Living room with drapes.
+  - Kitchen with a roller blind 45% down.
+  - Office with venetian blinds at 55% and 25%.
+  - Meeting room with blinds at 80%.
+  - Bedroom with a roller blind.
+- Already present from round 5: lit/unlit mix, warm/cool tints, furniture, people, office desks, monitors and ceiling panels.
+
+**Visible**
+- `pass03_03_r_close.png`:
+  - A kitchen with pendant lamps.
+  - Shelving and a TV-lit living room.
+  - Coloured walls.
+  - The camera now frames a different building, because the street-wall subdivision changed what stands at that spot.
+- `pass03_03_r_office.png`:
+  - Glass office floors with desks, monitors, plants and ceiling lights.
+  - Some floors show blinds partly lowered.
+- `pass03_03_interiors.png` (full street view): no visible change from item 2 at this distance.

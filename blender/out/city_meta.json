@@ -27574,8 +27574,8 @@
   }
  ],
  "counts": {
-  "objects": 15135,
-  "meshes": 597,
+  "objects": 15141,
+  "meshes": 603,
   "materials": 97,
   "buildings": {
    "near": 130,
@@ -27656,7 +27656,7 @@
    "ferry": 5,
    "tug": 4
   },
-  "polygons": 1985454
+  "polygons": 1988050
  },
  "light_ctrl": {
   "object": "LIGHT_CTRL",
