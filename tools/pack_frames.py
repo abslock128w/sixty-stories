@@ -2,7 +2,7 @@
 
 Reads   <frames>/color/f_%04d.png + <frames>/depth/f_%04d.png  (any subset)
         <shots>  (shots.json from the film render)
-Writes  <out>/manifest.json + <out>/pack-NNN.bin  (each pack <= --max-mb)
+Writes  <out>/manifest.json + <out>/pack-NNN.wasm  (each pack <= --max-mb)
 
 Colour -> lossy WebP (quality --quality, method 6); depth -> lossless WebP (or --depth-quality).
 Encoded frames are cached in --cache keyed by source size+mtime+settings, so re-packing after
@@ -120,7 +120,7 @@ def main():
     def flush():
         nonlocal cur, cur_len
         if not cur: return
-        name = f"pack-{len(packs):03d}.bin"
+        name = f"pack-{len(packs):03d}.wasm"
         atomic_write(os.path.join(a.out, name), b"".join(cur))
         packs.append(name); cur, cur_len = [], 0
 
@@ -133,7 +133,7 @@ def main():
     flush()
 
     for f in os.listdir(a.out):
-        if re.match(r"^pack-\d{3}\.bin$", f) and f not in packs:
+        if re.match(r"^pack-\d{3}\.wasm$", f) and f not in packs:
             os.remove(os.path.join(a.out, f))
 
     manifest = dict(

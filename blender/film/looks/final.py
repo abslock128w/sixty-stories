@@ -10,11 +10,12 @@ forward-scattering, so it glows gold only along the sun line. On top of that thi
   * designs one sky arc for the evening (look_zen/hor/gzmax/cov per shot): gold with a cool
     blue overhead (s1-s4), a lavender-to-peach slot (s5), peach under a violet top with pink
     cloud (s6 apex), cobalt with a wide ember band and pink-violet cloud (end plate);
-  * gives the hero a consistent, motivated rig: a sun-direction gold kicker (light-linked to
-    the hero only), the winner's cool sky fill a stop lower, and a warm bounce from the sunlit
+  * gives the hero a consistent, motivated rig: a gold kicker per shot, parented to the shot
+    camera with a fixed sun-side direction (light-linked to the hero only), the winner's cool sky fill a stop lower, and a warm bounce from the sunlit
     canyon floor in the swing and the slot;
-  * tames the optics: tapered (no hard-ended) anamorphic streak, soft ghosts, bloom keyed per
-    shot (wider at the opener, low at the apex so the hero stays a dense silhouette);
+  * tames the optics: bloom fed from a clamped source (the sun disc does not carry the veil),
+    strength and threshold keyed per shot; tapered anamorphic streak; soft ghosts, none in s6;
+  * end-plate aerial perspective keyed on a cleaned depth pass (closing + opening + blur);
   * brighter, warmer window cores and street light at dusk, with the dark navy lower third
     kept for the title.
 
@@ -64,6 +65,7 @@ def _k(d, **kw):
 
 # s1: warm-gold air (no green), real gradient up to a cool top, salmon-lit cirrus
 S1 = _k(_k(GOLD, **AERIAL_HAZE), look_skycam=0.88, look_disc=2.2, haze_density=0.00012,
+         **{'street_emit*': 6.0},
          haze_r=0.27, haze_g=0.25, haze_b=0.29, look_gzmax=0.20, look_fill=1.5, look_cov=0.27,
          look_zen_r=0.26, look_zen_g=0.52, look_zen_b=1.40, cloud_g=0.42, cloud_b=0.38,
          look_warmsky=0.6)
@@ -99,9 +101,12 @@ LIGHT = [  # (frame, preset, dusk, exposure offset, overrides)
     (96, 'canyon', 0.0, -0.1, S3), (120, 'canyon', 0.0, 0.1, S3), (143, 'canyon', 0.0, 0.25, S3),
     # s4: +0.3 (not +0.5) so the volume grain sits lower; eases to -0.1 into the sun at the end
     (144, 'canyon', 0.0, 0.3, S4), (200, 'canyon', 0.0, 0.3, S4), (215, 'canyon', 0.0, -0.1, S4),
-    # s5: an even ramp (0.04, then 0.09 stop per frame as the sun comes up the slot), no pump
-    (216, 'canyon', 0.0, -0.4, S5), (240, 'canyon', 0.0, -1.4, S5), (263, 'canyon', 0.0, -3.4, S5),
+    # s5: an even ramp (0.03, then 0.1 stop per frame as the sun comes up the slot), no pump
+    (216, 'canyon', 0.0, -0.4, S5), (244, 'canyon', 0.0, -1.2, S5), (263, 'canyon', 0.0, -3.5, S5),
     (264, 'closeup', 0.15, -0.8, S6a), (296, 'closeup', 0.3, -0.5, S6a),
+    # FILM fix: the pull-back crosses dark rooftops (median luma fell to 8 at 312): lift through
+    (306, 'aerial', 0.42, 0.6, _k(S6b, look_ember=0.3, **{'window_emit*': 1.3})),
+    (312, 'aerial', 0.5, 0.95, _k(S6b, look_ember=0.45, **{'window_emit*': 1.35})),
     (318, 'aerial', 0.6, 0.3, _k(S6b, **{'window_emit*': 1.4, 'street_emit*': 1.2, 'car_emit*': 1.2})),
     (335, 'dusk_wide', 0.95, 0.0, _k(S6c, **{'window_emit*': 1.4, 'street_emit*': 1.0, 'car_emit*': 1.2})),
 ]
@@ -117,6 +122,9 @@ HAZE_MULT = {'ATMO_haze_mat_low': 1.7, 'ATMO_haze_mat_canyon': 3.8}
 # canyon haze multiplier keyed (LINEAR): thins over the last frames of s5 (into the sun) and
 # stays thin through s6 so the apex hero is not veiled
 CANYON_KEYS = [(0, 3.8), (244, 3.8), (263, 1.2), (264, 1.2), (335, 1.2)]
+# low-box multiplier keyed the same way (thin into the sun at the end of s5 and at the apex,
+# back to the full ground haze over the pull-back)
+LOW_KEYS = [(0, 1.7), (244, 1.7), (263, 1.0), (296, 1.0), (318, 1.7), (335, 1.7)]
 
 LOOK_PROPS = ('look_skycam', 'look_zen_r', 'look_zen_g', 'look_zen_b', 'look_hor_r', 'look_hor_g',
               'look_hor_b', 'look_disc', 'look_fill', 'look_gzmax', 'look_cov', 'look_warmsky', 'look_ember')
@@ -162,8 +170,9 @@ def haze(scene):
                 if fc.data_path == path:
                     K._remove_fcurve(nt, fc)
             sock.default_value = mult
-            if name == 'ATMO_haze_mat_canyon':
-                for f, v in CANYON_KEYS:
+            keys = {'ATMO_haze_mat_canyon': CANYON_KEYS, 'ATMO_haze_mat_low': LOW_KEYS}.get(name)
+            if keys:
+                for f, v in keys:
                     sock.default_value = v
                     nt.keyframe_insert(path, frame=f)
                 for fc in K.fcurves(nt):
@@ -573,7 +582,7 @@ TEAL_KEYS = [(0, 0.6), (47, 0.6), (48, 0.5), (95, 0.5), (96, 0.42), (143, 0.42),
 # No ghosts in s6: they mirror the sun through the frame centre, where the apex hero is.
 OPTICS = [(0, 0.55, 0.06, 0.03), (47, 0.55, 0.06, 0.03), (48, 0.15, 0.05, 0.03), (95, 0.15, 0.05, 0.03),
           (96, 0.26, 0.05, 0.03), (215, 0.26, 0.05, 0.03), (216, 0.24, 0.05, 0.03), (263, 0.24, 0.05, 0.03),
-          (264, 0.14, 0.03, 0.0), (296, 0.15, 0.03, 0.0), (318, 0.22, 0.04, 0.0), (335, 0.24, 0.03, 0.0)]
+          (264, 0.24, 0.03, 0.0), (296, 0.24, 0.03, 0.0), (318, 0.22, 0.04, 0.0), (335, 0.24, 0.03, 0.0)]
 # bloom threshold (scene-linear): s1 lower (broad sky halo carries the glow), s2 high (only the
 # hot core of the sky slot blooms, the hero's head stays clean), low on the end plate so the
 # window cores get a small warm halation
@@ -583,7 +592,7 @@ BLOOM_CLAMP = 30.0
 # lifting the far city and fading it toward the local average beyond ~4 km (amount keyed; 0
 # elsewhere). The depth pass is cleaned first (morphological opening + blur): it holds one
 # sample per pixel and is salt-and-pepper under volumes.
-DEPTH_KEYS = [(0, 0.0), (300, 0.0), (318, 0.4), (335, 1.0)]
+DEPTH_KEYS = [(0, 0.0), (300, 0.0), (318, 0.25), (335, 1.0)]
 # warm-highlight amount per shot (luma-masked multiply toward amber)
 WARM_KEYS = [(0, 0.15), (47, 0.15), (48, 0.10), (95, 0.10), (96, 0.6), (143, 0.6), (144, 0.5),
              (215, 0.5), (216, 0.35), (263, 0.35), (264, 0.12), (318, 0.10), (335, 0.0)]
@@ -838,12 +847,60 @@ def compositor(scene, g=None):
             n.location = (-600 + 160 * (i % 12), 300 - 220 * (i // 12))
 
 
+# ------------------------------------------------------------------ FILM fixes (owner: FILM)
+# sun bloom from the UNCLAMPED image, very high threshold so only the disc glows (apex reads
+# as a sun again without veiling the hero); keyed per shot
+SUNGLOW = [(0, 0.0), (263, 0.0), (264, 0.22), (300, 0.22), (318, 0.0), (335, 0.0)]
+# the sun lamp's specular glint on the water reads as a second sun on the pull-back
+GLOSSY_SUN_OFF_FROM = 300
+# haze boxes end at +-15 km: that edge drew a visible line at the horizon on the opener
+HAZE_XY_SCALE = 1.0   # tested 4x and 40x: both drew a hard bright horizon band, so left at the shipped size
+
+
+def film_fixes(scene):
+    for name in ('ATMO_haze_box', 'ATMO_haze_low_box'):
+        ob = bpy.data.objects.get(name)
+        if ob:
+            ob.scale = (HAZE_XY_SCALE, HAZE_XY_SCALE, 1.0)
+    sun = bpy.data.objects.get('SUN')
+    if sun is not None:
+        try:
+            for fc in K.fcurves(sun):
+                if fc.data_path == 'visible_glossy':
+                    K._remove_fcurve(sun, fc)
+            for f, v in ((0, True), (GLOSSY_SUN_OFF_FROM - 1, True), (GLOSSY_SUN_OFF_FROM, False)):
+                sun.visible_glossy = v
+                sun.keyframe_insert('visible_glossy', frame=f)
+            for fc in K.fcurves(sun):
+                if fc.data_path == 'visible_glossy':
+                    for kp in fc.keyframe_points:
+                        kp.interpolation = 'CONSTANT'
+        except Exception as e:  # noqa
+            K.log('visible_glossy not keyable:', e)
+
+
+def sun_glow(scene):
+    ng = scene.compositing_node_group
+    out = [n for n in ng.nodes if n.type == 'GROUP_OUTPUT'][0]
+    rl = [n for n in ng.nodes if n.type == 'R_LAYERS'][0]
+    src = out.inputs[0].links[0].from_socket
+    glow = K.glare(ng, 'LOOK_sunglow', Type='Bloom', Quality='High', Threshold=40.0, Smoothness=0.5,
+                   Strength=0.0, Size=0.85, Saturation=1.0)
+    ng.links.new(rl.outputs['Image'], glow.inputs['Image'])
+    _key_socket(ng, glow, 'Strength', SUNGLOW)
+    add = _mix(ng, 'LOOK_add_sunglow', 'ADD', 1.0, src, glow.outputs['Glare'])
+    ng.links.new(add.outputs['Result'], out.inputs[0])
+    K.set_interp(ng, 'LINEAR')
+
+
 def apply(scene):
     K.remove_look_objects()
+    film_fixes(scene)
     key_lighting(scene)
     haze(scene)
     world(scene)
     materials(scene)
     hero_rig(scene)
     compositor(scene)
+    sun_glow(scene)
     lighting.touch(scene)

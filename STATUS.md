@@ -142,3 +142,10 @@ at medium effort. An hourly scheduled task re-wakes the main session; on wake, r
   film.blend + looklab plate, re-check looks/final.py on the new city, then render.
   Owner also suggested downloading a free Spider-Man model: declined (same reason as
   building one; also model sites are not reachable from this machine).
+- ~10:20 UTC: look FINAL (blender/film/looks/final.py, LOOK='final'), city rounds 4-5
+  done (interiors). FILM builder rebuilt film.blend and launched s1 only (PID 9588):
+  `render_frames.py --shot s1 --threads 4`; ~75-90 s/frame. Projected full film ~10.3 h.
+  HERO: builder was STOPPED by the owner side at 07:18; do not relaunch without the
+  owner's say. Owner asked 3x which way to go (continue redesign / revert blue-white /
+  other). Shots s2-s6 wait on that. After s1 finishes: pack + build + publish s1-only
+  cut as a private Artifact so the owner has a link. Keep a keep-alive watcher running.

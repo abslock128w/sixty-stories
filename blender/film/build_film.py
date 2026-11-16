@@ -186,13 +186,13 @@ def place_hero(rig, scene, hero):
             for kp in fc.keyframe_points:
                 kp.interpolation = 'BEZIER'
                 kp.handle_left_type = kp.handle_right_type = 'AUTO'
-    # cuts: the transform must not interpolate across a cut (motion blur)
-    for sh in PL.SHOTS[3:]:
+    # cuts: nothing on the rig (transform or pose) interpolates across a cut, so the
+    # last frame's shutter interval (frame..frame+0.5) never blends toward the next shot
+    for sh in PL.SHOTS[1:]:
         for fc in _fcurves(rig):
-            if fc.data_path in ('location', 'rotation_quaternion'):
-                for kp in fc.keyframe_points:
-                    if abs(kp.co.x - (sh['start'] - 1)) < 0.01:
-                        kp.interpolation = 'CONSTANT'
+            for kp in fc.keyframe_points:
+                if abs(kp.co.x - (sh['start'] - 1)) < 0.01:
+                    kp.interpolation = 'CONSTANT'
 
 
 def add_lines(rig, scene, hero):
@@ -309,6 +309,8 @@ def render_settings(scene):
     scene.frame_start, scene.frame_end = 0, PL.TOTAL - 1
     r.use_motion_blur = True
     r.motion_blur_shutter = 0.5
+    # shutter opens AT the frame: a cut frame never samples the previous shot
+    r.motion_blur_position = 'START'
     r.use_persistent_data = True
     r.film_transparent = False
     try:
@@ -398,11 +400,13 @@ def shots_json(scene, rig, hero, cams):
         if sh['id'] == 's1':
             loc = c['loc']
             v = (loc[min(k + 1, len(loc) - 1)] - loc[max(k - 1, 0)]) / (2 / 24.0) if len(loc) > 1 else 0
-            tele.append(dict(i=i, altitude_m=round(float(loc[k][2]), 1), speed_kmh=round(float(np.linalg.norm(v) * 3.6), 1)))
+            tele.append(dict(i=i, altitude_m=round(float(loc[k][2]), 1), speed_kmh=round(float(np.linalg.norm(v) * 3.6), 1),
+                             lens_mm=round(float(c['lens'][k]), 1)))
         else:
             vv = V[i] if i >= 96 else np.zeros(3)
             tele.append(dict(i=i, altitude_m=round(float(P[i][2] if i >= 96 else PL.PERCH[2]), 1),
-                             speed_kmh=round(float(np.linalg.norm(vv) * 3.6), 1)))
+                             speed_kmh=round(float(np.linalg.norm(vv) * 3.6), 1),
+                             lens_mm=round(float(c['lens'][k]), 1)))
         scene.frame_set(i)
         ev = rig.evaluated_get(bpy.context.evaluated_depsgraph_get())
         mw = ev.matrix_world

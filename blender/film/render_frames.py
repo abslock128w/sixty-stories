@@ -121,39 +121,86 @@ def log(msg):
 
 
 # ===================================================================== supervisor
+def sweep_tmp():
+    """Remove leftovers of killed runs: blender/out/frames/_tmp/* and depth|color/*.tmp.png."""
+    import shutil
+    n = 0
+    if os.path.isdir(TMP):
+        for x in os.listdir(TMP):
+            p = os.path.join(TMP, x)
+            shutil.rmtree(p) if os.path.isdir(p) else os.remove(p)
+            n += 1
+    for d in (DEPTH, COLOR):
+        if os.path.isdir(d):
+            for x in os.listdir(d):
+                if x.endswith('.tmp.png'):
+                    os.remove(os.path.join(d, x))
+                    n += 1
+    return n
+
+
+def cur_marker(pid):
+    return os.path.join(TMP, 'worker_%d.cur' % pid)
+
+
 def supervise(o):
+    os.makedirs(TMP, exist_ok=True)
+    log('supervisor: swept %d stale temp files' % sweep_tmp())
     todo = [i for i in frame_order(o) if not done(i)]
     if o['limit']:
         todo = todo[:o['limit']]
     log('supervisor: %d frames to render (order=%s, threads=%d, chunk=%d)' % (len(todo), o['order'], o['threads'], o['chunk']))
     times = []
     fails = {}
+    abandoned = []
     t_start = time.time()
     while True:
-        todo = [i for i in todo if not done(i)]
+        todo = [i for i in todo if not done(i) and i not in abandoned]
         if not todo:
             break
         batch = todo[:o['chunk']]
         cmd = [PY, os.path.abspath(__file__), '--worker', '--list', ','.join(map(str, batch)),
                '--threads', str(o['threads']), '--w', str(o['w']), '--h', str(o['h'])]
         t0 = time.time()
-        rc = subprocess.call(cmd)
+        p = subprocess.Popen(cmd)
+        rc = p.wait()
         n_ok = sum(1 for i in batch if done(i))
         if n_ok:
             times.append(((time.time() - t0) / n_ok, n_ok))
-        for i in batch:
-            if not done(i):
-                fails[i] = fails.get(i, 0) + 1
-        todo = [i for i in todo if fails.get(i, 0) < 3]
+        # charge a failure only to the frame the worker was on when it died
+        mk = cur_marker(p.pid)
+        cur = None
+        if os.path.exists(mk):
+            try:
+                cur = int(open(mk).read().strip())
+            except ValueError:
+                cur = None
+            os.remove(mk)
         if rc != 0:
-            log('worker exited with %d after %d/%d frames' % (rc, n_ok, len(batch)))
-        left = sum(1 for i in todo if not done(i))
+            log('WORKER DIED (exit %d) after %d/%d frames, on frame %s; untouched frames requeued'
+                % (rc, n_ok, len(batch), cur))
+            if cur is not None and not done(cur):
+                fails[cur] = fails.get(cur, 0) + 1
+                if fails[cur] >= 3:
+                    abandoned.append(cur)
+                    log('!!!!! ABANDONING frame %d after 3 failed attempts !!!!!' % cur)
+        else:
+            # clean exit but a frame missing (e.g. outputs not found): charge it
+            for i in batch:
+                if not done(i):
+                    fails[i] = fails.get(i, 0) + 1
+                    if fails[i] >= 3 and i not in abandoned:
+                        abandoned.append(i)
+                        log('!!!!! ABANDONING frame %d after 3 failed attempts !!!!!' % i)
+        left = sum(1 for i in todo if not done(i) and i not in abandoned)
         if times:
             spf = sum(t * n for t, n in times) / sum(n for _, n in times)
             log('progress: %d done this run, %d left, %.1f s/frame (incl. load), ETA %.2f h' % (
                 sum(n for _, n in times), left, spf, left * spf / 3600))
-    failed = [i for i, n in fails.items() if n >= 3 and not done(i)]
-    log('supervisor finished in %.2f h; failed frames: %s' % ((time.time() - t_start) / 3600, failed or 'none'))
+    log('supervisor finished in %.2f h; abandoned frames: %s' % ((time.time() - t_start) / 3600, abandoned or 'none'))
+    if abandoned:
+        log('!!!!! %d FRAME(S) ABANDONED: %s; rerun the same command to retry them !!!!!' % (len(abandoned), abandoned))
+        sys.exit(2)
 
 
 # ===================================================================== worker
@@ -192,6 +239,8 @@ def worker(o):
     for i in frames:
         if done(i):
             continue
+        with open(cur_marker(os.getpid()), 'w') as fh:
+            fh.write(str(i))
         sid = shot_of(i)
         st = SS.SHOT[sid]
         c = scene.cycles

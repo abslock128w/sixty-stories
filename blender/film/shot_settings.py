@@ -5,7 +5,7 @@ subsurf:  HERO_body Subdivision render level
 """
 
 # the look module applied by build_film.py as its last step: blender/film/looks/<LOOK>.py
-LOOK = 'incumbent'
+LOOK = 'final'
 
 # look-neutral lighting keys in the plate (frame, lighting preset, dusk); looks re-key all
 NEUTRAL_LIGHT = [(0, 'aerial', 0.0), (47, 'aerial', 0.0), (48, 'closeup', 0.0), (95, 'closeup', 0.0),
