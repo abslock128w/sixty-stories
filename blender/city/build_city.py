@@ -83,7 +83,7 @@ def render_settings(scene):
     c.transmission_bounces = 4
     c.volume_bounces = 1
     c.transparent_max_bounces = 8
-    c.sample_clamp_direct = 0.0
+    c.sample_clamp_direct = 8.0
     c.sample_clamp_indirect = 6.0
     c.caustics_reflective = False
     c.caustics_refractive = False

@@ -198,7 +198,7 @@ def car(name, design, L, W, paint='car_paint', roof_sign=False, driver=True):
     mb.box(-0.26, 0.26, y0 + 0.02, y0 + 0.035, zb + 0.24, zb + 0.35, PLATE)
     mb.box(-w * 0.85, w * 0.85, y0 + 0.03, y0 + 0.3, zb - 0.02, zb + 0.12, DARK)              # rear diffuser
     if roof > 1.65:   # crossover tailgate glass + rear wiper
-        mb.box(-w * 0.7, w * 0.7, y0 + 0.02, y0 + 0.06, belt + 0.1, roof - 0.16, GLASS)
+        mb.box(-w * 0.68, w * 0.68, y0 - 0.002, y0 + 0.012, belt + 0.12, roof - 0.18, GLASS)
         mb.box(-0.02, 0.35, y0 + 0.1, y0 + 0.11, belt + 0.12, belt + 0.14, DARK)
     # mirrors: stalk + rounded housing hugging the A-pillar base (no free-floating blocks)
     ya = [s[0] for s in st if s[4] > s[3] + 0.2][-1] - 0.05
