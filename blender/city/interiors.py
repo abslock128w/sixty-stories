@@ -491,6 +491,12 @@ def r_fire_escape(mb, rng):
 
 def _shop_shell(mb, wall_d=D):
     shell(mb, depth=wall_d, h=H)
+    # fit-out: dark floor tiles, timber / painted panelling on the walls, a dark ceiling band
+    mb.quad((-W, 0.02, 0.004), (W, 0.02, 0.004), (W, wall_d, 0.004), (-W, wall_d, 0.004), DARK, None)
+    for x0, x1 in ((-W, -W + 0.03), (W - 0.03, W)):
+        B(mb, x0, x1, 0.3, wall_d, 0.0, 2.6, FAB)
+    B(mb, -W, W, wall_d - 0.03, wall_d, 0.0, 2.6, WOOD)
+    B(mb, -W, W, 0.0, wall_d, H - 0.6, H - 0.55, DARK)
     for y in (0.7, 1.9, 3.1):
         for x in (-0.55, 0.55):
             mb.box(x - 0.08, x + 0.08, y - 0.08, y + 0.08, H - 0.03, H - 0.01, LAMP)   # downlights

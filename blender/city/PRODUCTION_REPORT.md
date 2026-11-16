@@ -266,3 +266,100 @@ Proofs: `e.png`, `c.png`, and the seven `showcase_*.png` (1280 px, 32 spp, 4 thr
 
 **Vehicle close-up**
 - Still faceted, as noted in Stage 1b.
+
+## 2026-11-16, Realism overhaul (CITY_OVERHAUL.md), priorities 1–4
+
+The `s_street` camera was held fixed throughout. Step renders (1280 px, 64 spp) are in `blender/out/preview/city/`:
+- `overhaul_00_before.png`: the scene before this overhaul, rendered from the committed city at 32 spp.
+- `overhaul_01_facades.png`, `overhaul_03_road.png`, `overhaul_04_storefronts.png`: the same camera after each step.
+- No `overhaul_02` full-view image exists. Vehicles were improved in the same build as facades, so their proofs are `overhaul_02_vehicles_close.png` and `car_close.png`.
+- Close-ups: `car_close.png`, `road_close.png`, `base_close.png`.
+
+### Step 1: facades
+
+**Avenue frontages split into separate sub-buildings** (`buildings.street_wall`)
+- The avenue-facing faces of library lots are split into street-wall buildings 12–28 m wide.
+- Each sub-building has its own style family, wall and trim material (brick, light stone, buff brick, terracotta, glass, panel), colour, storey height and window rhythm.
+- Heights vary: 3 to 14 storeys plus the storefront zone.
+- Each has a cornice and parapet line.
+- Recessed party-wall joints sit between sub-buildings.
+- Above each sub-building, the lot's main tower facade continues.
+- Lot envelopes, tiers and meta values are unchanged.
+
+**Added to sub-buildings**
+- Balconies on some residential sub-buildings: slab plus steel railing with balusters.
+- An entrance canopy and door surround on each.
+
+### Step 2: vehicles
+
+**Cars, taxis, SUVs and pickups**
+- Bodies are rebuilt as two bevelled solids: lower body and greenhouse, 3-segment rounded edges.
+- Tumblehome: the body sides and greenhouse narrow toward the top.
+- Glass versus paint is assigned by face orientation, so the rounded corners read as A and C pillars.
+- Two-part B pillars.
+- A side character line.
+- Wheel openings are dark half-discs, with the tyres slightly proud of them.
+- Larger tail-lamp units with surrounds.
+
+**Trucks, vans and buses**
+- Bevelled throughout (0.035–0.06 m).
+- Wheel offsets corrected.
+- Livery text is no longer mirrored on the right-hand side.
+
+**Daytime lamps**
+- Tail-lamp and head-lamp intensity reduced.
+
+### Step 3: road
+
+**Asphalt**
+- Cracks are now a sparse, noise-distorted network. The old cellular pattern read as hexagons up close.
+- Aggregate speckle.
+- Oil drips down the lane centres.
+- Roughness varies with oil and stone.
+
+**Markings and plates**
+- Road paint (white, yellow and the green bike lane) is worn by tyre paths, with grime.
+- 30 steel road plates.
+
+**Unchanged:** sidewalk material (joints and cracks from stage 1), tactile strips, drains.
+
+### Step 4: storefronts
+
+**Five business interiors behind shop glass**, alternating with the generic shop module
+- Cafe: counter, espresso machine, menu board, window bar with stools, pendants, staff and customer.
+- Grocer: glowing fridges, produce crates at the window, centre shelving unit.
+- Clothing: mannequins in the window, rails of garments, mirror, display table.
+- Pharmacy: white shelving packed with products, counter, back-lit sign.
+- Restaurant: tables with cloths, pendants, seated diners, bar and bottle wall.
+
+**Shop fit-out**
+- Dark tiled floors, panelled side walls, timber back wall, ceiling band, downlights.
+
+**Masonry storefront frames**
+- Metal frames with jambs, transom bar, centre mullion, and a recessed door every third bay.
+
+### Still looks procedural (honest)
+
+**Main facades above the street wall**
+- Still repeated pier-and-window grids per building.
+- No exterior pipes, structural beams or panel joints as geometry.
+
+**People**
+- Pedestrians and the figures inside rooms are blocky low-poly shapes.
+
+**Vehicles**
+- Read as toys up close: simple wheel discs, no door handles, no interior.
+- Buses and trucks are still boxy.
+
+**Road and sidewalk**
+- Improvements are mostly invisible at `s_street` distance. They show only in the close-ups.
+- Not added: potholes, curb ramps, damaged slab geometry.
+
+**Storefronts at street distance**
+- They read as pale or colour-lit slabs.
+- No outdoor product displays or A-frame signs.
+
+**Not yet done**
+- Lighting (priority 7): the end of the avenue is still over-exposed.
+- Street-object wear (priority 5).
+- Material pass (priority 6).
