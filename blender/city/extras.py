@@ -412,6 +412,14 @@ def dress_street(cols, specs):
             add('bike', (w.fx + w.sx * (LY.HERO_AVE_W / 2 - LY.ROAD_HALF - 0.9), y, ST.SIDEWALK_Z), r.uniform(-0.1, 0.1))
         elif k < 0.68:
             add('barrier', (w.fx + w.sx * 2.5, y, ST.SIDEWALK_Z), math.pi / 2)
+    # motorcycles in traffic gaps and cyclists in the bike lane
+    for k in range(40):
+        add('motorcycle', (r.choice(ST.lane_centres()) + r.uniform(-0.8, 0.8), r.uniform(-1000, 1320), 0.0), r.uniform(-0.05, 0.05))
+    y = -1000.0
+    while y < 1320:
+        if not any(abs(y - yc) < LY.ST_W / 2 + 2 for yc in ys):
+            add('bike_rider', ((ST.BIKE[0] + ST.BIKE[1]) / 2 + r.uniform(-0.3, 0.3), y, 0.0), r.uniform(-0.04, 0.04))
+        y += r.uniform(25, 70)
     # dense walking crowds on both avenue sidewalks
     for side in (-1, 1):
         y = -1000.0

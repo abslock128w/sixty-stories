@@ -27574,7 +27574,7 @@
   }
  ],
  "counts": {
-  "objects": 11740,
+  "objects": 11838,
   "meshes": 505,
   "materials": 89,
   "buildings": {
@@ -27583,10 +27583,10 @@
    "far": 2566
   },
   "instances": {
-   "hvac": 2875,
-   "terrace": 263,
-   "ductrun": 880,
-   "rooftank": 319,
+   "hvac": 2909,
+   "terrace": 244,
+   "ductrun": 879,
+   "rooftank": 305,
    "water_tower": 331,
    "antenna": 83,
    "lamp": 120,
@@ -27615,12 +27615,12 @@
    "bollard": 324,
    "mailbox": 50,
    "kiosk_0": 4,
-   "pp_phone": 393,
-   "pp_stand": 449,
-   "pp_stand_b": 423,
-   "pp_walk_b": 258,
-   "pp_walk_c": 261,
-   "pp_walk_a": 253,
+   "pp_phone": 395,
+   "pp_stand": 446,
+   "pp_stand_b": 421,
+   "pp_walk_b": 255,
+   "pp_walk_c": 266,
+   "pp_walk_a": 254,
    "kiosk_3": 3,
    "kiosk_2": 4,
    "kiosk_1": 7,
@@ -27629,10 +27629,12 @@
    "barrier": 5,
    "cafe": 33,
    "bike": 9,
-   "planter": 21,
-   "flag": 29
+   "motorcycle": 40,
+   "bike_rider": 41,
+   "flag": 52,
+   "planter": 15
   },
-  "polygons": 1502160
+  "polygons": 1515637
  },
  "light_ctrl": {
   "object": "LIGHT_CTRL",

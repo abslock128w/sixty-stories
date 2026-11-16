@@ -269,8 +269,8 @@ def build(cols, specs, out_dir, seed=4321):
         if r.random() < 0.7 and span > 8:
             lit = r.random() < (0.55 if curtain else 0.35)
             ad = picker.pick(0.9, 4.0) if r.random() < 0.65 else picker.pick(0.5, 0.8)
-            hmax = min(16.0, H - zc - 3)
-            h = min(hmax, r.uniform(6, 13), (span * 0.9) / ad['aspect'])
+            hmax = min(10.0, H - zc - 3)
+            h = min(hmax, r.uniform(4.5, 9.5), (span * 0.75) / ad['aspect'])
             if h > 3:
                 yc = r.uniform(ya + h * ad['aspect'] / 2, yb - h * ad['aspect'] / 2) if span > h * ad['aspect'] else (ya + yb) / 2
                 billboard(mb, wall, yc, zc, h, ad, out, lit, r)
@@ -311,6 +311,17 @@ def build(cols, specs, out_dir, seed=4321):
                     y += w + r.uniform(1.0, 4.0)
                 else:
                     y += r.uniform(2, 5)
+        # 3b. small paste-up posters on the base piers (street-level layer)
+        if not curtain and r.random() < 0.6:
+            y = ya + r.uniform(0, 2)
+            for k in range(r.randint(2, 6)):
+                ad = picker.pick(0.6, 0.8)
+                ph = r.uniform(1.1, 1.6)
+                pw_ = ph * ad['aspect']
+                if y + pw_ > yb:
+                    break
+                ad_quad(mb, wall, y, y + pw_, 0.6, 0.6 + ph, P['dp'] + 0.13, PRINT, ad)
+                y += pw_ + r.uniform(0.02, 0.1) if r.random() < 0.7 else pw_ + r.uniform(2, 6)
         # 4. neon words in shop windows
         for k in range(r.randint(0, 2)):
             neon_text(col, wall, r.uniform(ya + 1, yb - 1), r.uniform(1.9, 2.8), r.choice(NEON_WORDS),

@@ -10,9 +10,13 @@ import random
 
 LIB = {
     'prewar': [
-        dict(name='tenement_red', wall='brick', cols=[(0.24, 0.09, 0.05), (0.28, 0.11, 0.06)], use='residential',
+        dict(name='white_stone_bank', wall='limestone', cols=[(0.66, 0.63, 0.57), (0.62, 0.60, 0.55)], use='office',
+             fire_escape=False, ac_p=0.0, lintels=True, cornice=1.6, frames=True, base_trim=True, trim_col=1),
+        dict(name='terracotta_apartments', wall='brick', cols=[(0.50, 0.24, 0.13), (0.46, 0.20, 0.11)], use='residential',
+             fire_escape=True, ac_p=0.15, lintels=True, cornice=1.2, frames=True, base_trim=True),
+        dict(name='tenement_red', wall='brick', cols=[(0.34, 0.12, 0.07), (0.38, 0.14, 0.08)], use='residential',
              fire_escape=True, ac_p=0.22, lintels=True, cornice=1.1, frames=True),
-        dict(name='tenement_buff', wall='brick', cols=[(0.36, 0.28, 0.18), (0.40, 0.31, 0.20)], use='residential',
+        dict(name='tenement_buff', wall='brick', cols=[(0.52, 0.42, 0.28), (0.56, 0.45, 0.30)], use='residential',
              fire_escape=True, ac_p=0.18, lintels=True, cornice=0.9, frames=True),
         dict(name='brown_apartments', wall='brick', cols=[(0.17, 0.10, 0.07), (0.20, 0.12, 0.08)], use='residential',
              fire_escape=False, ac_p=0.12, lintels=True, cornice=1.3, frames=True, terrace=True),
@@ -24,21 +28,29 @@ LIB = {
              fire_escape=True, ac_p=0.05, lintels=True, cornice=0.7, frames=True),
     ],
     'deco': [
-        dict(name='deco_limestone_office', wall='limestone', cols=[(0.44, 0.39, 0.30)], spandrel='metal_bronze',
+        dict(name='red_brick_copper_tower', wall='brick', cols=[(0.40, 0.13, 0.07), (0.36, 0.12, 0.07)], spandrel='terracotta',
+             use='office', frames=True, base_trim=True, patina=True),
+        dict(name='terracotta_deco_hotel', wall='limestone', cols=[(0.58, 0.36, 0.22)], spandrel='metal_bronze', use='hotel',
+             frames=True, base_trim=True, patina=True),
+        dict(name='white_deco_tower', wall='limestone', cols=[(0.64, 0.61, 0.55)], spandrel='metal_dark', use='office',
+             frames=True, base_trim=True),
+        dict(name='deco_limestone_office', wall='limestone', cols=[(0.56, 0.50, 0.40)], spandrel='metal_bronze',
              use='office', frames=True, terrace=True),
         dict(name='deco_brick_office', wall='brick', cols=[(0.30, 0.20, 0.13), (0.34, 0.24, 0.15)], spandrel='terracotta',
              use='office', frames=True),
-        dict(name='deco_hotel', wall='limestone', cols=[(0.47, 0.42, 0.33)], spandrel='metal_dark', use='hotel',
+        dict(name='deco_hotel', wall='limestone', cols=[(0.58, 0.52, 0.42)], spandrel='metal_dark', use='hotel',
              frames=True, terrace=True),
-        dict(name='deco_residential', wall='limestone', cols=[(0.40, 0.33, 0.24)], spandrel='terracotta',
+        dict(name='deco_residential', wall='limestone', cols=[(0.52, 0.44, 0.33)], spandrel='terracotta',
              use='residential', frames=True, ac_p=0.08, terrace=True),
     ],
     'slab': [
-        dict(name='slab_white_office', wall='panel', cols=[(0.50, 0.49, 0.46)], use='office'),
+        dict(name='slab_white_office', wall='panel', cols=[(0.62, 0.61, 0.58)], use='office'),
         dict(name='slab_dark_office', wall='panel', cols=[(0.07, 0.07, 0.08)], use='office'),
         dict(name='slab_residential', wall='panel', cols=[(0.42, 0.38, 0.32)], use='residential', ac_p=0.1, terrace=True),
     ],
     'glass': [
+        dict(name='dark_steel_grid', cols=[(0.05, 0.055, 0.06)], use='office', steel_grid=True),
+        dict(name='green_glass_office', cols=[(0.12, 0.26, 0.22)], use='office'),
         dict(name='glass_blue_office', cols=[(0.16, 0.24, 0.28), (0.12, 0.20, 0.22)], use='office'),
         dict(name='glass_bronze_office', cols=[(0.36, 0.22, 0.11), (0.30, 0.25, 0.18)], use='office'),
         dict(name='glass_condo', cols=[(0.20, 0.27, 0.27), (0.26, 0.28, 0.30)], use='residential', terrace=True),
@@ -76,6 +88,11 @@ def apply(arch, P, bcol):
     P['use'] = arch['use']
     P['ac_p'] = arch.get('ac_p', 0.0) * 0.5
     P['rooms'] = True
+    P['base_trim'] = arch.get('base_trim', False)
+    P['patina'] = arch.get('patina', False)
+    if arch.get('steel_grid'):
+        P['dp'] = 0.45
+        P['pw'] = 0.12
     P['fire_escape'] = arch.get('fire_escape', False)
     P['arch'] = arch['name']
     c = r.choice(arch['cols'])

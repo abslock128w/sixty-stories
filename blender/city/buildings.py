@@ -190,6 +190,15 @@ def build_facade(mb, face, z0, z1, P, rng, bcol, storefront, ext_end, fl_rand, z
     face.box(mb, L - cw, L + ext, 0, dp, z0, z1, wall, A)
     # interior piers
     me_ = P.get('major_every', 0)
+    if storefront and P.get('base_trim') and not curtain:
+        # distinct base (base / middle / top): heavier piers in the base material, plus a string course
+        zbt = z0 + P['gh']
+        face.box(mb, 0, cw + 0.05, 0, dp + 0.12, z0, zbt, S['trim'], A)
+        face.box(mb, L - cw - 0.05, L + ext, 0, dp + 0.12, z0, zbt, S['trim'], A)
+        for k in range(1, n):
+            sk = cw + k * b
+            face.box(mb, sk - pw / 2 - 0.1, sk + pw / 2 + 0.1, 0, dp + 0.12, z0, zbt, S['trim'], A)
+        face.box(mb, 0, L + ext, 0, dp + 0.25, zbt, zbt + 0.45, S['trim'], A)
     for k in range(1, n):
         s = cw + k * b
         if me_ and k % me_ == 0:
@@ -210,6 +219,10 @@ def build_facade(mb, face, z0, z1, P, rng, bcol, storefront, ext_end, fl_rand, z
                 RC['pts'].add(face.pt((s0 + s1) / 2, -0.05, z0), face.n, b - 0.06, 4.5, P['gh'] - 0.3, 'shop',
                               RC['rng'].random(), 0.0, RC['rng'].random() * 0.75, RC['rng'].random() < 0.5)
             if curtain:
+                face.box(mb, s0, s1, 0, 0.14, z0, z0 + 0.45, S['metal'], A, caps=False)          # stall riser
+                face.box(mb, s0, s0 + 0.08, 0, 0.12, z0 + 0.45, ztop_store - 0.6, S['metal'], A)  # bay mullion
+                if k % 3 == 1:
+                    face.box(mb, (s0 + s1) / 2 - 0.5, (s0 + s1) / 2 + 0.5, 0, 0.1, z0 + 0.45, z0 + 2.55, S['metal'], A)
                 face.quad(mb, s0, s1, 0, z0 + 0.1, ztop_store - 0.6,
                           S['shop'], {'bcol': bcol, 'win': (rng.random() * 0.4, 0.0, 0.0, rng.random()), 'wroom': rf})
                 face.box(mb, s0, s1, 0, 0.12, ztop_store - 0.6, ztop_store, S['trim'], A, caps=False)
@@ -621,7 +634,7 @@ def build_crown(mb, crown, top, P, rng, bcol, spec, protos_out):
             pts0 = [(cx + r0 * math.cos(2 * math.pi * k / n + math.pi / 8), cy + r0 * math.sin(2 * math.pi * k / n + math.pi / 8)) for k in range(n)]
             for k in range(n):
                 a, b = pts0[k], pts0[(k + 1) % n]
-                mb.poly([(a[0], a[1], cz), (b[0], b[1], cz), (cx, cy, cz + sh)], S['patina'] if hash01(spec['seed'], 'pat') < 0.4 else (S['spandrel'] if P['spandrel'] in ('metal_bronze', 'metal_dark') else S['trim']), None, A)
+                mb.poly([(a[0], a[1], cz), (b[0], b[1], cz), (cx, cy, cz + sh)], S['patina'] if (P.get('patina') or hash01(spec['seed'], 'pat') < 0.4) else (S['spandrel'] if P['spandrel'] in ('metal_bronze', 'metal_dark') else S['trim']), None, A)
             extra = cz - z + sh
         else:
             # pyramid roof
@@ -629,7 +642,7 @@ def build_crown(mb, crown, top, P, rng, bcol, spec, protos_out):
             c4 = [(cx - sx / 2, cy - sy / 2), (cx + sx / 2, cy - sy / 2), (cx + sx / 2, cy + sy / 2), (cx - sx / 2, cy + sy / 2)]
             for k in range(4):
                 a, b = c4[k], c4[(k + 1) % 4]
-                mb.poly([(a[0], a[1], cz), (b[0], b[1], cz), (cx, cy, cz + ph)], S['patina'] if hash01(spec['seed'], 'pat') < 0.55 else S['spandrel'], None, A)
+                mb.poly([(a[0], a[1], cz), (b[0], b[1], cz), (cx, cy, cz + ph)], S['patina'] if (P.get('patina') or hash01(spec['seed'], 'pat') < 0.55) else S['spandrel'], None, A)
             extra = cz - z + ph
     elif crown == 'glass':
         kind = rng.choice(['screen', 'slant', 'mast', 'flat'])
