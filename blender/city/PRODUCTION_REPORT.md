@@ -506,3 +506,75 @@ Scene copies kept before each rebuild:
   - Glass office floors with desks, monitors, plants and ceiling lights.
   - Some floors show blinds partly lowered.
 - `pass03_03_interiors.png` (full street view): no visible change from item 2 at this distance.
+
+## 2026-11-16, Pass 03 items 4–7
+
+Scene copies: `city_pass06.blend` (before item 4), `city_pass07.blend` (before item 5), `city_pass08.blend` (before item 6).
+
+### Item 4: sidewalks and street objects
+
+**What was built**
+- 36,500 individual concrete flags on the hero-avenue sidewalks, about 1.5 m each:
+  - 8 mm joints.
+  - Per-slab tint.
+  - Random lift; 4% are heaved by 12 mm.
+  - Broom finish, gum spots, stains, occasional cracks (new material `slab_concrete`).
+- Soft contact-shadow decals under hydrants, bins, newsboxes, mailboxes, benches, utility boxes, planters, shelters, kiosks, bollards, meters, cafe sets, lamps, trees and people.
+
+**Also in this build (vehicles)**
+- Vehicle lamp clusters moved out to the body surface. The tail units now read as lit lamp strips with lenses (`pass03_04_road_close.png`).
+- Bus: side skirts, panel seams, wheel-arch lips.
+- Truck: side under-run guards, box rails.
+
+**Visible**
+- `pass03_04_base_close.png`: slab joints are faintly visible on the sidewalk. Shadows sit under the objects.
+- `pass03_04_sidewalks.png`: at `s_street` distance the slabs are not visible.
+
+### Item 5: pedestrians (`people.py`)
+
+**What was built**
+- Eight new figures with a realistic 8-head proportion, subdivided tapered limbs, and an ellipsoid head with hair caps.
+- Clothing variants: jacket, long coat, dress. Shirt, trouser and hair colours vary per instance.
+- Bags and backpacks.
+- Poses: two walking strides, standing, on the phone, waiting with folded arm.
+- They replace all previous pedestrian models (about 2,400 instances).
+
+**Visible**
+- `pass03_05_ped_close.png`: figures show as rounded silhouettes against the shop windows. This close-up was mis-framed (a parked car fills the left); a better pedestrian close-up is still owed.
+- `s_street`: people read as rounder, more natural shapes at the crossings. The change is small but visible.
+
+### Item 6: weathering
+
+**What was built**
+- Rain-wash stain decals under roughly 70% of masonry window sills, 0.5–1.6 m long, streaky.
+- Canyon preset raises `window_frac` to 0.24, so more windows facing the camera are lit.
+
+**Visible**
+- `pass03_06_weathering.png`: slightly more lit windows on the right-hand towers.
+- Sill streaks are not distinguishable at street distance, and only marginally visible in `pass03_06_brick_close.png`.
+
+### Item 7: verification
+
+- `pass03_07_final.png` is the final street view.
+- `pass03_07_before_after.png` stacks `overhaul_00_before` (top) against the final (bottom).
+
+**Visibly better at `s_street`**
+- Vehicles: curved bodies, lamp units.
+- Street-wall buildings: separate brick and stone frontages, balconies, cornices.
+- Less blown-out haze at the end of the avenue.
+- More lit windows.
+- Rounder pedestrians.
+
+**Not visible at `s_street` (honestly)**
+- Brick and concrete material systems.
+- Sidewalk slabs.
+- Sill stains.
+- Most interior detail.
+
+All of these show only in the close-ups.
+
+### Remaining defects
+
+- Pale speckle noise on sunlit stone piers in close-ups. The direct clamp of 8 did not remove it.
+- The left wall at street level is still dark.
+- The sky at the end of the avenue still clips.
