@@ -9,10 +9,10 @@ import protos as PR
 from protos import cyl, _finish as _finish0
 
 
-def _finish(mb, name, mats):
+def _finish(mb, name, mats, bevel=0.0):
     """Weld coincident vertices so smooth-shaded body panels get averaged normals."""
     import bmesh
-    me = _finish0(mb, name, mats)
+    me = _finish0(mb, name, mats, bevel=bevel)
     bm = bmesh.new()
     bm.from_mesh(me)
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)
@@ -137,13 +137,16 @@ def wheel(mb, x, y, r=0.33, w=0.22, side=1):
 
 
 def arch(mb, x, y, r, side):
-    """Dark wheel-well liner just inside the body side above the tyre."""
-    n = 10
-    pts = [(x, y + math.cos(math.pi * k / n) * (r + 0.07), r + math.sin(math.pi * k / n) * (r + 0.07)) for k in range(n + 1)]
-    for a, b in zip(pts[:-1], pts[1:]):
-        q = [a, b, (b[0] - side * 0.25, b[1], b[2]), (a[0] - side * 0.25, a[1], a[2])]
-        mb.poly(q if side < 0 else q[::-1], DARK)
-
+    """Wheel opening: dark half-disc on the body side behind the tyre, with a lip."""
+    n = 14
+    R = r + 0.06
+    xs = x + side * 0.002
+    pts = [(xs, y + math.cos(math.pi * k / n) * R, r + math.sin(math.pi * k / n) * R) for k in range(n + 1)]
+    pts = [(xs, y + R, 0.12)] + pts + [(xs, y - R, 0.12)]
+    mb.poly(pts if side > 0 else pts[::-1], DARK)
+    for a, b in zip(pts[1:-2], pts[2:-1]):   # lip
+        q = [a, b, (b[0] + side * 0.02, b[1] * 1.0, b[2] + 0.03), (a[0] + side * 0.02, a[1], a[2] + 0.03)]
+        mb.poly(q if side > 0 else q[::-1], PAINT)
 
 def details(mb, L, W, prof, front_z, cab=False):
     y1, y0 = L / 2, -L / 2
@@ -161,7 +164,8 @@ def details(mb, L, W, prof, front_z, cab=False):
     zb, zbelt, ztop, pw = _interp(prof, -0.97)
     zt = min(zbelt, ztop) - 0.12
     for s in (-1, 1):
-        mb.box(s * w * 0.6 - 0.22, s * w * 0.6 + 0.22, y0 + 0.03, y0 + 0.1, zt - 0.05, zt + 0.06, TAIL)
+        mb.box(s * w * 0.62 - 0.26, s * w * 0.62 + 0.26, y0 - 0.03, y0 + 0.12, zt - 0.08, zt + 0.07, TAIL)
+        mb.box(s * w * 0.62 - 0.27, s * w * 0.62 + 0.27, y0 - 0.025, y0 + 0.11, zt - 0.09, zt + 0.08, DARK)
     mb.box(-w * 0.9, w * 0.9, y0 - 0.02, y0 + 0.2, zb + 0.05, zb + 0.2, DARK)
     mb.box(-0.26, 0.26, y0 - 0.03, y0 - 0.02, zb + 0.22, zb + 0.33, PLATE)
     # mirrors at the A pillar base
@@ -206,24 +210,101 @@ def _join(me_a, me_b):
     return me_a
 
 
+SPEC = {  # belt, roof, hood length, trunk/bed length, windscreen rake, rear-glass rake, sill z
+    'sedan': (0.92, 1.44, 1.25, 0.95, 0.80, 0.55, 0.30),
+    'hatch': (0.92, 1.48, 0.95, 0.22, 0.75, 0.25, 0.30),
+    'suv': (1.08, 1.76, 1.00, 0.22, 0.62, 0.15, 0.40),
+    'pickup': (1.08, 1.82, 1.40, 1.95, 0.55, 0.08, 0.45),
+}
+
+
+def _extrude_profile(mb, prof, w, mat):
+    """Side profile (y, z) CCW extruded across x in [-w, w] as a closed solid."""
+    n = len(prof)
+    for i in range(n):
+        a, b = prof[i], prof[(i + 1) % n]
+        mb.poly([(w, a[0], a[1]), (w, b[0], b[1]), (-w, b[0], b[1]), (-w, a[0], a[1])], mat)
+    mb.poly([(-w, p[0], p[1]) for p in prof], mat)
+    mb.poly([(w, p[0], p[1]) for p in reversed(prof)], mat)
+
+
+def _bevelled(mb, name, mats, offset, segs=3, glass_rule=False, taper=None):
+    import bmesh
+    me = _finish0(mb, name, mats)
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)
+    if taper:   # (z_from, z_to, scale at z_to): tumblehome / body-side curvature
+        z0, z1, k = taper
+        for v in bm.verts:
+            t = min(1.0, max(0.0, (v.co.z - z0) / (z1 - z0)))
+            v.co.x *= 1.0 - (1.0 - k) * t
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bmesh.ops.bevel(bm, geom=list(bm.edges), offset=offset, segments=segs, affect='EDGES', profile=0.5,
+                    clamp_overlap=True)
+    for f in bm.faces:
+        f.smooth = True
+        if glass_rule:
+            nz, nx, ny = abs(f.normal.z), abs(f.normal.x), abs(f.normal.y)
+            f.material_index = PAINT if (nz > 0.75 or (nx > 0.25 and ny > 0.25) or nz > 0.5 and ny < 0.3) else GLASS
+    bm.to_mesh(me)
+    bm.free()
+    return me
+
+
+def body2(name, kind, L, W, mats):
+    """Lower body + greenhouse as two bevelled solids (clean rounded forms, no pinching)."""
+    belt, roof, hood, trunk, rf, rr, zs = SPEC[kind]
+    y0, y1 = -L / 2, L / 2
+    w = W / 2
+    lower = MB()
+    nose = 0.72 if kind in ('sedan', 'hatch') else 0.85
+    prof = [(y0 + 0.08, zs), (y1 - 0.12, zs), (y1, zs + 0.14), (y1 + 0.02, nose - 0.08), (y1 - 0.12, nose),
+            (y1 - hood * 0.85, belt - 0.02), (y1 - hood, belt), (y0 + trunk, belt), (y0 + 0.12, belt - 0.03),
+            (y0, belt - 0.12), (y0 - 0.02, zs + 0.15)]
+    _extrude_profile(lower, prof, w, PAINT)
+    me_l = _bevelled(lower, name + "_lo", mats, 0.08, 3, taper=(zs + 0.3, belt, 0.95))
+    gh = MB()
+    g0, g1 = y0 + trunk - 0.05, y1 - hood + 0.05
+    gprof = [(g0, belt - 0.05), (g1, belt - 0.05), (g1 - rf, roof), (g0 + rr, roof)]
+    _extrude_profile(gh, gprof, w * 0.9, GLASS)
+    me_g = _bevelled(gh, name + "_gh", mats, 0.07, 3, glass_rule=True, taper=(belt, roof, 0.78))
+    _join(me_l, me_g)
+    import bpy
+    bpy.data.meshes.remove(me_g)
+    # B pillars + roof-rail seam
+    mb = MB()
+    ym = (g0 + rr + g1 - rf) / 2
+    for s_ in (-1, 1):
+        for (za, zb_, xa) in ((belt, (belt + roof) / 2, w * 0.9), ((belt + roof) / 2, roof - 0.06, w * 0.8)):
+            x = s_ * (xa + 0.012)
+            mb.box(min(x, x - s_ * 0.05), max(x, x - s_ * 0.05), ym - 0.05, ym + 0.05, za, zb_, PAINT)
+        # character line along the body side
+        x = s_ * (w * 0.985)
+        mb.box(min(x, x + s_ * 0.012), max(x, x + s_ * 0.012), y0 + 0.4, y1 - 0.5, belt - 0.2, belt - 0.185, DARK)
+    me_p = _finish0(mb, name + "_p", mats)
+    _join(me_l, me_p)
+    bpy.data.meshes.remove(me_p)
+    return me_l
+
+
 def car(name, kind, L, W, paint='car_paint', roof_sign=False):
     import bpy
     mats = list(MATS)
     mats[0] = paint
-    mbb = MB()
-    prof = body(mbb, kind, L, W)
-    me_body = _subdivided(mbb, name, mats, levels=2)
+    prof = _profile(kind)
+    me_body = body2(name, kind, L, W, mats)
     mb = MB()
     r = 0.34 if kind in ('sedan', 'hatch') else 0.40
     for yy in (-L / 2 + L * 0.19, L / 2 - L * 0.18):
         for s in (-1, 1):
-            arch(mb, s * W / 2 * 0.99, yy, r, s)
-            wheel(mb, s * (W / 2 - 0.12), yy, r=r, w=0.22, side=s)
+            arch(mb, s * W / 2 * 0.975, yy, r, s)
+            wheel(mb, s * (W / 2 - 0.09), yy, r=r, w=0.22, side=s)
     details(mb, L, W, prof, 0.7, cab=roof_sign)
     if kind == 'pickup':   # open load bed
         mb.box(-W / 2 + 0.08, W / 2 - 0.08, -L / 2 + 0.15, -0.12 * L / 2 - 0.1, 0.75, 1.075, DARK)
     if roof_sign:
-        zt = _interp(prof, 0.0)[2]
+        zt = SPEC[kind][1]
         mb.box(-0.3, 0.3, -0.08, 0.08, zt, zt + 0.2, SIGN)
         mb.box(-0.32, 0.32, -0.1, 0.1, zt - 0.005, zt + 0.02, DARK)
     me_det = _finish(mb, name, mats)
@@ -278,13 +359,13 @@ def boxtruck(name, L, W, H, cabL, paint, ad=None, step=False):
     mb.box(-w, w, y0 - 0.1, y0 + 0.3, zb - 0.2, zb + 0.05, DARK)
     for yy in (y0 + 1.1, y1 - 0.85):
         for s in (-1, 1):
-            arch(mb, s * w, yy, 0.47, s)
-            wheel(mb, s * (w - 0.15), yy, r=0.47, w=0.28, side=s)
+            arch(mb, s * w * 0.995, yy, 0.47, s)
+            wheel(mb, s * (w - 0.12), yy, r=0.47, w=0.28, side=s)
     mats = list(MATS)
     mats[0] = paint
     mats.append('ad_print')
     mats.append('bus_paint')
-    return _finish(mb, name, mats)
+    return _finish(mb, name, mats, bevel=0.035)
 
 
 def bus(name):
@@ -311,10 +392,10 @@ def bus(name):
     mb.box(-w, w, y1 - 0.05, y1 + 0.1, 0.25, 0.55, DARK)
     for yy in (y0 + 2.6, y1 - 2.4):
         for s in (-1, 1):
-            arch(mb, s * w, yy, 0.5, s)
-            wheel(mb, s * (w - 0.17), yy, r=0.5, w=0.3, side=s)
+            arch(mb, s * w * 0.995, yy, 0.5, s)
+            wheel(mb, s * (w - 0.13), yy, r=0.5, w=0.3, side=s)
     mats = list(MATS) + ['ad_print', 'bus_paint', 'paint_blue', 'sig_amber']
-    return _finish(mb, name, mats)
+    return _finish(mb, name, mats, bevel=0.06)
 
 
 def motorcycle(name, rider=True):

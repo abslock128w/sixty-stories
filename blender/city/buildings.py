@@ -332,6 +332,7 @@ SUBS = [  # street-wall sub-buildings: (wall slot, trim slot, colour, style)
     ('alt_brick', 'alt_stone', (0.55, 0.42, 0.28), 'prewar'), ('alt_terracotta', 'alt_trim', (0.62, 0.40, 0.25), 'deco'),
     ('alt_stone', 'alt_stone', (0.52, 0.47, 0.38), 'deco'), ('alt_brick', 'alt_trim', (0.22, 0.12, 0.09), 'prewar'),
     ('curtain', 'metal', (0.10, 0.12, 0.13), 'glass'), ('alt_stone', 'metal', (0.30, 0.30, 0.31), 'slab'),
+    ('alt_stone', 'alt_trim', (0.74, 0.70, 0.62), 'prewar'), ('alt_brick', 'alt_stone', (0.62, 0.50, 0.34), 'prewar'),
 ]
 
 
@@ -351,7 +352,7 @@ def street_wall(mb, face, z0, z1, P, rng, bcol, fl_rand, spec):
     H = z1 - z0
     for k, (a, b) in enumerate(zip(cuts[:-1], cuts[1:])):
         sub = Face(face.pt(a, 0, 0)[:2], face.pt(b, 0, 0)[:2])
-        if r.random() < 0.25 and len(cuts) > 2 or H < 18:
+        if H < 18:
             hp = H
             P2, bc2 = P, bcol
         else:
@@ -368,12 +369,29 @@ def street_wall(mb, face, z0, z1, P, rng, bcol, fl_rand, spec):
             hp = min(H, P2['gh'] + nst * P2['sh'] + 1.2)
         build_facade(mb, sub, z0, z0 + hp, P2, rng if P2 is P else random.Random(r.randrange(1 << 30)), bc2, True,
                      ext_end=False, fl_rand=fl_rand)
+        if P2 is not P and P2['style'] in ('slab', 'prewar') and r.random() < 0.45:
+            # stacked balconies on alternate bays: slab, steel railing with balusters
+            z = z0 + P2['gh'] + P2['sh']
+            bw = r.uniform(2.2, 3.2)
+            xs_ = [x for x in (sub.L * 0.25, sub.L * 0.5, sub.L * 0.75) if bw / 2 < x < sub.L - bw / 2]
+            while z < z0 + hp - 2.5:
+                for xc in xs_:
+                    sub.box(mb, xc - bw / 2, xc + bw / 2, 0, 1.25, z - 0.18, z, P2.get('trim_slot', S['trim']), {'bcol': bc2})
+                    sub.box(mb, xc - bw / 2, xc + bw / 2, 1.2, 1.25, z + 1.0, z + 1.05, S['metal'], {'bcol': bc2})
+                    for kx in range(int(bw / 0.15) + 1):
+                        xx = xc - bw / 2 + kx * 0.15
+                        sub.box(mb, xx - 0.01, xx + 0.01, 1.22, 1.24, z, z + 1.0, S['metal'], {'bcol': bc2})
+                z += P2['sh']
         if hp < H - 2:
             # cornice + parapet line of the sub-building, then the tower above set back by its own depth
             cp = (P2['dp'] + 0.7)
             sub.box(mb, -0.1, sub.L + 0.1, 0, cp, z0 + hp - 0.6, z0 + hp, P2.get('trim_slot', S['trim']), {'bcol': bc2})
             sub.box(mb, -0.1, sub.L + 0.1, 0, cp + 0.15, z0 + hp, z0 + hp + 0.25, P2.get('trim_slot', S['trim']), {'bcol': bc2})
             build_facade(mb, sub, z0 + hp + 0.25, z1, P, rng, bcol, False, ext_end=False, fl_rand=fl_rand)
+        # entrance canopy with soffit light over the main door of each sub-building
+        xc = sub.L * r.uniform(0.3, 0.7)
+        sub.box(mb, xc - 1.4, xc + 1.4, 0, 2.2, z0 + 3.0, z0 + 3.25, S['metal'], {'bcol': bc2})
+        sub.box(mb, xc - 1.0, xc + 1.0, 0, 0.2, z0, z0 + 2.4, S['metal'], {'bcol': bc2})
         # party-wall joint between sub-buildings
         if k > 0:
             face.box(mb, a - 0.18, a + 0.18, -0.25, max(P['dp'], P2['dp']) + 0.35, z0, z0 + min(hp + 1.5, H), S['blank'],
