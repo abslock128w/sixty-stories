@@ -1,0 +1,82 @@
+# STATUS (orchestrator's running log; newest at bottom)
+
+Owner is asleep; no input possible. Orchestrator = main session. Builders = Opus subagents
+at medium effort. An hourly scheduled task re-wakes the main session; on wake, read this.
+
+## Plan
+1. Phase 1 (parallel): CITY builder -> blender/out/city.blend + city_meta.json;
+   HERO builder -> blender/out/hero.blend + blender/hero/hero_api.py;
+   SITE builder -> site/ (Vite) + tools/pack_frames.py, developed against placeholder frames.
+2. Gate: orchestrator looks at blender/out/preview/{city,hero}; sends fixes back if weak.
+3. Phase 2: FILM builder -> blender/film/*.py, film.blend, shots.json, low-res contact
+   sheets of all 6 shots in blender/out/preview/film. Gate: orchestrator reviews.
+4. Phase 3: detached progressive final render (blender/film/render_frames.py, resumable,
+   stride 8/4/2/1) into blender/out/frames. Meanwhile integrate real frames into the site.
+5. Phase 4: pack frames, build site, QA with Playwright, publish as a private Artifact
+   (page.html + app.js + film packs). Republish as more frames land. Final: disable the
+   hourly scheduled task, zip the dist.
+
+## Log
+- Phase 0 done: toolchain verified, BIBLE.md written, folders created.
+- Hourly scheduled task "Sixty Stories overnight build" (trig_012iqzEYQ2NRCNimsC5iviq8)
+  re-wakes this session. Disable it when the project is finished.
+- Phase 1 launched: CITY, HERO, SITE builders running in background (Opus, medium).
+- IMPORTANT decision: the builder brief for a photoreal Spider-Man was blocked by the
+  safety classifier (no reason given). Not worked around. The hero is now an ORIGINAL
+  character, VESPER (see top of BIBLE.md). Tell the owner plainly in the final report.
+  Do not reintroduce Spider-Man anywhere.
+- SITE builder DONE (21:57 UTC): site works end to end on PLACEHOLDER frames (reviewed
+  screenshots: good). site/public/film + site/dist/film hold placeholder packs. To ship:
+  `/home/user/tools/bl/bin/python tools/pack_frames.py` then `cd site && npm run build`
+  (tests: `npm test`). Tunables: site/src/config.js. Later: effect-strength pass on real
+  frames, move title cards if they cover the hero.
+- 21:51 UTC: sent art direction to CITY (flat aerial light, colour variety, window
+  speckle) and HERO (toy-robot helmet, neck, fabric detail, piping) builders.
+- 22:45 UTC: CITY builder reported (city.blend + city_meta.json exist; perch top centre
+  (-14.55,-287.70,228.00), outward +X; s5 gap centre (0,381,73); lighting API
+  lighting.set_dusk/touch; ~65-125 s/frame est. on 4 threads at 24 spp). Reviewed stills:
+  good base, not yet photoreal. Resumed the same builder (agent a33d0be51224ca7c4) for
+  round 2: canyon Manhattanhenge light, reflective glass, replace cartoon gargoyle,
+  aerial haze. Layout/meta frozen.
+- 22:48 UTC: HERO builder still running; poses sheet looks good, head close-up still weak.
+- 23:05 UTC: HERO builder reported (hero.blend + hero_api.py work; 16 poses; body/poses
+  strong, helmet close-up weak). Resumed same builder (agent a02bc4576d18c26a5) for round
+  2: helmet redesign, neck, boots/armour/harness, render cost. API frozen.
+- 23:05 UTC: FILM builder launched (agent a1484b2a5b9c9b7d8): builds
+  blender/film/build_film.py + render_frames.py, animatic sheets + final-quality stills
+  in blender/out/preview/film, shots.json. It will NOT start the full render itself.
+- 23:40 UTC: CITY round 2 landed (canyon much better, steel prow replaces gargoyle, sun
+  now 2 deg off axis, new ATMO_haze_canyon). Sent CITY a bounded round 3 (black windows,
+  aerial into-sun look) and told FILM about the changes. Forward CITY's LIGHT_CTRL
+  per-shot presets to FILM when they arrive.
+- ~00:15 UTC: CITY round 3 landed and is ACCEPTED/FINAL (haze volumes fixed: aerial and
+  canyon now look cinematic; lighting.apply_preset(scene, name, dusk, frame) with presets
+  canyon/aerial/closeup/dusk_wide). Forwarded to FILM. City builder is finished.
+- ~00:25 UTC: HERO round 2 landed and is ACCEPTED/FINAL (helmet, gaiter, harness, boots,
+  set_detail helper). Forwarded to FILM. Both assets frozen; only FILM builder running.
+- 00:50 UTC: FILM builder reported; stills reviewed and largely APPROVED (very good).
+  Resumed FILM (agent a1484b2a5b9c9b7d8) for a short fix round (s3 pale hero, s5 hero
+  too small, motion-blur stipple) after which IT launches the full detached render:
+  `cd /home/user/sixty && setsid nohup /home/user/tools/bl/bin/python
+  blender/film/render_frames.py --threads 4 > blender/out/frames/render_stdout.log 2>&1
+  < /dev/null &` (resumable; ~76 s/frame, ~7-8 h; log blender/out/frames/render.log).
+  If the render process is ever found dead with frames missing, just relaunch that
+  command (it skips finished frames). Do NOT rebuild film.blend once frames exist.
+- 01:10 UTC: FULL RENDER RUNNING, detached (supervisor PID 15955, own session). FILM
+  builder finished (s3 hero fixed; s5 improved but hero still small ~8% in the tuck:
+  optional polish after the full render = retune s5 camera and re-render only frames
+  216-263). ~7.8 h projected -> done about 09:00 UTC. film.blend is FROZEN.
+- 01:27 UTC: the CONTAINER RESTARTED (disk survived, all processes died, 12 frames were
+  done). Relaunched the render with the same command; it resumed. Expect this to happen
+  again: on every wake-up, check `pgrep -af render_frames` first and relaunch if dead.
+- While rendering: (1) pack + build + publish the site as a private Artifact once the
+  first pass (every 8th frame, 42 frames) is in; republish as more land; (2) resume the
+  SITE builder (agent a6334485397e03f3c) for an effect-strength/title-placement pass on
+  real frames using hero_screen in shots.json.
+- (older note) when FILM reports, review its stills; make sure city/hero round 2 are finished
+  and film.blend is rebuilt from the final assets; then the orchestrator launches the
+  detached progressive render (setsid nohup; watch blender/out/frames/render.log). Then then gate-review blender/out/preview/{city,hero}
+  by looking at the images, send fixes back if weak, then launch the FILM builder.
+- 02:52 UTC: container restarted AGAIN (it had gone idle at ~02:13 after the owner interrupted a browser-screenshot command; render lost ~38 min; 46 frames done). Relaunched render. The container seems to be reclaimed when the session is idle, so always keep a background watcher running. Owner interrupted the site browser-check at 02:10 and has not said why: render is kept alive, but the browser check + publish are ON HOLD until the owner replies. site/dist currently holds 34 real frames (packed 01:59).
+- 03:55 UTC: OWNER IS BACK and gave direction: (1) the hero must be Spider-Man (they rejected Vesper: 'that doesn't look like Spider-Man, and I told you'); (2) keep refining the lighting so it looks crazy. Stopped the Vesper render; its 93 frames are kept in blender/out/frames_v1_vesper (fallback only). blender/out/frames is empty again. Plan: HERO builder converts the suit to classic Spider-Man (API frozen), FILM builder does a dramatic lighting/grade pass, then rebuild film.blend, re-render all 336 frames (keep a background watcher alive!), then site copy -> unofficial fan film, pack, check, publish.
+- 04:00 UTC: Spider-Man conversion REFUSED by the hero builder (protected character) on top of the earlier safety-check block. Do NOT retry or route around it. BIBLE reverted: hero is original VESPER v2 (cobalt blue + bone white + gold, masked head with big mirrored-gold lenses). Hero builder asked to build v2; FILM builder doing the bold lighting pass. Owner must be told plainly.

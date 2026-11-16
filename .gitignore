@@ -1,0 +1,12 @@
+node_modules/
+site/dist/
+site/public/film/
+site/tests/shots*/
+tools/dev/
+tools/.packcache/
+blender/out/
+blender/hero/mh_data/
+__pycache__/
+*.pyc
+*.blend
+*.blend1

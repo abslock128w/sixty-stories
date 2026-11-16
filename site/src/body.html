@@ -1,0 +1,89 @@
+<div id="app" class="is-loading">
+  <canvas id="screen" aria-hidden="true"></canvas>
+  <div id="scroll-space" aria-hidden="true"></div>
+
+  <section id="overture" aria-label="Loading the film">
+    <div class="ov-top">
+      <p class="ov-mark"><span class="disp">Sixty Stories</span><span class="mono dim">An original short film</span></p>
+      <p class="ov-leader mono dim"><span class="ov-dot"></span>Picture start</p>
+    </div>
+
+    <div class="ov-center">
+      <svg class="leader" viewBox="0 0 240 240" aria-hidden="true">
+        <circle cx="120" cy="120" r="112" class="l-thin" />
+        <circle cx="120" cy="120" r="94" class="l-thin l-faint" />
+        <line x1="0" y1="120" x2="240" y2="120" class="l-thin l-faint" />
+        <line x1="120" y1="0" x2="120" y2="240" class="l-thin l-faint" />
+        <path id="ov-sweep" class="l-sweep" d="" />
+        <circle cx="120" cy="120" r="112" class="l-arc" id="ov-arc" pathLength="1" />
+      </svg>
+      <p class="ov-count mono" aria-live="off"><span id="ov-count">0000</span><span class="ov-of" id="ov-of">/ 0336</span></p>
+      <p class="ov-unit mono dim" id="ov-unit">frames threaded</p>
+    </div>
+
+    <div class="ov-rule" aria-hidden="true"><i id="ov-bar"></i></div>
+    <ol class="ov-shots" id="ov-shots"></ol>
+
+    <div class="ov-foot">
+      <p class="ov-copy serif" id="ov-copy">Every frame of this film was path traced one at a time, on four CPU cores, with no graphics card. The projector is threading all of them now, so that nothing stutters once the lights go down.</p>
+      <p class="ov-bytes mono dim" id="ov-bytes" role="status">Opening the reel</p>
+      <div class="ov-enter" id="ov-enter" hidden>
+        <button type="button" class="btn btn-primary" id="enter-sound"><span>Enter with sound</span></button>
+        <button type="button" class="btn" id="enter-silent"><span>Enter silent</span></button>
+      </div>
+    </div>
+  </section>
+
+  <div id="stage" aria-hidden="false">
+    <div id="opening">
+      <p class="op-eyebrow mono">An original short film</p>
+      <h1 class="op-title disp" id="op-title" aria-label="Sixty Stories">Sixty Stories</h1>
+      <p class="op-cue mono"><span class="op-cue-line"></span><span id="op-cue-text">Scroll to run the projector</span></p>
+    </div>
+    <div id="cards"></div>
+    <p id="missing" class="mono" hidden></p>
+  </div>
+
+  <section id="credits" aria-label="Credits">
+    <div class="cr-inner" id="cr-inner">
+      <p class="cr-title disp">Sixty Stories</p>
+      <p class="cr-sub serif">An original short film</p>
+      <dl class="cr-list mono">
+        <div><dt>Frames</dt><dd>336, at 24 per second</dd></div>
+        <div><dt>Picture</dt><dd>1920 × 804, 2.39 : 1</dd></div>
+        <div><dt>Renderer</dt><dd>Blender Cycles, path traced</dd></div>
+        <div><dt>Hardware</dt><dd>Four CPU cores. No GPU.</dd></div>
+        <div><dt>City, hero, camera</dt><dd>Built procedurally in Blender</dd></div>
+        <div><dt>Score</dt><dd>Synthesised live in your browser</dd></div>
+        <div><dt>Projection</dt><dd>WebGL, frame by frame, on your scroll</dd></div>
+      </dl>
+      <p class="cr-note serif">Vesper is an original character created for this film.</p>
+      <button type="button" class="btn btn-primary" id="again"><span>Watch again</span></button>
+    </div>
+  </section>
+
+  <div id="hud-top" class="chrome">
+    <p class="brand disp">Sixty Stories</p>
+    <nav class="controls mono" aria-label="Projector controls">
+      <button type="button" id="c-play" aria-pressed="false"><span class="ic ic-play" aria-hidden="true"></span><span class="lbl">Play film</span><kbd>Space</kbd></button>
+      <button type="button" id="c-sound" aria-pressed="true"><span class="lbl">Sound</span><span class="val" id="c-sound-v">On</span><kbd>M</kbd></button>
+      <button type="button" id="c-hud" aria-pressed="true"><span class="lbl">Slate</span><kbd>H</kbd></button>
+      <button type="button" id="c-fs" aria-pressed="false"><span class="lbl">Full screen</span><kbd>F</kbd></button>
+    </nav>
+  </div>
+
+  <div id="hud-bottom" class="chrome">
+    <div class="slate mono" id="slate">
+      <span class="s-shot"><b id="h-shot">S1</b><i id="h-title">The City</i></span>
+      <span><em>Lens</em><b id="h-lens">35 mm</b></span>
+      <span><em>Alt</em><b id="h-alt">350 m</b><i id="h-st">87 st</i></span>
+      <span><em>Speed</em><b id="h-spd">0 km/h</b></span>
+      <span class="s-tc"><em>TC</em><b id="h-tc">00:00:00:00</b></span>
+      <span class="s-fr"><em>Frame</em><b id="h-fr">0000</b><i>/ 0336</i></span>
+    </div>
+    <div class="rail" id="rail" aria-hidden="true"><div class="rail-ticks" id="rail-ticks"></div><i class="rail-head" id="rail-head"></i></div>
+  </div>
+
+  <div id="cursor" aria-hidden="true"><i></i></div>
+  <p id="live" class="sr" aria-live="polite"></p>
+</div>
