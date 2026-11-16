@@ -344,7 +344,16 @@ def roof_clutter(spec, tiers, P, out):
                 placed += 1
             elif nxt is None and free(px, py, 2.5):
                 k = r.random()
-                if k < 0.45:
+                k2 = hash01(px, py)
+                if k2 < 0.07 and nxt is None:
+                    out.append(('bulkhead', (px, py, z), r.choice([0, 1.5708]), 1.0))
+                elif k2 < 0.14:
+                    out.append(('skylight', (px, py, z), r.choice([0, 1.5708]), 1.0))
+                elif k2 < 0.2:
+                    out.append(('dish', (px, py, z), r.uniform(0, 6.28), 1.0))
+                elif k2 < 0.27:
+                    out.append(('pipes', (px, py, z), r.choice([0, 1.5708]), 1.0))
+                elif k < 0.45:
                     out.append(('hvac', (px, py, z), r.choice([0, 1.5708]), 1.0))
                 elif k < 0.7:
                     out.append(('ductrun', (px, py, z), r.choice([0, 1.5708]), 1.0))

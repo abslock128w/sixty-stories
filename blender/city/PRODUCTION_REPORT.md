@@ -189,3 +189,80 @@ Proofs: `s_street.png`, `s_dusk.png`, `car_close.png` (1280 px, 32 spp, 4 thread
 - **Signage is still flat panels on frames.** It is not built into the architecture as the reference's wraps and vertical LED columns are.
 - **The east-side glass podium still reads uniform from distance.**
 - **Building identity is better but still not a lineup of nameable landmarks.** The left wall reads as varied masonry, but there are no strongly distinct silhouettes at street height.
+
+## 2026-11-16, Stages 2–6 (condensed pass): Tower surroundings and dive, rooftops, aerial, waterfront, showcase cameras
+
+Proofs: `e.png`, `c.png`, and the seven `showcase_*.png` (1280 px, 32 spp, 4 threads, 52–89 s each).
+
+### Now in the scene
+
+**Rooftop kit v2** (on near-ring library buildings, placed by their own RNG)
+- Bulkheads: concrete, steel door, louvre, light.
+- Satellite dishes.
+- Skylights.
+- Pipe racks and cable trays with walkway gratings.
+- HVAC units repainted grey-beige with fan grilles and side louvres.
+- Also present from earlier rounds: duct runs, tanks set back at least 14 m from the avenue, roof terraces with furniture, parapets and cornices.
+
+**Aerial**
+- `aerial` preset re-tuned: haze 0.00012 with a darker, partly absorbing haze colour (0.18) and exposure +0.5.
+  - Near towers are now crisper; the far city fades to warm haze.
+  - Window grids fade with distance.
+- Also present:
+  - Patina crowns.
+  - The park (pond, paths, 1,089 trees).
+  - Three suspension bridges. Main cables are now smooth square tubes; they were staircase boxes before.
+  - Far-shore industry.
+
+**Waterfront**
+- North-shore promenade: paving strip, steel railing with balusters, street lamps every 25 m, trees, cafe sets, people.
+
+**Showcase cameras**
+- Collection `CAMERAS_SHOWCASE` with the seven directive compositions:
+  - Aerial skyline (30 mm).
+  - Rooftop view across the city, from The Tower's setback roof (30 mm).
+  - Street architecture, looking up at The Tower (18 mm).
+  - Side street (40 mm, f/5.6).
+  - Commercial avenue (22 mm).
+  - Waterfront skyline from the east shore (50 mm).
+  - Close-up facade (35 mm, f/5.6).
+- Rendered with `render_showcase.py`.
+
+### Not done, or short (honest)
+
+**Stage 3: skybridge towers**
+- No dedicated work this pass.
+- They are the library's blue-glass office archetype with rooms and shopfront bays.
+- No bespoke lobby, crown or bridge-junction detail beyond round 1's bridges.
+
+**Stage 2: around The Tower**
+- The neighbours use the library and rooftop kit.
+- Nothing bespoke was added around the dive line.
+- In the dive view, the roofs far below read as dark flat planes with small scattered units.
+
+**Alleys**
+- None. The block layout has no alley slots, and lots are frozen.
+- The side-street camera uses an 18 m cross street instead.
+
+**Cross streets**
+- Empty: no traffic, people or signage. Trees and lamps exist.
+- Street dressing so far is concentrated on the hero avenue.
+
+**Waterfront**
+- The far shores are low boxes with shader windows.
+- The waterline is a straight seawall.
+- No piers or boats.
+
+**Aerial**
+- Still more uniform in silhouette than the reference.
+- The near city is backlit and dark because the camera looks into the sun.
+- The horizon land plane reads as a flat band.
+
+**Street items still missing**
+- Parking meters, utility poles and electrical boxes, benches, bike racks, security cameras, notice boards.
+- Tactile paving, curb ramps, arrows, weeds.
+- Stickers, graffiti, rust, litter and leaves.
+- Drainpipes, conduits, building numbers.
+
+**Vehicle close-up**
+- Still faceted, as noted in Stage 1b.

@@ -292,6 +292,8 @@ def main():
     log("park trees", EX.build_park(cols))
     EX.build_bridges(cols)
     EX.build_industry(cols)
+    log("waterfront people", EX.build_waterfront(cols))
+    EX.build_showcase(scene)
     HZ.build_horizon(cols)
     log("horizon", f"{time.time() - t0:.1f}s")
     MAT.optimise()

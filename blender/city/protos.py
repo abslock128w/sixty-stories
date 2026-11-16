@@ -76,7 +76,13 @@ def p_hvac(name):
     mb.box(-1.5, 1.5, -1.0, 1.0, 0, 1.6, 0)
     for x in (-0.75, 0.75):
         cyl(mb, x, 0, 1.6, 1.75, 0.55, 0.55, n=16, mat=1)
-    return _finish(mb, name, ['metal_alu', 'metal_dark'], bevel=0.03)
+    # fan grilles and side louvres
+    for x in (-0.75, 0.75):
+        cyl(mb, x, 0, 1.75, 1.77, 0.5, 0.5, n=16, mat=1)
+    for k in range(8):
+        y = -0.85 + k * 0.24
+        mb.box(1.5, 1.52, y, y + 0.12, 0.2, 1.4, 1)
+    return _finish(mb, name, ['hvac_paint', 'metal_dark'], bevel=0.03)
 
 
 def p_antenna(name):
@@ -430,9 +436,55 @@ def p_ductrun(name):
     return _finish(mb, name, ['metal_alu', 'metal_dark'])
 
 
+def p_bulkhead(name):
+    """Stair / elevator bulkhead: masonry box, door, louvre, roof lip, light."""
+    mb = MB()
+    mb.box(-2.0, 2.0, -1.6, 1.6, 0, 3.4, 0)
+    mb.box(-2.15, 2.15, -1.75, 1.75, 3.4, 3.55, 1)
+    mb.box(-0.5, 0.5, -1.63, -1.6, 0, 2.1, 2)
+    mb.box(0.9, 1.7, -1.63, -1.6, 2.2, 2.9, 3)
+    mb.box(-0.1, 0.1, -1.7, -1.6, 2.2, 2.35, 4)
+    return _finish(mb, name, ['concrete', 'metal_dark', 'paint_green', 'louvre', 'lamp_emit'])
+
+
+def p_dish(name):
+    mb = MB()
+    cyl(mb, 0, 0, 0, 1.2, 0.06, 0.06, n=6, mat=1)
+    n = 14
+    for k in range(n):
+        a0, a1 = 2 * math.pi * k / n, 2 * math.pi * (k + 1) / n
+        for (r0, z0), (r1, z1) in (((0.0, 1.2), (0.45, 1.3)), ((0.45, 1.3), (0.9, 1.55))):
+            q = [(math.cos(a0) * r0, 0.0 + math.sin(a0) * r0 * 0.3, z0 + math.sin(a0) * r0 * 0.9),
+                 (math.cos(a1) * r0, math.sin(a1) * r0 * 0.3, z0 + math.sin(a1) * r0 * 0.9),
+                 (math.cos(a1) * r1, math.sin(a1) * r1 * 0.3, z1 + math.sin(a1) * r1 * 0.9),
+                 (math.cos(a0) * r1, math.sin(a0) * r1 * 0.3, z1 + math.sin(a0) * r1 * 0.9)]
+            mb.poly(q, 0, smooth=True)
+    return _finish(mb, name, ['paint_white', 'metal_dark'])
+
+
+def p_skylight(name):
+    mb = MB()
+    mb.box(-1.5, 1.5, -1.0, 1.0, 0, 0.5, 0)
+    mb.poly([(-1.4, -0.9, 0.5), (1.4, -0.9, 0.5), (1.4, 0.0, 0.9), (-1.4, 0.0, 0.9)], 1)
+    mb.poly([(1.4, 0.9, 0.5), (-1.4, 0.9, 0.5), (-1.4, 0.0, 0.9), (1.4, 0.0, 0.9)], 1)
+    return _finish(mb, name, ['metal_dark', 'curtain'])
+
+
+def p_pipes(name):
+    """Pipe rack / cable tray run on sleepers with a walkway grating."""
+    mb = MB()
+    for x in range(-4, 5, 2):
+        mb.box(x - 0.08, x + 0.08, -0.6, 0.6, 0, 0.35, 1)
+    for y, r in ((-0.35, 0.12), (0.0, 0.08), (0.3, 0.15)):
+        cyl(mb, y, 0.35 + r, -4.5, 4.5, r, n=10, mat=0, axis='x')
+    mb.box(-4.5, 4.5, 0.9, 1.6, 0.0, 0.05, 2)
+    return _finish(mb, name, ['metal_alu', 'metal_dark', 'louvre'])
+
+
 BUILD = {
     'water_tower': p_water_tower, 'hvac': p_hvac, 'antenna': p_antenna,
     'lamp': p_lamp, 'signal_red': p_signal_red, 'signal_green': p_signal_green,
+    'bulkhead': p_bulkhead, 'dish': p_dish, 'skylight': p_skylight, 'pipes': p_pipes,
     'terrace': p_terrace, 'rooftank': p_rooftank, 'ductrun': p_ductrun,
     'hydrant': p_hydrant, 'trash': p_trash, 'newsbox': p_newsbox, 'manhole': p_manhole, 'vent': p_vent,
     'bus_shelter': p_bus_shelter, 'tree_a': p_tree_a, 'tree_b': p_tree_b, 'tree_c': p_tree_c,

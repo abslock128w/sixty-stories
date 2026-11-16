@@ -805,6 +805,7 @@ def _reg():
     B['glass_clear'] = m_glass_clear
     B['shop'] = m_shop
     B['louvre'] = m_louvre
+    B['hvac_paint'] = lambda n: m_simple(n, (0.33, 0.32, 0.29), rough=0.55, metal=0.2, noise_amt=0.2, grime_k=0.4)
     B['tower_spandrel'] = m_tower_spandrel
     B['gargoyle'] = m_gargoyle
     B['steel_prow'] = m_steel_prow

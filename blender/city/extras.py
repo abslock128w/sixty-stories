@@ -520,8 +520,11 @@ def build_bridges(cols):
                     def P(u):
                         return (pa[0] + (pb[0] - pa[0]) * u, pa[1] + (pb[1] - pa[1]) * u - sag * 4 * u * (1 - u))
                     q0, q1 = P(u0), P(u1)
-                    mb.box(min(q0[0], q1[0]), max(q0[0], q1[0]) + 0.1, yy - 0.6, yy + 0.6, min(q0[1], q1[1]) - 0.4,
-                           max(q0[1], q1[1]) + 0.4, STEEL)
+                    rr_ = 0.45
+                    for (dy0, dz0), (dy1, dz1) in (((-rr_, -rr_), (rr_, -rr_)), ((rr_, -rr_), (rr_, rr_)),
+                                                   ((rr_, rr_), (-rr_, rr_)), ((-rr_, rr_), (-rr_, -rr_))):
+                        mb.poly([(q0[0], yy + dy0, q0[1] + dz0), (q1[0], yy + dy0, q1[1] + dz0),
+                                 (q1[0], yy + dy1, q1[1] + dz1), (q0[0], yy + dy1, q0[1] + dz1)], STEEL)
                     if i % 2 == 0 and q0[1] > zd + 1:
                         mb.box(q0[0] - 0.1, q0[0] + 0.1, yy - 0.1, yy + 0.1, zd, q0[1], STEEL)
         # truss sides
@@ -564,3 +567,61 @@ def build_industry(cols):
             cyl(mb, x, y, 0.3, r.uniform(40, 90), 2.5, 1.6, n=10, mat=2)
     new_object("HORIZON_industry", mb.build("HORIZON_industry", [MAT.get('metal_alu'), MAT.get('concrete'),
                                                                  MAT.get('concrete')]), col)
+
+
+def build_waterfront(cols):
+    """North-shore promenade: paving strip, railing, benches, lamps and trees along the seawall."""
+    col = cols['props']
+    r = random.Random(808)
+    y = LY.SHORE[3]
+    mb = MB()
+    mb.box(LY.SHORE[0], LY.SHORE[1], y - 14, y, 0.0, 0.2, 0)
+    mb.box(LY.SHORE[0], LY.SHORE[1], y - 0.15, y, 0.2, 1.15, 1)
+    for x in range(int(LY.SHORE[0]), int(LY.SHORE[1]), 2):
+        mb.box(x - 0.025, x + 0.025, y - 0.1, y - 0.05, 0.2, 1.1, 1)
+    new_object("WATERFRONT", mb.build("WATERFRONT", [MAT.get('sidewalk'), MAT.get('metal_dark')]), col)
+    n = 0
+    x = LY.SHORE[0] + 5
+    while x < LY.SHORE[1]:
+        inst(col, 'lamp', (x, y - 1.0, 0.2), -math.pi / 2)
+        if r.random() < 0.7:
+            inst(col, r.choice(['tree_a', 'tree_b', 'tree_c']), (x + 12, y - 9, 0.2), r.uniform(0, 6.3), r.uniform(0.9, 1.3))
+        if r.random() < 0.5:
+            inst(col, 'cafe', (x + 6, y - 5, 0.2), r.uniform(0, 6.3))
+        for k in range(r.randint(0, 3)):
+            inst(col, r.choice(PEOPLE), (x + r.uniform(0, 20), y - r.uniform(2, 12), 0.2), r.uniform(0, 6.3))
+            n += 1
+        x += 25
+    return n
+
+
+def build_showcase(scene):
+    """CAMERAS_SHOWCASE: the seven directive compositions (real focal lengths, f-stops)."""
+    import mathutils
+    col = bpy.data.collections.get("CAMERAS_SHOWCASE") or bpy.data.collections.new("CAMERAS_SHOWCASE")
+    if col.name not in [c.name for c in scene.collection.children]:
+        scene.collection.children.link(col)
+    shots = {
+        'showcase_aerial_skyline': ((-250, -900, 380), (0, 300, 250), 30, None),
+        'showcase_rooftop_across': ((-17.5, -287.0, 243.5), (250, 250, 140), 30, None),
+        'showcase_street_architecture': ((9.0, -262.0, 1.7), (-22, -296, 150), 18, None),
+        'showcase_side_street': ((150, -257.5, 1.8), (-40, -257.5, 12), 40, 5.6),
+        'showcase_commercial_avenue': ((1.5, -60.0, 8.0), (0.0, 300.0, 16.0), 22, None),
+        'showcase_waterfront_skyline': ((2400, 600, 25), (0, 150, 140), 50, None),
+        'showcase_facade_closeup': ((-3.0, 98.0, 15.0), (-16.0, 111.0, 17.0), 35, 5.6),
+    }
+    for nm, (loc, at, lens, fs) in shots.items():
+        cam = bpy.data.objects.get(nm)
+        if cam is None:
+            cam = bpy.data.objects.new(nm, bpy.data.cameras.new(nm))
+            col.objects.link(cam)
+        cam.location = loc
+        cam.rotation_euler = (mathutils.Vector(at) - mathutils.Vector(loc)).to_track_quat('-Z', 'Y').to_euler()
+        cam.data.lens = lens
+        cam.data.sensor_width = 36
+        cam.data.clip_end = 40000
+        if fs:
+            cam.data.dof.use_dof = True
+            cam.data.dof.aperture_fstop = fs
+            cam.data.dof.focus_distance = (mathutils.Vector(at) - mathutils.Vector(loc)).length
+    return list(shots)
