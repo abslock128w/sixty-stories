@@ -178,7 +178,12 @@ def worker(o):
     r.image_settings.color_depth = '8'
     r.image_settings.color_mode = 'RGB'
     ng = scene.compositing_node_group
-    fo = ng.nodes['DEPTH_OUT']
+    fo = ng.nodes.get('DEPTH_OUT')
+    if fo is None:   # a look built its own compositor without the delivery node: add it
+        sys.path.insert(0, os.path.join(HERE, 'looks'))
+        import lookkit
+        rl = [n for n in ng.nodes if n.type == 'R_LAYERS'][0]
+        fo = lookkit.add_depth_out(ng, rl)
     rig = bpy.data.objects.get('HERO_RIG')
     subs = [m for o in rig.children for m in o.modifiers if m.type == 'SUBSURF'] if rig else []
     for k, v in SS.CYCLES.items():

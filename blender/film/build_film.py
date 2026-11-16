@@ -37,6 +37,8 @@ CITY = os.path.join(OUT, 'city.blend')
 HERO = os.path.join(OUT, 'hero.blend')
 FILM = os.path.join(OUT, 'film.blend')
 SHOTS_JSON = os.path.join(OUT, 'shots.json')
+LOOKLAB = os.path.join(OUT, 'looklab')
+PLATE = os.path.join(LOOKLAB, 'plate.blend')
 
 
 def log(*a):
@@ -276,62 +278,25 @@ def build_cameras(scene, cams):
 
 # ------------------------------------------------------------------------------ lighting
 def key_lighting(scene):
+    """Look-neutral lighting: the city presets as shipped, keyed per shot (SS.NEUTRAL_LIGHT).
+    The selected look module re-keys everything afterwards."""
     ctrl = lighting.get_ctrl()
-    for sh in PL.SHOTS:
-        for key in SS.SHOT[sh['id']]['light']:
-            f, preset, d, ev = key[:4]
-            extra = key[4] if len(key) > 4 else {}
-            lighting.apply_preset(scene, preset, dusk=d, frame=f)
-            ovr = dict(SS.BASE_OVR)
-            ovr.update(extra)
-            for k, v in ovr.items():
-                if k.endswith('*'):
-                    k = k[:-1]
-                    ctrl[k] = float(ctrl[k]) * v
-                else:
-                    ctrl[k] = float(v)
-                ctrl.keyframe_insert(f'["{k}"]', frame=f)
-            ctrl['haze_density'] = max(0.00012, float(ctrl['haze_density']))
-            ctrl.keyframe_insert('["haze_density"]', frame=f)
-            ctrl['exposure'] = float(ctrl['exposure']) + ev + SS.EV_SHIFT
-            ctrl.keyframe_insert('["exposure"]', frame=f)
+    for f, preset, d in SS.NEUTRAL_LIGHT:
+        lighting.apply_preset(scene, preset, dusk=d, frame=f)
+        ctrl['haze_density'] = max(0.00012, float(ctrl['haze_density']))
+        ctrl.keyframe_insert('["haze_density"]', frame=f)
     for fc in _fcurves(ctrl):
         for kp in fc.keyframe_points:
             kp.interpolation = 'LINEAR'
     lighting.touch(scene)
 
 
-def material_overrides():
-    """Film-side look overrides on city materials (by name)."""
-    for m in bpy.data.materials:
-        if not m.node_tree:
-            continue
-        if m.name.startswith('ATMO_haze'):
-            for n in m.node_tree.nodes:
-                if n.type == 'PRINCIPLED_VOLUME':
-                    n.inputs['Anisotropy'].default_value = SS.HAZE_ANISO
-        base = m.name.split('.')[0]
-        if base in SS.SURFACE_OVR:
-            o = SS.SURFACE_OVR[base]
-            for n in [n for n in m.node_tree.nodes if n.type == 'BSDF_PRINCIPLED']:
-                if 'rough_mul' in o:
-                    _scale_input(m.node_tree, n, 'Roughness', o['rough_mul'])
-                if 'spec' in o and not n.inputs['Specular IOR Level'].is_linked:
-                    n.inputs['Specular IOR Level'].default_value = o['spec']
-                if 'base_mul' in o:
-                    s = n.inputs['Base Color']
-                    mix = m.node_tree.nodes.new('ShaderNodeMix')
-                    mix.data_type = 'RGBA'
-                    mix.blend_type = 'MULTIPLY'
-                    mix.inputs['Factor'].default_value = 1.0
-                    v = o['base_mul']
-                    mix.inputs['B'].default_value = (v, v, v, 1)
-                    if s.is_linked:
-                        m.node_tree.links.new(s.links[0].from_socket, mix.inputs['A'])
-                    else:
-                        mix.inputs['A'].default_value = s.default_value
-                    m.node_tree.links.new(mix.outputs['Result'], s)
-            log('surface override', m.name)
+def apply_look(scene, name):
+    import importlib
+    sys.path.insert(0, os.path.join(HERE, 'looks'))
+    mod = importlib.import_module(name)
+    mod.apply(scene)
+    log('look applied:', name)
 
 
 # ------------------------------------------------------------------------------ render
@@ -377,7 +342,7 @@ def render_settings(scene):
     c.sample_clamp_direct = 0.0
     vs = scene.view_settings
     vs.view_transform = 'AgX'
-    vs.look = SS.LOOK
+    vs.look = 'None'
     vl = scene.view_layers[0]
     vl.use_pass_z = True
     vl.use_pass_combined = True
@@ -385,85 +350,10 @@ def render_settings(scene):
 
 
 def build_compositor(scene):
-    name = 'FILM_comp'
-    ng = bpy.data.node_groups.get(name)
-    if ng:
-        bpy.data.node_groups.remove(ng)
-    ng = bpy.data.node_groups.new(name, 'CompositorNodeTree')
-    ng.interface.new_socket('Image', in_out='OUTPUT', socket_type='NodeSocketColor')
-    N, L = ng.nodes, ng.links
-    rl = N.new('CompositorNodeRLayers')
-    rl.scene = scene
-    rl.location = (-600, 0)
-    # 1) soft bloom on highlights
-    g1 = N.new('CompositorNodeGlare')
-    g1.name = 'BLOOM'
-    g1.location = (-300, 100)
-    _gset(g1, Type='Bloom', Quality='High', Threshold=SS.COMP['bloom_threshold'],
-          Smoothness=0.6, Strength=SS.COMP['bloom_strength'], Size=SS.COMP['bloom_size'], Saturation=1.0)
-    # 2) gentle anamorphic streak on the sun / speculars (horizontal only)
-    g2 = N.new('CompositorNodeGlare')
-    g2.name = 'STREAK'
-    g2.location = (0, 100)
-    _gset(g2, Type='Streaks', Quality='High', Threshold=SS.COMP['streak_threshold'],
-          Smoothness=0.4, Strength=SS.COMP['streak_strength'], Streaks=2, **{'Streaks Angle': 0.0},
-          Fade=SS.COMP['streak_fade'], Saturation=0.8)
-    g3 = N.new('CompositorNodeGlare')
-    g3.name = 'GHOSTS'
-    g3.location = (200, 100)
-    _gset(g3, Type='Ghosts', Quality='High', Threshold=SS.COMP['ghost_threshold'],
-          Smoothness=0.3, Strength=SS.COMP['ghost_strength'], Iterations=3,
-          **{'Color Modulation': 0.35}, Saturation=1.0)
-    cb = N.new('CompositorNodeColorBalance')
-    cb.name = 'GRADE'
-    cb.location = (400, 100)
-    gr = SS.GRADE
-    try:
-        cb.inputs['Type'].default_value = 'Offset/Power/Slope (ASC-CDL)'
-    except Exception as e:
-        log('grade type', e)
-    socks = {}
-    for s in cb.inputs:
-        socks.setdefault((s.name, s.type), s)
-    socks[('Offset', 'RGBA')].default_value = gr['offset'] + (1.0,)
-    socks[('Power', 'RGBA')].default_value = gr['power'] + (1.0,)
-    socks[('Slope', 'RGBA')].default_value = gr['slope'] + (1.0,)
-    out = N.new('NodeGroupOutput')
-    out.location = (700, 0)
-    L.new(rl.outputs['Image'], g1.inputs['Image'])
-    L.new(g1.outputs['Image'], g2.inputs['Image'])
-    L.new(g2.outputs['Image'], g3.inputs['Image'])
-    L.new(g3.outputs['Image'], cb.inputs['Image'])
-    cc = N.new('CompositorNodeColorCorrection')
-    cc.name = 'SAT'
-    cc.location = (550, 100)
-    cc.inputs['Saturation'].default_value = SS.SAT
-    cc.inputs['Contrast'].default_value = SS.CONTRAST
-    L.new(cb.outputs['Image'], cc.inputs['Image'])
-    L.new(cc.outputs['Image'], out.inputs[0])
-    # depth to a float EXR for the delivery step (render_frames.py points it per frame)
-    fo = N.new('CompositorNodeOutputFile')
-    fo.name = 'DEPTH_OUT'
-    fo.location = (300, -250)
-    fo.format.media_type = 'IMAGE'
-    fo.format.file_format = 'OPEN_EXR'
-    fo.format.color_depth = '32'
-    fo.format.exr_codec = 'ZIP'
-    try:
-        fo.format.color_mode = 'BW'
-    except Exception:
-        pass
-    fo.directory = '//_depth_tmp/'
-    fo.file_name = 'depth_'
-    fo.file_output_items.clear()
-    it = fo.file_output_items.new('FLOAT', 'Depth')
-    L.new(rl.outputs['Depth'], fo.inputs['Depth'])
-    scene.compositing_node_group = ng
-    try:
-        scene.render.use_compositing = True
-    except Exception:
-        pass
-    return ng
+    """Look-neutral compositor: render layers -> output, plus the DEPTH_OUT file node."""
+    sys.path.insert(0, os.path.join(HERE, 'looks'))
+    import lookkit
+    lookkit.new_compositor(scene)
 
 
 def _gset(node, **kw):
@@ -476,105 +366,6 @@ def _gset(node, **kw):
             s.default_value = v
         except Exception as e:
             log('glare set fail', k, v, e)
-
-
-# suit look correction (film-side only): the hero's sheen / coat read pale grey when the
-# sky lights him from above (s3). Darken sheen tint, scale sheen + specular, soften coat.
-SUIT_FIX = {
-    'HERO_suit': dict(sheen_tint=(0.10, 0.10, 0.11), sheen_mul=0.45, spec_mul=0.55),
-    'HERO_strap': dict(sheen_tint=(0.10, 0.10, 0.11), sheen_mul=0.4),
-    'HERO_webbing': dict(sheen_tint=(0.10, 0.10, 0.11), sheen_mul=0.4),
-    'HERO_gaiter': dict(sheen_tint=(0.10, 0.10, 0.11), sheen_mul=0.4),
-    'HERO_helmet_shell': dict(sheen_tint=(0.12, 0.12, 0.13), sheen_mul=0.5, coat_mul=0.7),
-    'HERO_armor': dict(coat_mul=0.5, coat_rough=0.18),
-    'HERO_shoe': dict(sheen_tint=(0.10, 0.10, 0.11), sheen_mul=0.5),
-}
-
-
-def _scale_input(nt, node, name, mul):
-    s = node.inputs.get(name)
-    if s is None:
-        return
-    if not s.is_linked:
-        s.default_value = s.default_value * mul
-        return
-    lk = s.links[0]
-    m = nt.nodes.new('ShaderNodeMath')
-    m.operation = 'MULTIPLY'
-    m.inputs[1].default_value = mul
-    m.location = (node.location.x - 180, node.location.y - 200)
-    nt.links.new(lk.from_socket, m.inputs[0])
-    nt.links.new(m.outputs[0], s)
-
-
-# per-shot darkening (base colour, specular, coat multipliers), keyed CONSTANT per shot:
-# seen from above in the sunlit canyon (s3) the graphite suit read pale grey
-SUIT_DARK = {'s1': (1.0, 1.0), 's2': (1.0, 1.0), 's3': (1.0, 1.0), 's4': (1.0, 1.0),
-             's5': (1.0, 1.0), 's6': (1.0, 1.0)}   # v1 darkening dropped; re-tune for Vesper v2
-SUIT_DARK_MATS = ('HERO_suit', 'HERO_armor', 'HERO_helmet_shell', 'HERO_strap', 'HERO_shoe')
-
-
-def fix_suit(rig):
-    mats = {s.material for o in rig.children for s in o.material_slots if s.material}
-    for mat in mats:
-        base = mat.name.split('.')[0]
-        fx = SUIT_FIX.get(base)
-        if not mat.node_tree:
-            continue
-        nt = mat.node_tree
-        for n in [n for n in nt.nodes if n.type == 'BSDF_PRINCIPLED']:
-            if fx:
-                if 'sheen_tint' in fx and not n.inputs['Sheen Tint'].is_linked:
-                    n.inputs['Sheen Tint'].default_value = fx['sheen_tint'] + (1.0,)
-                if 'sheen_mul' in fx:
-                    _scale_input(nt, n, 'Sheen Weight', fx['sheen_mul'])
-                if 'spec_mul' in fx:
-                    _scale_input(nt, n, 'Specular IOR Level', fx['spec_mul'])
-                if 'coat_mul' in fx:
-                    _scale_input(nt, n, 'Coat Weight', fx['coat_mul'])
-                if 'coat_rough' in fx and not n.inputs['Coat Roughness'].is_linked:
-                    n.inputs['Coat Roughness'].default_value = fx['coat_rough']
-            if base in SUIT_DARK_MATS:
-                _dark_keys(nt, n)
-        log('suit fix', mat.name)
-
-
-def _dark_keys(nt, n):
-    # base colour multiply
-    s = n.inputs['Base Color']
-    mix = nt.nodes.new('ShaderNodeMix')
-    mix.name = 'FILM_dark_base'
-    mix.data_type = 'RGBA'
-    mix.blend_type = 'MULTIPLY'
-    mix.inputs['Factor'].default_value = 1.0
-    if s.is_linked:
-        nt.links.new(s.links[0].from_socket, mix.inputs['A'])
-    else:
-        mix.inputs['A'].default_value = s.default_value
-    nt.links.new(mix.outputs['Result'], s)
-    mults = []
-    for name in ('Specular IOR Level', 'Coat Weight'):
-        si = n.inputs[name]
-        m = nt.nodes.new('ShaderNodeMath')
-        m.operation = 'MULTIPLY'
-        m.name = 'FILM_dark_' + name.split()[0]
-        if si.is_linked:
-            nt.links.new(si.links[0].from_socket, m.inputs[0])
-        else:
-            m.inputs[0].default_value = si.default_value
-        nt.links.new(m.outputs[0], si)
-        mults.append(m)
-    for sh in PL.SHOTS:
-        bm, sm = SUIT_DARK[sh['id']]
-        f = sh['start']
-        mix.inputs['B'].default_value = (bm, bm, bm, 1.0)
-        mix.inputs['B'].keyframe_insert('default_value', frame=f)
-        for m in mults:
-            m.inputs[1].default_value = sm
-            m.inputs[1].keyframe_insert('default_value', frame=f)
-    for fc in _fcurves(nt):
-        for kp in fc.keyframe_points:
-            kp.interpolation = 'CONSTANT'
 
 
 def hero_detail(rig, scene):
@@ -659,13 +450,22 @@ def main():
     cams = CAM.design_cameras(dict(hero, P=hero['P_used']))
     build_cameras(scene, cams)
     key_lighting(scene)
-    material_overrides()
     render_settings(scene)
     hero_detail(rig, scene)
-    fix_suit(rig)
+    import hero_tune
+    hero_tune.apply(rig)
     scene.frame_set(0)
     shots_json(scene, rig, hero, cams)
     log('shots.json written', round(time.time() - t0, 1))
+    if '--no-save' not in args:
+        os.makedirs(LOOKLAB, exist_ok=True)
+        tmp = PLATE + '.tmp.blend'
+        bpy.ops.wm.save_as_mainfile(filepath=tmp, compress=True, copy=True)
+        os.replace(tmp, PLATE)
+        import shutil
+        shutil.copyfile(SHOTS_JSON, os.path.join(LOOKLAB, 'shots.json'))
+        log('saved look-neutral plate', PLATE)
+    apply_look(scene, SS.LOOK)
     if '--no-save' not in args:
         tmp = FILM + '.tmp.blend'
         bpy.ops.wm.save_as_mainfile(filepath=tmp, compress=True, copy=True)

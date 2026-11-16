@@ -80,3 +80,31 @@ at medium effort. An hourly scheduled task re-wakes the main session; on wake, r
 - 02:52 UTC: container restarted AGAIN (it had gone idle at ~02:13 after the owner interrupted a browser-screenshot command; render lost ~38 min; 46 frames done). Relaunched render. The container seems to be reclaimed when the session is idle, so always keep a background watcher running. Owner interrupted the site browser-check at 02:10 and has not said why: render is kept alive, but the browser check + publish are ON HOLD until the owner replies. site/dist currently holds 34 real frames (packed 01:59).
 - 03:55 UTC: OWNER IS BACK and gave direction: (1) the hero must be Spider-Man (they rejected Vesper: 'that doesn't look like Spider-Man, and I told you'); (2) keep refining the lighting so it looks crazy. Stopped the Vesper render; its 93 frames are kept in blender/out/frames_v1_vesper (fallback only). blender/out/frames is empty again. Plan: HERO builder converts the suit to classic Spider-Man (API frozen), FILM builder does a dramatic lighting/grade pass, then rebuild film.blend, re-render all 336 frames (keep a background watcher alive!), then site copy -> unofficial fan film, pack, check, publish.
 - 04:00 UTC: Spider-Man conversion REFUSED by the hero builder (protected character) on top of the earlier safety-check block. Do NOT retry or route around it. BIBLE reverted: hero is original VESPER v2 (cobalt blue + bone white + gold, masked head with big mirrored-gold lenses). Hero builder asked to build v2; FILM builder doing the bold lighting pass. Owner must be told plainly.
+- ~04:10 UTC: owner said "keep going" and turned on multi-agent workflows (ultracode).
+  Local git repo initialised in /home/user/sixty (no remote), snapshot commit 3742932.
+  RUNNING NOW:
+  (a) HERO builder (agent a02bc4576d18c26a5): Vesper v2 (cobalt/white/gold, masked head,
+      gold lenses), API frozen, rebuilding hero.blend in place.
+  (b) FILM builder (agent a1484b2a5b9c9b7d8): asked to set up a LOOK LAB: look-neutral
+      build + blender/film/looks/<name>.py modules with apply(scene) + plate
+      blender/out/looklab/plate.blend + blender/film/looklab/render_look.py (flock) +
+      LOOKLAB.md; marker file blender/out/looklab/READY when done; then it continues as
+      the incumbent look (stills in blender/out/looklab/cand_d/).
+  (c) WORKFLOW site-hardening (run wf_3438eda9-cf9, task wguvjes08): 7 review lenses ->
+      verify -> 2 fixers -> QA -> follow-up. It owns site/ and tools/ until it finishes.
+      Script: /root/.claude/projects/-home-user/3b110407-c811-597d-a6a3-85d5f1bba0d5/workflows/scripts/site-hardening-wf_3438eda9-cf9.js
+  NEXT: when looklab/READY exists, run the look tournament workflow (3 independent look
+  designers -> cand_a/b/c; incumbent = cand_d), then a judging workflow (judges ->
+  synthesis look module -> verify), then FILM builder integrates the winning look +
+  tunes Vesper v2, I review stills, full render (keep a background watcher alive),
+  pack with the fixed pack tool, build, check, publish as a private Artifact.
+- ~04:20 UTC: WORKFLOW look-tournament launched (run wf_f5204afa-885, task wml7yk9v9):
+  3 designers (cand_a ember_teal, cand_b after_rain, cand_c the_turn) wait for
+  looklab/READY, then design -> 5 judges score cand_a/b/c + incumbent cand_d ->
+  synthesizer writes blender/film/looks/final.py + stills in looklab/cand_final ->
+  3 critics -> optional refine. Script:
+  /root/.claude/projects/-home-user/3b110407-c811-597d-a6a3-85d5f1bba0d5/workflows/scripts/look-tournament-wf_f5204afa-885.js
+  If a workflow dies (container restart), resume it with Workflow({scriptPath,
+  resumeFromRunId}) : finished agents are cached.
+  AFTER the tournament: tell FILM builder to set LOOK='final', rebuild with the final
+  hero (v2), tune hero under the look, show stills; orchestrator reviews; launch render.

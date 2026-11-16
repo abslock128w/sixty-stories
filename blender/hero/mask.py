@@ -15,11 +15,11 @@ from helmet import _blur_wrap, smoothstep
 NU = 320
 C_HEAD = (0.0, -0.006, 1.690)
 OFFSET = 0.0024
-Z_BOTTOM = 1.488          # hood ends on the neck here (tucked under the white collar)
+Z_BOTTOM = 1.500          # hood ends on the neck here (tucked under the white collar)
 # lens design (degrees on the head sphere; u = 0 front, + = character's left)
-LENS_U = (5.0, 79.0)      # inner end at the nose bridge -> blade tip past the temple
+LENS_U = (4.0, 82.0)      # inner end at the nose bridge -> blade tip past the temple
 LENS_VC = (-12.5, 3.0)    # centre line rises toward the temple (swept back)
-LENS_H = 15.5             # half-height at the inner end (degrees)
+LENS_H = 20.0             # half-height at the inner end (degrees)
 
 
 def _maxf(R, wu, wv, cpd):
@@ -45,7 +45,8 @@ def build(body_verts, body_faces):
         for j in range(NU):
             d = Vector((math.sin(ur[j]) * math.cos(vr[i]), -math.cos(ur[j]) * math.cos(vr[i]), math.sin(vr[i])))
             hit = bvh.ray_cast(Vector(C), d, 0.5)
-            G[i, j] = min(hit[3], 0.135) if hit[0] is not None else 0.135
+            rmax = 0.135 if vg[i] > -35 else min(0.30, (C[2] - 1.455) / max(math.sin(-vr[i]), 0.2))
+            G[i, j] = min(hit[3], rmax) if hit[0] is not None else rmax
     cpd = NU / 360.0
     UU, VV = np.meshgrid(u, vg)
     AU = np.abs(UU)
@@ -65,38 +66,52 @@ def build(body_verts, body_faces):
     ear = smoothstep(62, 76, AU) * (1 - smoothstep(110, 124, AU)) * smoothstep(-50, -36, VV) * (1 - smoothstep(0, 12, VV))
     Gs = Gs * (1 - ear) + _blur_wrap(Gs, 12 * cpd, 12) * ear
     Gs = Gs + OFFSET
-    # per column: lowest elevation whose surface point is still above Z_BOTTOM
-    vb = np.zeros(NU)
+    # head part: from the jaw line up to the crown
+    au = np.abs(u)
+    vjaw = -42 + 12 * smoothstep(0, 95, au) - 14 * smoothstep(110, 180, au)
+    NVH = 130
+    rows = [vjaw + (89.2 - vjaw) * ((i / (NVH - 1)) ** 1.12) for i in range(NVH)]
+    Vh = np.array(rows)
+    Rh = np.zeros_like(Vh)
     for j in range(NU):
-        z = C[2] + Gs[:, j] * np.sin(vr)
-        k = len(vg) - 1
-        while k > 0 and z[k - 1] >= Z_BOTTOM and vg[k - 1] > -78:
-            k -= 1
-        # interpolate the crossing
-        if k > 0:
-            z0, z1 = z[k - 1], z[k]
-            f = (Z_BOTTOM - z0) / max(z1 - z0, 1e-6)
-            vb[j] = vg[k - 1] + f * (vg[k] - vg[k - 1])
-        else:
-            vb[j] = vg[0]
-    vb = np.convolve(np.concatenate([vb[-6:], vb, vb[:6]]), np.ones(13) / 13, 'same')[6:-6]
-    NV = 150
-    rows = []
-    for i in range(NV):
-        t = i / (NV - 1)
-        rows.append(vb + (89.2 - vb) * (t ** 1.15))
-    V = np.array(rows)
-    R = np.zeros_like(V)
-    for j in range(NU):
-        R[:, j] = np.interp(V[:, j], vg, Gs[:, j])
-    Vr = np.radians(V)
+        Rh[:, j] = np.interp(Vh[:, j], vg, Gs[:, j])
+    Vr = np.radians(Vh)
     dirs = np.stack([np.sin(ur)[None] * np.cos(Vr), -np.cos(ur)[None] * np.cos(Vr), np.sin(Vr)], -1)
-    Pg = C[None, None] + dirs * R[..., None]
+    Ph = C[None, None] + dirs * Rh[..., None]
+    # neck part: a smooth loft from a ring on the neck up to the jaw line (the hood skin
+    # bridges under the chin like real fabric: no throat cavities, no chin under-cut)
+    Cn = np.array([0.0, 0.028, Z_BOTTOM])
+    rn = np.zeros(NU)
+    for j in range(NU):
+        dh = Vector((math.sin(ur[j]), -math.cos(ur[j]), 0.0))
+        hit = bvh.ray_cast(Vector(Cn), dh, 0.2)
+        rn[j] = min(hit[3], 0.066) if hit[0] is not None else 0.06
+    for it in range(8):
+        rn = 0.5 * rn + 0.25 * (np.roll(rn, 1) + np.roll(rn, -1))
+    ring = Cn[None] + np.stack([np.sin(ur), -np.cos(ur), np.zeros(NU)], -1) * (rn + OFFSET)[:, None]
+    NVN = 22
+    jaw = Ph[0]
+    # tangent continuity at the jaw: start direction follows the head surface downward
+    tj = Ph[0] - Ph[2]
+    tj /= np.linalg.norm(tj, axis=1, keepdims=True)
+    span = np.linalg.norm(jaw - ring, axis=1, keepdims=True)
+    neck = []
+    for i in range(NVN):
+        t = i / NVN
+        h00 = 2 * t ** 3 - 3 * t ** 2 + 1; h10 = t ** 3 - 2 * t ** 2 + t
+        h01 = -2 * t ** 3 + 3 * t ** 2; h11 = t ** 3 - t ** 2
+        m0 = np.array([0, 0, 1.0])[None] * span * 0.3        # leave the neck vertically
+        m1 = -tj * span * 0.5                                 # arrive along the head surface
+        neck.append(h00 * ring + h10 * m0 + h01 * jaw + h11 * m1)
+    Pg = np.concatenate([np.array(neck), Ph], 0)
+    V = np.concatenate([np.full((NVN, NU), -80.0) + np.arange(NVN)[:, None] * 0.0, Vh], 0)
+    R = np.concatenate([np.zeros((NVN, NU)), Rh], 0)
     # tuck: the bottom edge rolls inward 2 mm (tucked under the collar)
-    tuck = Pg[0] - dirs[0] * 0.002 + np.array([0, 0, 0.003])
+    nd = np.stack([np.sin(ur), -np.cos(ur), np.zeros(NU)], -1)
+    tuck = Pg[0] - nd * 0.002 + np.array([0, 0, 0.003])
     Pg = np.concatenate([tuck[None], Pg], 0)
     verts = Pg.reshape(-1, 3).tolist()
-    top = C + np.array([0, 0, R[-1].mean()])
+    top = C + np.array([0, 0, Rh[-1].mean()])
     verts.append(top.tolist())
     itop = len(verts) - 1
     NR = Pg.shape[0]
@@ -111,7 +126,7 @@ def build(body_verts, body_faces):
     hp = np.stack([np.broadcast_to(u[None], Vfull.shape), Vfull, np.zeros_like(Vfull)], -1).reshape(-1, 3)
     hp[:, 2] = np.repeat(np.arange(NR), NU) / (NR - 1)
     hp = np.concatenate([hp, [[0, 90, 1]]], 0)
-    return dict(verts=np.array(verts), faces=faces, hp=hp, C=C, u=u, vg=vg, Gs=Gs)
+    return dict(verts=np.array(verts), faces=faces, hp=hp, C=C, u=u, vg=vg, Gs=Gs, n_neck=NVN + 1, NU=NU, ring_r=rn, ring_c=Cn)
 
 
 def surface_point(md, uu, vv, extra=0.0):
@@ -133,9 +148,10 @@ def lens(md, side=1, na=48, ns=26):
     L_deg = u1 - u0
     def outline(a):
         uu = u0 + L_deg * a
-        vc = LENS_VC[0] + (LENS_VC[1] - LENS_VC[0]) * a ** 1.5
-        h = LENS_H * (1 - a) ** 0.75
-        h *= 0.55 + 0.45 * math.sqrt(min(1.0, a / 0.10))      # blunt rounded inner end
+        vc = LENS_VC[0] + (LENS_VC[1] - LENS_VC[0]) * a ** 1.3
+        h = LENS_H * (1 - a) ** 0.85
+        h *= 0.62 + 0.38 * math.sqrt(min(1.0, a / 0.12))      # blunt rounded inner end
+        vc -= 3.0 * (1 - min(1.0, a / 0.25))                  # inner end dips toward the nose
         h = max(h, 0.25)
         return uu, vc, h
     As = np.concatenate([[0.0, 0.004, 0.012, 0.025, 0.045], np.linspace(0.07, 0.93, na), [0.955, 0.975, 0.988, 0.996, 1.0]])
@@ -169,3 +185,30 @@ def lens(md, side=1, na=48, ns=26):
             F.append(f)
             M.append(1 if min(mats_v[a], mats_v[a + 1], mats_v[a + ns_], mats_v[a + ns_ + 1]) == 1 else 0)
     return np.array(V), F, M
+
+
+def tuck_body(P, md, head_w, margin=0.005):
+    """keep the suit's neck inside the hood: clamp the horizontal radius of body
+    vertices above the hood rim to the rim radius; flag head/jaw vertices to delete."""
+    P = P.copy()
+    Cn = md['ring_c']; rn = md['ring_r']; u = md['u']
+    kill = np.zeros(len(P), bool)
+    for k in range(len(P)):
+        z = P[k, 2]
+        if z <= Z_BOTTOM - 0.004 or abs(P[k, 0]) > 0.13:
+            continue
+        dx, dy = P[k, 0] - Cn[0], P[k, 1] - Cn[1]
+        r = math.hypot(dx, dy)
+        if r > 0.14:
+            continue
+        a = math.degrees(math.atan2(dx, -dy))
+        lim = np.interp(a, u, rn, period=360.0) + OFFSET - margin
+        w = min(1.0, (z - (Z_BOTTOM - 0.004)) / 0.01)
+        if r > lim:
+            rr = r + (lim - r) * w
+            P[k, 0] = Cn[0] + dx / r * rr; P[k, 1] = Cn[1] + dy / r * rr
+        if z > Z_BOTTOM + 0.035 and head_w[k] > 0.2:
+            kill[k] = True
+        if z > Z_BOTTOM + 0.022 and dy > 0.0:          # nape: always under the hood
+            kill[k] = True
+    return P, kill

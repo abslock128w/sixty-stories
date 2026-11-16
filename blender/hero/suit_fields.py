@@ -409,18 +409,20 @@ def white_field(P, J, weights, p1_left):
         tp = ((pts - S0) @ axv) / La
         dax = np.linalg.norm((pts - S0) - np.outer((pts - S0) @ axv, axv), axis=1)
         arm_pts = pts[(tp > -0.25) & (tp < 1.05) & (dax < 0.09)]
-        idx = np.nonzero((x * side > 0.06) & (w_arm > 0.3))[0]
+        idx = np.nonzero((x * side > 0.06) & (w_arm > 0.02))[0]
         Q = P[idx]
         t = ((Q - S0) @ axv) / La
         d = np.full(len(idx), 1.0)
         for c0 in range(0, len(idx), 4096):
             q = Q[c0:c0 + 4096]
             d[c0:c0 + 4096] = np.sqrt(((q[:, None, :] - arm_pts[None, ::2, :]) ** 2).sum(-1)).min(1)
-        w = np.interp(t, [-0.2, 0.0, 0.25, 0.52], [0.075, 0.058, 0.03, 0.013])
+        w = np.interp(t, [-0.2, 0.0, 0.25, 0.55], [0.07, 0.05, 0.034, 0.02])
         f_stripe = w - d
         f_gaunt = (t - 0.585) * La * 0.9
         f_arm = np.maximum(f_stripe, f_gaunt)
-        out[idx] = np.maximum(out[idx], f_arm * np.clip(w_arm[idx] * 2, 0, 1) + out[idx] * (1 - np.clip(w_arm[idx] * 2, 0, 1)))
+        bl = np.clip((w_arm[idx] - 0.02) / 0.5, 0, 1)
+        bl = bl * bl * (3 - 2 * bl)
+        out[idx] = np.maximum(out[idx], f_arm * bl + out[idx] * (1 - bl))
     # --- boots: diagonal top edge (higher at the front of the shin)
     for side in ('L', 'R'):
         K = np.array(J['lowerleg01.' + side + '____head']); A = np.array(J['foot.' + side + '____head'])

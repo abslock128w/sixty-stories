@@ -785,11 +785,13 @@ def lens_glass_material():
     b.link(tc.outputs['Object'], vor.inputs['Vector'])
     mesh = b.smooth(0.0, 0.06, vor.outputs['Distance'])
     lw = b.n('ShaderNodeLayerWeight'); lw.inputs['Blend'].default_value = 0.3
-    col = b.mix(lw.outputs['Facing'], (0.85, 0.55, 0.18), (1.0, 0.80, 0.45), 'RGBA')
-    col = b.mix(b.math('SUBTRACT', 1.0, mesh), col, (0.35, 0.22, 0.08), 'RGBA')
+    col = b.mix(lw.outputs['Facing'], (1.0, 0.74, 0.32), (1.0, 0.86, 0.55), 'RGBA')
+    col = b.mix(b.math('MULTIPLY', b.math('SUBTRACT', 1.0, mesh), 0.6), col, (0.45, 0.30, 0.10), 'RGBA')
     b.set(bs, 'Base Color', col)
     b.set(bs, 'Metallic', 1.0)
-    b.set(bs, 'Roughness', 0.05)
+    b.set(bs, 'Roughness', 0.11)
+    b.set(bs, 'Emission Color', (1.0, 0.7, 0.3))
+    b.set(bs, 'Emission Strength', 0.06)
     b.set(bs, 'Coat Weight', 1.0)
     b.set(bs, 'Coat Roughness', 0.0)
     try:

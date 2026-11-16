@@ -94,8 +94,9 @@ def build_body_and_rig(sc):
     md = mask.build(P, F)
     # the body's own head and upper neck live under the hood: remove them
     W0 = vertex_weights(body)
-    hn = sum(W0.get(n, 0) for n in ('head', 'neck01', 'neck02', 'neck03'))
-    hid = (P[:, 2] > mask.Z_BOTTOM + 0.012) & (hn > 0.35) & (np.abs(P[:, 0]) < 0.12)
+    P, hid = mask.tuck_body(P, md, W0.get('head', np.zeros(len(P))))
+    body.data.vertices.foreach_set('co', P.ravel()); body.data.update()
+    hid |= (P[:, 2] > 1.585) & (W0.get('head', 0) > 0.5) & (np.abs(P[:, 0]) < 0.12)
     delete_faces(body, np.array([hid[list(f)].all() for f in F]))
     P, F = mesh_arrays(body.data)
     W = vertex_weights(body)
@@ -542,16 +543,44 @@ def build_gear_v2(d, rig, mats):
     at = ob.data.attributes.new('hp', 'FLOAT_VECTOR', 'POINT')
     at.data.foreach_set('vector', np.asarray(md['hp'], float).ravel())
     ob.parent = rig
-    gw = {n: ob.vertex_groups.new(name=n) for n in ('neck01', 'neck02', 'neck03', 'head')}
-    zz = md['verts'][:, 2]
-    def tri(z, c, w):
-        return np.clip(1 - np.abs(z - c) / w, 0, 1)
-    W_ = dict(neck01=tri(zz, 1.50, 0.03), neck02=tri(zz, 1.535, 0.035), neck03=tri(zz, 1.575, 0.04),
-              head=np.clip((zz - 1.555) / 0.06, 0, 1))
-    tot = sum(W_.values()) + 1e-9
-    for nme, w in W_.items():
-        for i in np.nonzero(w > 0.005)[0]:
-            gw[nme].add([int(i)], float(w[i] / tot[i]), 'REPLACE')
+    # neck rows: body weights of the nearest suit vertices, blending into pure 'head'
+    # at the jaw line; head rows: 'head' only (the hood moves with the skull)
+    Wb = d['W_final']
+    names = [n for n in Wb if Wb[n].max() > 0]
+    WM = np.stack([Wb[n] for n in names], 1)
+    gw = {}
+    def grp(nme):
+        if nme not in gw:
+            gw[nme] = ob.vertex_groups.new(name=nme)
+        return gw[nme]
+    Vm = md['verts']
+    nn = md['n_neck'] * md['NU']
+    for i in range(len(Vm)):
+        if i < nn:
+            row = i // md['NU']
+            t = row / (md['n_neck'] - 1)
+            t = t * t * (3 - 2 * t)
+            col_u = abs(md['u'][i % md['NU']])
+            back = min(1.0, max(0.0, (col_u - 90.0) / 50.0))
+            t = t ** (1.0 + 2.5 * back)
+            dist = np.linalg.norm(P - Vm[i], axis=1)
+            k = np.argpartition(dist, 6)[:6]
+            w = 1.0 / (dist[k] + 1e-4)
+            ww = (WM[k] * w[:, None]).sum(0) / w.sum() * (1 - t)
+            for gi in np.nonzero(ww > 0.01)[0]:
+                nme = names[gi]
+                grp(nme).add([i], float(ww[gi]), 'REPLACE')
+            if t > 0.01:
+                grp('head').add([i], float(t), 'REPLACE')
+    # first head rows at the back (nape) keep some neck weight too
+    for i in range(nn, len(Vm)):
+        row = i // md['NU'] - md['n_neck']
+        col_u = abs(md['u'][i % md['NU']])
+        back = min(1.0, max(0.0, (col_u - 90.0) / 50.0))
+        tn = max(0.0, 1 - row / 18.0) * back * 0.5
+        grp('head').add([i], 1.0 - tn, 'REPLACE')
+        if tn > 0:
+            grp('neck03').add([i], tn * 0.6, 'REPLACE'); grp('neck02').add([i], tn * 0.4, 'REPLACE')
     mm_ = ob.modifiers.new('Armature', 'ARMATURE'); mm_.object = rig
     objs.append(ob)
     # lenses (rigid on the head)

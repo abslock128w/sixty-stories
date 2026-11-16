@@ -122,6 +122,7 @@ HANDS = {
     'claw': dict(f=[(30, 55, 40), (32, 55, 40), (34, 58, 40), (36, 60, 40)], spread=1.0, thumb=(10, 0, 20, 25)),
     'point': dict(f=[(0, 5, 3), (75, 90, 55), (80, 90, 55), (85, 90, 55)], spread=0.0, thumb=(25, 25, 25, 30)),
     'expressive': dict(f=[(5, 12, 6), (14, 20, 10), (22, 28, 14), (30, 34, 18)], spread=1.1, thumb=(-5, -15, 8, 8)),
+    'open': dict(f=[(-6, 6, 3), (2, 10, 5), (8, 16, 8), (14, 22, 12)], spread=1.5, thumb=(-12, -28, 4, 4)),
 }
 
 POSES = {
@@ -155,8 +156,8 @@ POSES = {
     'leap': dict(
         root_rot=(30, 0, 4), spine=(-12, 0, 6), neck=(-14, 0, 0), head=(-8, 4, 0),
         clav_L=(8, 8), clav_R=(8, 8),
-        arm_L=dict(up=(0.25, 0.85, 0.5), fore=(0.15, 0.95, 0.35), pron=30, wrist=(15, 0), hand='expressive'),
-        arm_R=dict(up=(0.3, 0.8, 0.25), fore=(0.2, 0.95, 0.15), pron=30, wrist=(10, 0), hand='expressive'),
+        arm_L=dict(up=(0.25, 0.85, 0.5), fore=(0.15, 0.95, 0.35), pron=30, wrist=(15, 0), hand='open'),
+        arm_R=dict(up=(0.3, 0.8, 0.25), fore=(0.2, 0.95, 0.15), pron=30, wrist=(10, 0), hand='open'),
         leg_L=dict(thigh=(0.08, 0.75, -0.45), shin=(0.04, -0.4, -1), foot=(-30, 0), toes=-10),
         leg_R=dict(thigh=(0.05, -0.45, -1), shin=(0.03, -0.75, -0.6), foot=(-50, 0), toes=-25)),
     # head first, arms swept back along the body, legs together, toes pointed
@@ -179,7 +180,7 @@ POSES = {
         root_rot=(4, 0, 0), spine=(2, -6, 24), neck=(0, 14, 0), head_aim=(-0.45, -0.85, 0.28),
         clav_R=(6, 14),
         arm_R=dict(up=(0.35, 0.88, 0.32), fore=(0.33, 0.88, 0.34), pole=(-0.3, 0.2, -1), pron=-85, wrist=(68, -8), hand='spread'),
-        arm_L=dict(up=(0.6, -0.45, -0.45), fore=(0.3, 0.2, -0.9), pron=10, wrist=(0, 0), hand='claw'),
+        arm_L=dict(up=(0.6, -0.45, -0.45), fore=(0.3, 0.2, -0.9), pron=10, wrist=(0, 0), hand='open'),
         leg_L=dict(thigh=(0.1, 0.6, -0.6), shin=(0.06, -0.55, -1), foot=(-25, 0), toes=-8),
         leg_R=dict(thigh=(0.06, -0.3, -1), shin=(0.04, -0.85, -0.55), foot=(-48, 0), toes=-22)),
     # hanging from the right hand, body arced, legs trailing and bent
@@ -187,7 +188,7 @@ POSES = {
         root_rot=(-22, 0, -8), spine=(-30, 8, -12), neck=(-6, -6, 0), head_aim=(0.12, -0.96, -0.05),
         clav_R=(30, 2), clav_L=(4, -18),
         arm_R=dict(up=(0.12, 0.10, 1), fore=(0.08, 0.06, 1), pole=(0.2, -1, 0), pron=60, wrist=(-12, 0), hand='grip'),
-        arm_L=dict(up=(0.55, -0.75, -0.3), fore=(0.35, -0.92, -0.05), pron=-20, wrist=(-20, 8), hand='expressive'),
+        arm_L=dict(up=(0.55, -0.75, -0.3), fore=(0.35, -0.92, -0.05), pron=-20, wrist=(-20, 8), hand='open'),
         leg_L=dict(thigh=(0.10, -0.22, -1), shin=(0.05, -0.85, -0.55), foot=(-48, 0), toes=-20),
         leg_R=dict(thigh=(0.06, -0.62, -0.8), shin=(0.03, -0.98, -0.2), foot=(-58, 0), toes=-25)),
     'swing_tuck': dict(
@@ -218,7 +219,7 @@ POSES = {
         root_rot=(-6, 0, 6), spine=(-16, -6, 18), neck=(-4, 10, 0), head_aim=(-0.35, -0.9, 0.25),
         clav_R=(14, 14), clav_L=(4, -12),
         arm_R=dict(up=(0.32, 0.85, 0.42), fore=(0.3, 0.85, 0.44), pole=(-0.3, 0.2, -1), pron=-85, wrist=(68, -8), hand='spread'),
-        arm_L=dict(up=(0.55, -0.75, -0.2), fore=(0.45, -0.88, 0.05), pron=-30, wrist=(-25, 5), hand='expressive'),
+        arm_L=dict(up=(0.55, -0.75, -0.2), fore=(0.45, -0.88, 0.05), pron=-30, wrist=(-25, 5), hand='open'),
         leg_L=dict(thigh=(0.22, 1, 0.4), shin=(0.08, -0.12, -1), foot=(-38, 0), toes=-18),
         leg_R=dict(thigh=(0.05, -0.45, -1), shin=(0.03, -0.95, -0.35), foot=(-60, 0), toes=-28)),
     'freefall_spread': dict(
