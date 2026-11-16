@@ -1,6 +1,7 @@
 // Hand-written WebGL2 picture engine.
-//  pass 1  picture   : blend two frames + their depths, depth parallax, gate weave, lens breathing,
-//                      scrub smear + channel separation (zero at rest), exposure, cut flash
+//  pass 1  picture   : blend two frames (one at rest), smooth-depth parallax, gate weave, lens
+//                      breathing, scrub smear + channel separation (zero at rest), exposure, cut
+//                      flash; bicubic + restrained unsharp mask when shown above native size
 //  pass 2  bright    : soft-knee highlight extraction at 1/4 res
 //  pass 3/4 bloom    : separable blur -> halation source
 //  pass 5  streak    : long horizontal blur of the brightest pixels (anamorphic streak)
@@ -17,43 +18,95 @@ const PICTURE = `#version 300 es
 precision highp float;
 uniform sampler2D uColA, uColB, uDepA, uDepB;
 uniform float uMix, uHas;
-uniform vec4 uWin;        // window rect in device px (GL origin bottom-left)
+uniform vec4 uWin;        // full picture window in device px (GL origin bottom-left)
+uniform vec4 uMatte;      // open part of the window (curtain mattes); outside is black
 uniform vec2 uCrop, uCropOff;
 uniform vec2 uPar;        // parallax offset (uv) at full depth difference
 uniform float uFocus, uZoom, uSmear, uSplit, uExposure, uFlash;
+uniform float uCubic;     // 1: bicubic (Catmull-Rom) colour sampling, used when magnified
+uniform float uSharp;     // unsharp-mask amount (0 = off)
+uniform float uDepthLod;  // mip level of the depth used for the parallax warp (smooth field)
 uniform vec2 uWeave;
 out vec4 o;
-float depthAt(vec2 uv){ return mix(texture(uDepA, uv).r, texture(uDepB, uv).r, uMix); }
-vec3 colAt(vec2 uv){ return mix(texture(uColA, uv).rgb, texture(uColB, uv).rgb, uMix); }
-vec3 sampleCA(vec2 uv, vec2 dir){
-  if (uSplit <= 0.0) return colAt(uv);
-  vec2 d = dir * uSplit;
-  return vec3(colAt(uv + d).r, colAt(uv).g, colAt(uv - d).b);
+// Depth for the warp comes from a blurred mip level: a smooth displacement field cannot tear,
+// duplicate rims or scatter pepper pixels along silhouettes (a sharp depth edge does).
+float depthAt(vec2 uv){ return mix(textureLod(uDepA, uv, uDepthLod).r, textureLod(uDepB, uv, uDepthLod).r, uMix); }
+vec3 lin(sampler2D t, vec2 uv){ return texture(t, uv).rgb; }
+// Catmull-Rom in 9 bilinear taps
+vec3 cubic(sampler2D t, vec2 uv){
+  vec2 ts = vec2(textureSize(t, 0));
+  vec2 sp = uv * ts;
+  vec2 p1 = floor(sp - .5) + .5;
+  vec2 f = sp - p1;
+  vec2 w0 = f * (-.5 + f * (1. - .5 * f));
+  vec2 w1 = 1. + f * f * (-2.5 + 1.5 * f);
+  vec2 w2 = f * (.5 + f * (2. - 1.5 * f));
+  vec2 w3 = f * f * (-.5 + .5 * f);
+  vec2 w12 = w1 + w2;
+  vec2 p0 = (p1 - 1.) / ts, p3 = (p1 + 2.) / ts, p12 = (p1 + w2 / w12) / ts;
+  vec3 r = vec3(0.);
+  r += textureLod(t, vec2(p0.x, p0.y), 0.).rgb * w0.x * w0.y;
+  r += textureLod(t, vec2(p12.x, p0.y), 0.).rgb * w12.x * w0.y;
+  r += textureLod(t, vec2(p3.x, p0.y), 0.).rgb * w3.x * w0.y;
+  r += textureLod(t, vec2(p0.x, p12.y), 0.).rgb * w0.x * w12.y;
+  r += textureLod(t, vec2(p12.x, p12.y), 0.).rgb * w12.x * w12.y;
+  r += textureLod(t, vec2(p3.x, p12.y), 0.).rgb * w3.x * w12.y;
+  r += textureLod(t, vec2(p0.x, p3.y), 0.).rgb * w0.x * w3.y;
+  r += textureLod(t, vec2(p12.x, p3.y), 0.).rgb * w12.x * w3.y;
+  r += textureLod(t, vec2(p3.x, p3.y), 0.).rgb * w3.x * w3.y;
+  return max(r, vec3(0.));
+}
+vec3 colAt(vec2 uv){
+  if (uMix <= 0.) return lin(uColA, uv);
+  return mix(lin(uColA, uv), lin(uColB, uv), uMix);
+}
+vec3 colRest(vec2 uv){
+  vec3 c = uCubic > .5 ? (uMix <= 0. ? cubic(uColA, uv) : mix(cubic(uColA, uv), cubic(uColB, uv), uMix)) : colAt(uv);
+  if (uSharp > 0.) {
+    // restrained unsharp mask: c + k * (c - blur), blur = 4 bilinear taps ~1 source px away
+    vec2 tx = 1. / vec2(textureSize(uColA, 0));
+    vec3 b = (colAt(uv + tx * vec2(.75, .75)) + colAt(uv + tx * vec2(-.75, .75)) + colAt(uv + tx * vec2(.75, -.75)) + colAt(uv + tx * vec2(-.75, -.75))) * .25;
+    c = max(c + (c - b) * uSharp, vec3(0.));
+  }
+  return c;
 }
 void main(){
   vec2 p = (gl_FragCoord.xy - uWin.xy) / uWin.zw;
-  if (uHas < .5 || p.x < 0. || p.y < 0. || p.x > 1. || p.y > 1.) { o = vec4(0.,0.,0.,1.); return; }
+  vec2 pm = (gl_FragCoord.xy - uMatte.xy) / uMatte.zw;
+  if (uHas < .5 || pm.x < 0. || pm.y < 0. || pm.x > 1. || pm.y > 1.) { o = vec4(0.,0.,0.,1.); return; }
   vec2 q = (p - .5) / uZoom + .5;               // overscan + breathing
   vec2 uv = uCropOff + q * uCrop;               // cover crop / pan
   uv.y = 1. - uv.y;                              // bitmap rows run top-down
   uv += uWeave;
-  // two-step depth parallax (near moves more than far; focus plane stays)
-  float d0 = depthAt(uv);
-  vec2 uv1 = uv + uPar * (d0 - uFocus);
-  float d1 = depthAt(clamp(uv1, 0., 1.));
-  uv = clamp(uv + uPar * (mix(d0, d1, .6) - uFocus), vec2(.0005), vec2(.9995));
+  if (dot(uPar, uPar) > 1e-12) {
+    // depth parallax (near moves more than far; the focus plane stays)
+    float d0 = depthAt(clamp(uv, 0., 1.));
+    uv += uPar * (d0 - uFocus);
+  }
+  uv = clamp(uv, vec2(.0005), vec2(.9995));
   vec2 dir = (q - .5) * vec2(uCrop.x * 2.39 / max(uCrop.y, 1e-3), 1.);
   vec3 c;
   if (uSmear > .0004) {
+    // 8 taps of the blended frame, then one radial channel split (cheap enough for phones)
     vec3 acc = vec3(0.); float wsum = 0.;
     float j = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
-    for (int k = 0; k < 12; k++) {
-      float t = (float(k) + j) / 12. - .5;
+    for (int k = 0; k < 8; k++) {
+      float t = (float(k) + j) / 8. - .5;
       float w = 1. - abs(t) * 1.7;
-      acc += sampleCA(clamp(uv + vec2(0., t * uSmear), 0., 1.), dir) * w; wsum += w;
+      acc += colAt(clamp(uv + vec2(0., t * uSmear), 0., 1.)) * w; wsum += w;
     }
     c = acc / wsum;
-  } else c = sampleCA(uv, dir);
+    if (uSplit > 0.) {
+      vec2 d = dir * uSplit;
+      vec3 m = colAt(uv);
+      c.r += colAt(clamp(uv + d, 0., 1.)).r - m.r;
+      c.b += colAt(clamp(uv - d, 0., 1.)).b - m.b;
+      c = max(c, vec3(0.));
+    }
+  } else if (uSplit > 0.) {
+    vec2 d = dir * uSplit;
+    c = vec3(colAt(clamp(uv + d, 0., 1.)).r, colAt(uv).g, colAt(clamp(uv - d, 0., 1.)).b);
+  } else c = colRest(uv);
   c *= uExposure;
   c = c * (1. + uFlash) + uFlash * .06;
   o = vec4(c, 1.);
@@ -102,13 +155,14 @@ const FINAL = `#version 300 es
 precision highp float;
 in vec2 vUv;
 uniform sampler2D uPic, uBloom, uStreak;
-uniform vec4 uWin; uniform vec2 uRes;
+uniform vec4 uWin, uMatte; uniform vec2 uRes;
 uniform float uHal, uStr, uVig, uGrain, uSeed, uFade;
 out vec4 o;
 float h12(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
 void main(){
   vec2 p = (gl_FragCoord.xy - uWin.xy) / uWin.zw;
-  if (p.x < 0. || p.y < 0. || p.x > 1. || p.y > 1.) { o = vec4(0.,0.,0.,1.); return; }
+  vec2 pm = (gl_FragCoord.xy - uMatte.xy) / uMatte.zw;
+  if (pm.x < 0. || pm.y < 0. || pm.x > 1. || pm.y > 1.) { o = vec4(0.,0.,0.,1.); return; }
   vec3 c = texture(uPic, vUv).rgb;
   vec3 b = texture(uBloom, vUv).rgb;
   vec3 s = texture(uStreak, vUv).rgb;
@@ -157,9 +211,9 @@ void main(){
 
 const DUST_FS = `#version 300 es
 precision highp float;
-in float vA; in float vSize; uniform float uStrength; uniform vec4 uWin; out vec4 o;
+in float vA; in float vSize; uniform float uStrength; uniform vec4 uMatte; out vec4 o;
 void main(){
-  vec2 p = (gl_FragCoord.xy - uWin.xy) / uWin.zw;
+  vec2 p = (gl_FragCoord.xy - uMatte.xy) / uMatte.zw;
   if (p.x < 0. || p.y < 0. || p.x > 1. || p.y > 1.) discard;
   vec2 d = gl_PointCoord * 2. - 1.;
   float r = dot(d, d);
@@ -286,6 +340,10 @@ export class Renderer {
     gl.uniform1f(P.u.uMix, s.pick ? s.pick.mix : 0);
     gl.uniform1f(P.u.uHas, A ? 1 : 0);
     gl.uniform4f(P.u.uWin, ...s.win);
+    gl.uniform4f(P.u.uMatte, ...(s.matte || s.win));
+    gl.uniform1f(P.u.uCubic, s.cubic ? 1 : 0);
+    gl.uniform1f(P.u.uSharp, s.sharp || 0);
+    gl.uniform1f(P.u.uDepthLod, CONFIG.look.parallaxDepthLod);
     gl.uniform2f(P.u.uCrop, ...s.crop);
     gl.uniform2f(P.u.uCropOff, ...s.cropOff);
     gl.uniform2f(P.u.uPar, ...s.par);
@@ -327,6 +385,7 @@ export class Renderer {
     this.tex(F, 'uBloom', 1, T.b2.tex);
     this.tex(F, 'uStreak', 2, T.st.tex);
     gl.uniform4f(F.u.uWin, ...s.win);
+    gl.uniform4f(F.u.uMatte, ...(s.matte || s.win));
     gl.uniform2f(F.u.uRes, W, H);
     gl.uniform1f(F.u.uHal, CONFIG.look.halation);
     gl.uniform1f(F.u.uStr, CONFIG.look.streak);
@@ -344,6 +403,7 @@ export class Renderer {
       gl.bindVertexArray(this.dustVao);
       this.tex(D, 'uDepA', 0, A.dep);
       gl.uniform4f(D.u.uWin, ...s.win);
+      gl.uniform4f(D.u.uMatte, ...(s.matte || s.win));
       gl.uniform2f(D.u.uRes, W, H);
       gl.uniform2f(D.u.uCrop, ...s.crop);
       gl.uniform2f(D.u.uCropOff, ...s.cropOff);

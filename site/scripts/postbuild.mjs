@@ -71,7 +71,7 @@ if (!fs.existsSync(path.join(film, 'manifest.json'))) fail('dist/film/manifest.j
 else {
   const m = JSON.parse(fs.readFileSync(path.join(film, 'manifest.json'), 'utf8'));
   for (const k of ['width', 'height', 'fps', 'total', 'shots', 'telemetry', 'packs', 'frames']) if (!(k in m)) fail(`manifest missing "${k}"`);
-  for (const p of m.packs || []) if (!/^pack-\d{3}\.bin$/.test(p) || !fs.existsSync(path.join(film, p))) fail(`pack ${p} missing or misnamed`);
+  for (const p of m.packs || []) if (!/^pack-\d{3}\.wasm$/.test(p) || !fs.existsSync(path.join(film, p))) fail(`pack ${p} missing or misnamed`);
   for (const f of fs.readdirSync(film)) if (/\.tmp$/.test(f)) fail(`stray temp file ${f}`);
 }
 let count = 0, total = 0;

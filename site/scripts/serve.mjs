@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 const port = Number(process.argv[2] || 4173);
 const base = (process.argv[3] || '/deep/base/path/').replace(/\/?$/, '/');
-const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.json': 'application/json', '.bin': 'application/octet-stream', '.css': 'text/css' };
+const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm', '.css': 'text/css' };
 http.createServer((req, res) => {
   const url = decodeURIComponent(req.url.split('?')[0]);
   if (!url.startsWith(base)) { res.writeHead(404); res.end('outside base'); return; }

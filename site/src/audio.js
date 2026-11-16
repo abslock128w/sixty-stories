@@ -18,7 +18,11 @@ const CHORDS = {
 const OPEN = { s1: 1, s2: 0.35, s3: 0.15, s4: 0.55, s5: 0.5, s6: 1 };
 
 export class Score {
-  constructor() { this.ctx = null; this.muted = false; this.started = false; this.lastShot = null; this.lastTick = 0; this.sirenAt = 0; }
+  constructor() {
+    this.ctx = null; this.muted = false; this.hidden = false; this.started = false;
+    this.lastShot = null; this.lastTick = 0; this.sirenAt = 0;
+    this.cueAt = {}; this.pendingCue = null; this.muteTimer = 0;
+  }
 
   start() {
     if (this.started) return;
@@ -26,6 +30,9 @@ export class Score {
     if (!AC) return;
     const ctx = (this.ctx = new AC({ latencyHint: 'playback' }));
     this.started = true;
+    // a context can be suspended by the browser (or created suspended); bring it back whenever
+    // it should be playing
+    ctx.addEventListener && ctx.addEventListener('statechange', () => { if (ctx.state === 'suspended') this.wake(); });
     const now = ctx.currentTime;
 
     const comp = ctx.createDynamicsCompressor();
@@ -119,19 +126,34 @@ export class Score {
     cs.connect(chp); chp.connect(clp); clp.connect(this.city);
     this.city.connect(this.master); this.city.connect(this.verb);
 
-    // projector gate tick bus
-    this.tick = ctx.createGain(); this.tick.gain.value = 0.0; this.tick.connect(this.master);
+    // projector gate tick bus (dry: ticks stay out of the long reverb; follows the level fade)
+    this.tick = ctx.createGain(); this.tick.gain.value = 1.0; this.tick.connect(this.master);
   }
 
-  oneShotNoise(t, dur, type, f0, f1, gain, q = 1, dest = this.master) {
+  // resume when it should be audible (not muted, tab visible); safe to call from any gesture
+  wake() {
+    const ctx = this.ctx;
+    if (!ctx || this.muted || this.hidden || ctx.state !== 'suspended') return;
+    ctx.resume().catch(() => {});
+  }
+
+  // envelope: fast attack, hold most of the duration, then an exponential tail (an exponential
+  // ramp across the whole duration is gone within a tenth of it)
+  env(g, t, dur, gain, attack) {
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + attack);
+    g.gain.linearRampToValueAtTime(gain * 0.75, t + Math.max(attack + 0.001, dur * 0.55));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  }
+
+  oneShotNoise(t, dur, type, f0, f1, gain, q = 1, dest = this.master, verb = true) {
     const ctx = this.ctx;
     const s = ctx.createBufferSource(); s.buffer = this.noiseBuf;
     const f = ctx.createBiquadFilter(); f.type = type; f.Q.value = q;
     f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(f1, t + dur);
-    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(gain, t + Math.min(0.03, dur * 0.2));
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    s.connect(f); f.connect(g); g.connect(dest); g.connect(this.verb);
+    const g = ctx.createGain();
+    this.env(g, t, dur, gain, Math.min(0.03, dur * 0.2));
+    s.connect(f); f.connect(g); g.connect(dest); if (verb) g.connect(this.verb);
     s.start(t, Math.random() * 2); s.stop(t + dur + 0.05);
   }
 
@@ -139,16 +161,15 @@ export class Score {
     const ctx = this.ctx;
     const o = ctx.createOscillator(); o.type = type;
     o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
-    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(gain, t + 0.012);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    const g = ctx.createGain();
+    this.env(g, t, dur, gain, Math.min(0.012, dur * 0.2));
     o.connect(g); g.connect(dest); o.start(t); o.stop(t + dur + 0.05);
   }
 
   drop() {
     if (!this.ctx) return; const t = this.ctx.currentTime + 0.01;
     this.tone(t, 2.6, 'sine', 78, 26, 0.55);
-    this.tone(t, 1.6, 'triangle', 156, 40, 0.08);
+    this.tone(t, 1.6, 'triangle', 156, 40, 0.12);                   // audible on small speakers
     this.oneShotNoise(t, 2.2, 'bandpass', 300, 3200, 0.35, 0.8);
   }
 
@@ -186,9 +207,23 @@ export class Score {
 
   // called every animation frame
   update(st) {
-    const ctx = this.ctx; if (!ctx || ctx.state === 'closed') return;
+    const ctx = this.ctx; if (!ctx || ctx.state !== 'running') return;   // no automation backlog while suspended
     const t = ctx.currentTime;
     const sid = st.shotId;
+    // cut cues: only travelling forward at up to the speed where the picture still flashes the
+    // cut; a cut crossed faster fires if the viewer settles within a moment; each cue at most
+    // once per cueCooldown seconds (rocking across a cut does not re-fire it)
+    const CUE_V = 400, cue = (id) => {
+      if (t - (this.cueAt[id] ?? -1e9) < 6) return;
+      this.cueAt[id] = t;
+      if (id === 's3') this.drop();
+      if (id === 's4') this.launcher(-0.3);
+      if (id === 's5') this.launcher(0.35);
+    };
+    if (this.pendingCue) {
+      if (this.pendingCue.id !== sid || t > this.pendingCue.until) this.pendingCue = null;
+      else if (Math.abs(st.v) < CUE_V) { cue(sid); this.pendingCue = null; }
+    }
     if (sid !== this.lastShot) {
       const chord = CHORDS[sid] || CHORDS.s1;
       this.voices.forEach((v, k) => v.oscs.forEach((o) => o.frequency.setTargetAtTime(NOTE(chord[k]), t, 0.9)));
@@ -196,16 +231,16 @@ export class Score {
       this.shimmer.gain.setTargetAtTime(open > 0.9 ? 1 : open * 0.25, t, 2.0);
       this.musicLP.frequency.setTargetAtTime(500 + open * 1400, t, 1.6);
       // cut events only when travelling forward at roughly playback speed
-      if (this.lastShot && st.dir > 0 && Math.abs(st.v) < 140) {
-        if (sid === 's3') this.drop();
-        if (sid === 's4') this.launcher(-0.3);
-        if (sid === 's5') this.launcher(0.35);
+      if (this.lastShot && st.dir > 0 && (sid === 's3' || sid === 's4' || sid === 's5')) {
+        if (Math.abs(st.v) < CUE_V) cue(sid); else this.pendingCue = { id: sid, until: t + 0.8 };
       }
       this.lastShot = sid;
     }
     // swing re-fire mid-shot (s5 fires again on its way out)
     const alt = st.alt ?? 120, spd = st.speed ?? 0, vel = Math.min(1, Math.abs(st.v) / 200);
-    const windAmt = Math.min(1, 0.08 + (alt / 400) * 0.25 + (spd / 180) * 0.55 + vel * 0.4);
+    // s1's telemetry speed is the camera's (an aerial move), not the hero's: weigh it lightly
+    const spdW = sid === 's1' ? 0.15 : 1;
+    const windAmt = Math.min(1, 0.08 + (alt / 400) * 0.25 + (spd / 180) * 0.55 * spdW + vel * 0.4);
     this.wind.gain.setTargetAtTime(0.16 * windAmt * st.level, t, 0.25);
     this.windF.forEach((f, k) => f.Q.setTargetAtTime(0.6 + windAmt * 1.4, t, 0.3));
     this.windF.forEach((f, k) => f.frequency.setTargetAtTime(350 + windAmt * 1300 + k * 220, t, 0.3));
@@ -213,10 +248,11 @@ export class Score {
     this.city.gain.setTargetAtTime((0.05 + 0.4 * low) * st.level, t, 0.6);
     if (low > 0.3 && t > this.sirenAt) { this.sirenAt = t + 18 + Math.random() * 20; if (Math.random() < 0.6) this.siren(); }
     this.music.gain.setTargetAtTime(0.5 * st.musicLevel, t, 0.8);
+    this.tick.gain.setTargetAtTime(st.level, t, 0.3);
     // projector gate tick on integer frame changes while scrubbing by hand
     if (st.frameStep && !st.playing && Math.abs(st.v) > 4 && t - this.lastTick > 1 / 30) {
       this.lastTick = t;
-      this.oneShotNoise(t + 0.005, 0.03, 'bandpass', 2600, 1800, Math.min(0.05, 0.012 + Math.abs(st.v) / 3000), 3, this.master);
+      this.oneShotNoise(t + 0.005, 0.03, 'bandpass', 2600, 1800, Math.min(0.05, 0.012 + Math.abs(st.v) / 3000), 3, this.tick, false);
     }
   }
 
@@ -226,13 +262,24 @@ export class Score {
     let p = 0; for (const v of b) p = Math.max(p, Math.abs(v)); return p;
   }
 
+  // muting fades out, then suspends the whole graph (no CPU spent on silence); unmuting resumes
   setMuted(m) {
     this.muted = m; if (!this.ctx) return;
-    this.master.gain.setTargetAtTime(m ? 0 : CONFIG.audio.master, this.ctx.currentTime, 0.15);
+    const ctx = this.ctx;
+    clearTimeout(this.muteTimer);
+    if (m) {
+      this.master.gain.setTargetAtTime(0, ctx.currentTime, 0.15);
+      this.muteTimer = setTimeout(() => { if (this.muted && ctx.state === 'running') ctx.suspend().catch(() => {}); }, 900);
+    } else {
+      const up = () => this.master.gain.setTargetAtTime(CONFIG.audio.master, ctx.currentTime, 0.15);
+      if (ctx.state === 'suspended' && !this.hidden) ctx.resume().then(up, up); else up();
+    }
   }
 
+  // tab hidden / shown
   suspend(hidden) {
+    this.hidden = hidden;
     if (!this.ctx) return;
-    if (hidden) this.ctx.suspend().catch(() => {}); else this.ctx.resume().catch(() => {});
+    if (hidden) { if (this.ctx.state === 'running') this.ctx.suspend().catch(() => {}); } else this.wake();
   }
 }

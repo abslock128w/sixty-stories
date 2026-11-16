@@ -4,8 +4,8 @@
                                       [--threads 4] [--chunk 36] [--order progressive|linear]
 
 Writes, per bible section 6:
-    blender/out/frames/color/f_%04d.png   1920x804 8-bit sRGB (graded: AgX look + compositor)
-    blender/out/frames/depth/f_%04d.png   960x402 8-bit grey, v = round(255/(1+z/25)), sky = 0
+    blender/out/frames/color/f_%04d.png   2560x1072 (shot_settings.RES) 8-bit sRGB (graded: AgX look + compositor)
+    blender/out/frames/depth/f_%04d.png   1280x536 (shot_settings.DEPTH_RES) 8-bit grey, v = round(255/(1+z/25)), sky = 0
 Both are written to a temp name and renamed (atomic). A frame whose colour AND depth both
 exist is skipped, so the script can be killed and restarted at any time.
 
@@ -49,9 +49,15 @@ def shot_of(i):
     raise ValueError(i)
 
 
+def _res():
+    sys.path.insert(0, HERE)
+    import shot_settings as SS
+    return SS.RES, SS.DEPTH_RES
+
+
 def parse(argv):
     o = dict(frames=None, stride=1, limit=0, shot=None, threads=4, chunk=36, order='progressive',
-             worker=False, list=None, w=1920, h=804)
+             worker=False, list=None, w=None, h=None)
     i = 0
     while i < len(argv):
         a = argv[i]
@@ -65,6 +71,9 @@ def parse(argv):
             v = int(v)
         o[k] = v
         i += 2
+    (W, H), _ = _res()
+    o['w'] = o['w'] or W
+    o['h'] = o['h'] or H
     return o
 
 
@@ -251,6 +260,9 @@ def worker(o):
             setattr(c, k, v)
         for m in subs:
             m.render_levels = st['subsurf']
+        r.use_motion_blur = True
+        r.motion_blur_position = 'START'
+        r.motion_blur_shutter = SS.shutter(i)
         scene.frame_set(i)
         tag = 'p%d_%d' % (os.getpid(), i)
         ddir = os.path.join(TMP, tag)
@@ -301,7 +313,7 @@ def despeckle_depth(v, np, tol=10.0):
 
 
 def write_depth(z, path, np):
-    """z: (804, 1920) camera depth in metres (sky = huge). 2x2 min filter -> 960x402."""
+    """z: (H, W) camera depth in metres (sky = huge). 2x2 min filter -> DEPTH_RES."""
     from PIL import Image
     h, w = z.shape
     z = z[:h // 2 * 2, :w // 2 * 2]
@@ -312,8 +324,9 @@ def write_depth(z, path, np):
     v[sky] = 0
     v = despeckle_depth(v, np)
     im = Image.fromarray(v.astype(np.uint8), 'L')
-    if im.size != (960, 402):
-        im = im.resize((960, 402), Image.NEAREST)
+    _, (DW, DH) = _res()
+    if im.size != (DW, DH):
+        im = im.resize((DW, DH), Image.NEAREST)
     tmp = path + '.tmp.png'
     im.save(tmp)
     os.replace(tmp, path)

@@ -149,3 +149,23 @@ at medium effort. An hourly scheduled task re-wakes the main session; on wake, r
   owner's say. Owner asked 3x which way to go (continue redesign / revert blue-white /
   other). Shots s2-s6 wait on that. After s1 finishes: pack + build + publish s1-only
   cut as a private Artifact so the owner has a link. Keep a keep-alive watcher running.
+- ~10:35 UTC: OWNER: frames look blurry (true: motion blur + 16 spp denoise smear) and
+  "I don't care if it takes 2 years": bar = big-studio film in IMAX. s1 render stopped,
+  14 soft frames in blender/out/frames_s1_soft. FILM builder (a1484b2a5b9c9b7d8) doing a
+  sharpness pass with NO time cap: master 2560x1072, ~96-256 samples, fuller light
+  paths, short shutter/deep focus on wides; then relaunches s1. Expect 1-3 days of
+  rendering: on every wake check `pgrep -f render_frames` and relaunch
+  `render_frames.py --threads 4` (or `--shot s1` until the hero is decided) if dead, and
+  keep a keep-alive watcher running. Site published (early cut):
+  https://claude.ai/artifact/PG7tQ3NjzjwopMoXY5wEcX (republish from site/dist/page.html
+  with files app.js + film/manifest.json + film/pack-*.wasm). Site workflow
+  site-awwwards-pass (run wf_d93c2867-34a) is reworking site/. Hero still undecided.
+- ~12:40 UTC: 2nd usage-limit hit at ~10:40 (reset 11:50). Sharpness pass DONE: master
+  2560x1072, 128 spp guided denoise, shutter 0.1 wides / 0.25 hero shots, deep focus on
+  wides. s1 rendering (PID 1069), ~16 min/frame, s1 ~12-13 h, whole film ~4-5 days.
+  Relaunch after any restart: cd /home/user/sixty && setsid nohup
+  /home/user/tools/bl/bin/python blender/film/render_frames.py --shot s1 --threads 4
+  >> blender/out/frames/render_stdout.log 2>&1 < /dev/null &   (drop --shot s1 once the
+  hero is final). Site workflow was cut off mid-edit: site/ has uncommitted partial
+  edits (do not publish from it until the workflow is re-run and builds/tests pass).
+  Token discipline: one agent at a time; no big workflows while limits keep hitting.

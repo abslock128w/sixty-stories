@@ -303,7 +303,7 @@ def apply_look(scene, name):
 def render_settings(scene):
     r = scene.render
     r.engine = 'CYCLES'
-    r.resolution_x, r.resolution_y, r.resolution_percentage = 1920, 804, 100
+    r.resolution_x, r.resolution_y, r.resolution_percentage = SS.RES[0], SS.RES[1], 100
     r.fps = 24
     r.fps_base = 1.0
     scene.frame_start, scene.frame_end = 0, PL.TOTAL - 1
@@ -311,6 +311,15 @@ def render_settings(scene):
     r.motion_blur_shutter = 0.5
     # shutter opens AT the frame: a cut frame never samples the previous shot
     r.motion_blur_position = 'START'
+    # per-frame shutter (render_frames.py also sets it per frame)
+    for i in range(PL.TOTAL):
+        if i == 0 or SS.shutter(i) != SS.shutter(i - 1):
+            r.motion_blur_shutter = SS.shutter(i)
+            scene.keyframe_insert('render.motion_blur_shutter', frame=i)
+    for fc in _fcurves(scene):
+        if fc.data_path == 'render.motion_blur_shutter':
+            for kp in fc.keyframe_points:
+                kp.interpolation = 'CONSTANT'
     r.use_persistent_data = True
     r.film_transparent = False
     try:
@@ -339,7 +348,7 @@ def render_settings(scene):
     for k, v in SS.CYCLES.items():
         setattr(c, k, v)
     c.pixel_filter_type = 'BLACKMAN_HARRIS'
-    c.filter_width = 1.5
+    c.filter_width = 1.2
     c.sample_clamp_indirect = 6.0
     c.sample_clamp_direct = 0.0
     vs = scene.view_settings
@@ -422,7 +431,7 @@ def shots_json(scene, rig, hero, cams):
         else:
             hgt = (max(y[1] for y in ys) - min(y[1] for y in ys)) if ys else 0.0
             hs.append(dict(x=round(pc[0] + 0.5, 4), y=round(0.5 - pc[1], 4), h=round(float(hgt), 4)))
-    data = dict(fps=24, width=1920, height=804, total=PL.TOTAL,
+    data = dict(fps=24, width=SS.RES[0], height=SS.RES[1], total=PL.TOTAL,
                 shots=[dict(id=s['id'], title=s['title'], start=s['start'], count=s['count'],
                             lens_mm=s['lens_mm'], logline=s['logline']) for s in PL.SHOTS],
                 telemetry=tele,

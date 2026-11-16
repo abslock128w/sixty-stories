@@ -2,7 +2,11 @@
 
 Reads   <frames>/color/f_%04d.png + <frames>/depth/f_%04d.png  (any subset)
         <shots>  (shots.json from the film render)
-Writes  <out>/manifest.json + <out>/pack-NNN.wasm  (each pack <= --max-mb)
+Writes  <out>/manifest.json + <out>/pack-NNN-<hash>.wasm  (each pack <= --max-mb, decimal MB)
+        Pack names carry a hash of their bytes, so a republished manifest can never be paired
+        with a stale cached pack. New packs are written first, then the manifest (atomically),
+        then packs the new manifest no longer names are deleted.
+        The manifest also carries per-frame hero_screen [x, y, h] and lens_mm from shots.json.
 
 Colour -> lossy WebP (quality --quality, method 6); depth -> lossless WebP (or --depth-quality).
 Encoded frames are cached in --cache keyed by source size+mtime+settings, so re-packing after
@@ -14,7 +18,7 @@ Run with Blender's python (Pillow + numpy):
   /home/user/tools/bl/bin/python tools/pack_frames.py --frames tools/dev/frames \
       --shots tools/dev/shots.json --stride 8 --skip-shots s4      # dev/test subsets
 """
-import argparse, hashlib, io, json, os, re, sys, time
+import argparse, hashlib, io, json, math, os, re, sys, time
 from concurrent.futures import ProcessPoolExecutor
 
 from PIL import Image
@@ -30,7 +34,7 @@ def encode_one(job):
         out = []
         for kind, src in (("c", cpath), ("d", dpath)):
             st = os.stat(src)
-            setting = f"q{q}" if kind == "c" else ("lossless" if dq < 0 else f"q{dq}")
+            setting = f"q{q}" if kind == "c" else ("lossless-m4" if dq < 0 else f"q{dq}")
             key = hashlib.sha1(f"{os.path.abspath(src)}|{st.st_size}|{st.st_mtime_ns}|{setting}|v1".encode()).hexdigest()[:16]
             dst = os.path.join(cache, f"{kind}_{i:04d}_{key}.webp")
             if not os.path.exists(dst):
@@ -43,7 +47,9 @@ def encode_one(job):
                         kw = dict(quality=q, method=6)
                     else:
                         im = im.convert("L").convert("RGB")
-                        kw = dict(lossless=True, quality=100, method=6) if dq < 0 else dict(quality=dq, method=6)
+                        # lossless effort 60 / method 4: within a few % of max effort at a fraction
+                        # of the CPU (the final render shares these cores)
+                        kw = dict(lossless=True, quality=60, method=4) if dq < 0 else dict(quality=dq, method=6)
                     buf = io.BytesIO(); im.save(buf, "WEBP", **kw)
                 tmp = dst + ".tmp"
                 with open(tmp, "wb") as fh:
@@ -67,15 +73,50 @@ def atomic_write(path, data):
     os.replace(tmp, path)
 
 
+def _num(v):
+    try:
+        v = float(v)
+        return v if math.isfinite(v) else None
+    except (TypeError, ValueError):
+        return None
+
+
+def per_frame_hero(shots, total):
+    """[x, y, h] per frame index (x, y from the top-left of the frame, h = hero height as a
+    fraction of frame height), or None where shots.json has no position for that frame."""
+    out = [None] * total
+    for e in shots.get("hero_screen") or []:
+        if not isinstance(e, dict): continue
+        i = e.get("i")
+        x, y, h = _num(e.get("x")), _num(e.get("y")), _num(e.get("h"))
+        if isinstance(i, int) and 0 <= i < total and x is not None and y is not None:
+            out[i] = [round(x, 4), round(y, 4), round(h or 0.0, 4)]
+    return out
+
+
+def per_frame_lens(shots, total):
+    """Focal length per frame: telemetry lens_mm where present, else the shot's nominal lens."""
+    out = [None] * total
+    for s in shots.get("shots", []):
+        lm = _num(s.get("lens_mm"))
+        for i in range(s["start"], min(total, s["start"] + s["count"])):
+            out[i] = lm
+    for e in shots.get("telemetry") or []:
+        i, lm = e.get("i"), _num(e.get("lens_mm"))
+        if isinstance(i, int) and 0 <= i < total and lm is not None:
+            out[i] = round(lm, 2)
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--frames", default=os.path.join(ROOT, "blender/out/frames"))
     ap.add_argument("--shots", default=os.path.join(ROOT, "blender/out/shots.json"))
     ap.add_argument("--out", default=os.path.join(ROOT, "site/public/film"))
     ap.add_argument("--cache", default=os.path.join(ROOT, "tools/.packcache"))
-    ap.add_argument("--quality", type=int, default=88, help="colour WebP quality (default 88)")
+    ap.add_argument("--quality", type=int, default=92, help="colour WebP quality (default 92)")
     ap.add_argument("--depth-quality", type=int, default=-1, help="-1 = lossless (default), else lossy quality")
-    ap.add_argument("--max-mb", type=float, default=11.5, help="max pack size in MB (contract: <= 12)")
+    ap.add_argument("--max-mb", type=float, default=11.5, help="max pack size in decimal MB (contract: <= 12,000,000 bytes)")
     ap.add_argument("--jobs", type=int, default=2)
     ap.add_argument("--stride", type=int, default=1, help="testing: keep only frames with i %% stride == 0")
     ap.add_argument("--skip-shots", default="", help="testing: comma list of shot ids to leave out")
@@ -114,15 +155,20 @@ def main():
                 print(f"  encoded {n}/{len(jobs)}", flush=True)
     results.sort()
 
-    limit = int(a.max_mb * 1024 * 1024)
-    packs, frames, cur, cur_len = [], [], [], 0
+    limit = int(a.max_mb * 1e6)
+    if limit > 12_000_000:
+        sys.exit("--max-mb must be <= 12 (decimal MB, BIBLE section 7)")
+    packs, pack_bytes, frames, cur, cur_len = [], [], [], [], 0
 
     def flush():
         nonlocal cur, cur_len
         if not cur: return
-        name = f"pack-{len(packs):03d}.wasm"
-        atomic_write(os.path.join(a.out, name), b"".join(cur))
-        packs.append(name); cur, cur_len = [], 0
+        data = b"".join(cur)
+        name = f"pack-{len(packs):03d}-{hashlib.sha256(data).hexdigest()[:12]}.wasm"
+        dst = os.path.join(a.out, name)
+        if not (os.path.exists(dst) and os.path.getsize(dst) == len(data)):
+            atomic_write(dst, data)
+        packs.append(name); pack_bytes.append(len(data)); cur, cur_len = [], 0
 
     for i, cp, dp in results:
         cb = open(cp, "rb").read(); db = open(dp, "rb").read()
@@ -132,16 +178,20 @@ def main():
         cur += [cb, db]; cur_len += len(cb) + len(db)
     flush()
 
-    for f in os.listdir(a.out):
-        if re.match(r"^pack-\d{3}\.wasm$", f) and f not in packs:
-            os.remove(os.path.join(a.out, f))
-
     manifest = dict(
         width=expect[0], height=expect[1], fps=shots.get("fps", 24), total=total,
-        shots=shots["shots"], telemetry=shots.get("telemetry", []), packs=packs, frames=frames,
+        shots=shots["shots"], telemetry=shots.get("telemetry", []), packs=packs, packBytes=pack_bytes,
+        frames=frames, hero_screen=per_frame_hero(shots, total), lens_mm=per_frame_lens(shots, total),
         placeholder=bool(shots.get("placeholder", False)), generated=int(time.time()),
     )
     atomic_write(os.path.join(a.out, "manifest.json"), json.dumps(manifest, separators=(",", ":")).encode())
+
+    # only now that the new manifest is live: remove packs it no longer names (old fixed names
+    # included), and any temp left by an interrupted run
+    for f in os.listdir(a.out):
+        if (re.match(r"^pack-\d{3}(-[0-9a-f]+)?\.(wasm|bin)$", f) and f not in packs) or f.endswith(".tmp"):
+            try: os.remove(os.path.join(a.out, f))
+            except OSError: pass
 
     have = {f["i"] for f in frames}
     print(f"\nPacked {len(frames)}/{total} frames into {len(packs)} packs in {time.time() - t0:.1f}s -> {a.out}")

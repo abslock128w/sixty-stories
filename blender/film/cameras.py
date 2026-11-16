@@ -111,7 +111,7 @@ def cam_s1(hero):
     lens = _k([(0, 22.0), (47, 30.0, 'hold')], fr)[:, 0]
     roll = _k([(0, -1.5), (30, 2.0), (47, 1.0)], fr)[:, 0]
     scr = np.zeros((len(fr), 2))
-    fstop = np.full(len(fr), 8.0)
+    fstop = np.full(len(fr), 16.0)   # deep focus on the wide aerial
     shake = [(0.05, 0.05)] * len(fr)
     focus_pts = None
     return _finish(fr, loc, subj, scr, roll, lens, fstop, shake, 11, focus_pts)
@@ -206,7 +206,7 @@ def cam_s6(hero):
               (335, (0.0, -0.32), 'hold')], fr)
     lens = _k([(264, 26.0), (290, 24.0), (306, 21.0), (318, 19.0), (335, 18.0, 'hold')], fr)[:, 0]
     roll = _k([(264, 0.0), (290, -6.0), (304, 10.0), (316, 3.0), (335, 0.0, 'hold')], fr)[:, 0]
-    fstop = _k([(264, 2.8), (300, 4.0), (318, 8.0), (335, 8.0)], fr)[:, 0]
+    fstop = _k([(264, 2.8), (300, 5.6), (312, 16.0), (335, 16.0)], fr)[:, 0]
     shake = [(0.004 * (1 - wi), 0.05 * (1 - 0.7 * wi)) for wi in wa]
     focus_pts = subj_h
     return _finish(fr, loc, subj, scr, roll, lens, fstop, shake, 66, focus_pts)

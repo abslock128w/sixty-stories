@@ -13,6 +13,11 @@ export const CONFIG = {
     slots: 22,            // GPU texture pairs (colour + depth) kept around the playhead
     aheadShare: 0.68,     // share of the window spent ahead in the scrub direction
     maxDecodes: 3,        // concurrent createImageBitmap decodes
+    maxPending: 6,        // decodes in flight + decoded bitmaps awaiting upload (back-pressure)
+    leadS: 0.12,          // the window leads the playhead by this many seconds of scrub travel
+    maxLead: 48,          // ...but never by more than this many frames
+    fastV: 48,            // above this scrub speed (frames/s) the window samples sparsely
+    strideS: 0.02,        // ...taking every round(v * strideS)-th existing frame ahead
     uploadsPerFrame: 1,   // texture pair uploads per animation frame
     uploadBudgetMs: 9,    // ...or stop once this many ms were spent uploading
     packConcurrency: 2,   // packs fetched at once during the overture
@@ -26,6 +31,10 @@ export const CONFIG = {
   look: {
     parallax: 0.011,      // uv shift per unit depth difference at full pointer deflection
     parallaxFocus: 0.24,  // depth value (0 sky .. 1 lens) that stays put
+    parallaxDepthLod: 2.5,// depth mip level driving the warp (blurred: no tearing at silhouettes)
+    cubicAbove: 1.02,     // bicubic colour sampling when the frame is shown above this magnification
+    unsharp: 0.22,        // unsharp-mask amount when magnified (restrained; 0 disables)
+    unsharpFullAt: 1.6,   // ...reached at this magnification, ramping up from cubicAbove
     pointerEase: 3.2,     // 1/s smoothing of the pointer
     overscan: 1.028,      // zoom so parallax / weave never reveal an edge
     grain: 0.034,         // grain amplitude (mid-tones; shadows/highlights get less)
@@ -43,6 +52,12 @@ export const CONFIG = {
     cutFlash: 0.28,       // exposure flash on a cut
     dust: 110,            // number of motes
     dustStrength: 0.42,
+  },
+  load: {
+    stallMs: 20000,       // abort a request when no bytes arrive for this long
+    retries: 5,           // automatic retries per request before "Try again" is offered
+    backoffMs: 1000,      // first retry delay; doubles each attempt (with jitter)...
+    backoffMaxMs: 15000,  // ...up to this
   },
   curtain: { mattesMs: 2400, exposureMs: 3800, titleDelayMs: 1200 },
   ui: { idleMs: 2800 },

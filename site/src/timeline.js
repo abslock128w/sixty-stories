@@ -1,6 +1,9 @@
 // Maps page scroll (px) <-> fractional global frame. Each shot gets scroll length proportional
 // to its frame count; a short hold follows every cut; an intro hold precedes the film and the
 // credits segment follows it.
+// Every frame owns a zone of exactly ppf px; the frame is a whole number at the centre of its
+// zone (posForFrame returns that centre). So a scroll position that browsers snap to whole (or
+// device) pixels still lands on the intended frame, and the last frame of a shot is reachable.
 import { CONFIG } from './config.js';
 
 export class Timeline {
@@ -22,7 +25,7 @@ export class Timeline {
     this.shotSpan = [];
     this.shots.forEach((s, k) => {
       const hold = k > 0 ? push({ kind: 'hold', len: S.cutHoldVh * vh, frame: s.start, shot: k }) : null;
-      const seg = push({ kind: 'shot', len: Math.max(1, s.count - 1) * this.ppf, start: s.start, count: s.count, shot: k });
+      const seg = push({ kind: 'shot', len: Math.max(1, s.count) * this.ppf, start: s.start, count: s.count, shot: k });
       this.shotSpan[k] = { p0: hold ? hold.p0 : seg.p0, p1: seg.p1, seg };
     });
     const last = this.shots[this.shots.length - 1];
@@ -38,7 +41,7 @@ export class Timeline {
     let seg = this.segs[this.segs.length - 1];
     for (const s of this.segs) if (pos < s.p1) { seg = s; break; }
     const t = (pos - seg.p0) / seg.len;
-    let frame = seg.kind === 'shot' ? seg.start + t * (seg.count - 1) : seg.frame;
+    let frame = seg.kind === 'shot' ? seg.start + Math.max(0, Math.min(seg.count - 1, (pos - seg.p0) / this.ppf - 0.5)) : seg.frame;
     const span = this.shotSpan[seg.shot];
     return {
       pos, frame, shot: seg.shot, kind: seg.kind,
@@ -48,16 +51,16 @@ export class Timeline {
     };
   }
 
-  // fractional frame -> scroll position (inside the shot segment, after any hold)
+  // fractional frame -> scroll position (centre of the frame's zone, after any hold)
   posForFrame(f) {
     for (const span of this.shotSpan) {
       const g = span.seg;
       if (f < g.start + g.count) {
         const lf = Math.max(0, Math.min(g.count - 1, f - g.start));
-        return g.p0 + lf * this.ppf;
+        return g.p0 + (lf + 0.5) * this.ppf;
       }
     }
-    return this.filmEnd;
+    return this.shotSpan[this.shotSpan.length - 1].seg.p1 - 0.5 * this.ppf;
   }
 
   shotIndexOf(f) {
