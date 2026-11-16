@@ -451,6 +451,29 @@ def m_concrete(name):
     return m
 
 
+def m_slab(name):
+    """Sidewalk flag: per-slab tint (bcol), broom finish, gum spots, stains, chipped corners."""
+    nb, m = _new(name)
+    bc = nb.attr('bcol')
+    geo = nb.n('ShaderNodeNewGeometry')
+    pos = geo.outputs['Position']
+    broom = nb.n('ShaderNodeTexNoise', i_Vector=nb.vmath('MULTIPLY', pos, (60.0, 2.0, 60.0)), i_Scale=1.0, i_Detail=2.0)
+    st = nb.n('ShaderNodeTexNoise', i_Vector=pos, i_Scale=0.8, i_Detail=5.0)
+    stain = nb.n('ShaderNodeMapRange', i_Value=st.outputs['Fac'], **{'i_To Min': 0.7, 'i_To Max': 1.1}).outputs[0]
+    base = nb.mix(1.0, bc.outputs['Color'], stain, blend='MULTIPLY')
+    gum = nb.n('ShaderNodeTexVoronoi', i_Vector=pos, i_Scale=5.0)
+    gm = nb.math('LESS_THAN', gum.outputs['Distance'], 0.045)
+    base = nb.mix(gm, base, (0.10, 0.10, 0.10, 1))
+    ck = nb.n('ShaderNodeTexVoronoi', feature='DISTANCE_TO_EDGE', i_Vector=nb.vmath('ADD', pos, nb.vmath('SCALE', st.outputs['Color'], scale=0.4)), i_Scale=1.1)
+    crack = nb.math('MULTIPLY', nb.math('LESS_THAN', ck.outputs['Distance'], 0.01), nb.math('GREATER_THAN', bc.outputs['Alpha'], 0.8))
+    base = nb.mix(nb.math('MULTIPLY', crack, 0.8), base, (0.06, 0.06, 0.06, 1))
+    bump = nb.n('ShaderNodeBump', i_Strength=0.25, i_Distance=0.003, i_Height=nb.math('SUBTRACT', broom.outputs['Fac'], crack))
+    p = nb.principled(**{'Base Color': base, 'Roughness': nb.math('MULTIPLY_ADD', st.outputs['Fac'], 0.2, 0.72),
+                         'Normal': bump.outputs['Normal']})
+    nb.out(p.outputs[0])
+    return m
+
+
 def m_metal_worn(name, col, rough=0.38, metal=0.8):
     """Painted / bare metal with brushed anisotropy, scratches, and rust at lower edges and joints."""
     nb, m = _new(name)
@@ -937,6 +960,7 @@ def _reg():
     B['metal_alu'] = lambda n: m_simple(n, (0.62, 0.63, 0.64), rough=0.28, metal=1.0, noise_amt=0.1)
     B['steel_deco'] = lambda n: m_simple(n, (0.70, 0.71, 0.72), rough=0.18, metal=1.0, noise_amt=0.15, grime_k=0.25)
     B['concrete'] = m_concrete
+    B['slab_concrete'] = m_slab
     B['panel'] = lambda n: m_simple(n, None, rough=0.55, use_bcol=True, noise_amt=0.12, grime_k=0.25)
     B['wall_bcol'] = lambda n: m_simple(n, None, rough=0.8, use_bcol=True, noise_amt=0.2, grime_k=0.35)
     B['roof'] = m_roof

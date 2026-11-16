@@ -178,7 +178,7 @@ def car(name, design, L, W, paint='car_paint', roof_sign=False, driver=True):
     # lamp clusters tucked into the body corners
     for front in (True, False):
         end = st[-2] if front else st[1]          # station just inside the bumper end
-        mc = V._cluster(name, (y1 - y0) - 0.1, W * 0.9, end[3] + (0.02 if front else -0.02), mats, front)
+        mc = V._cluster(name, (y1 - y0) - 0.01, W * 0.9, end[3] + (0.02 if front else -0.02), mats, front)
         V._join(body, mc)
         bpy.data.meshes.remove(mc)
     mb = MB()
@@ -287,6 +287,11 @@ def truck(name, L, W, H, cabL, paint, ad=None):
         x0 = s_ * w * 0.96
         mb.box(min(x0, x0 + s_ * 0.3), max(x0, x0 + s_ * 0.3), y1 - 0.5, y1 - 0.42, 2.0, 2.5, DARK)   # mirror
         mb.box(min(x0 + s_ * 0.05, x0 + s_ * 0.3), max(x0 + s_ * 0.05, x0 + s_ * 0.3), y1 - 2.15, y1 - 1.55, 0.62, 0.95, CHROME)  # fuel tank
+    for s_ in (-1, 1):    # side under-run guard, box rails, arch lips on the truck
+        x = s_ * (w + 0.065)
+        mb.box(min(x, x + s_ * 0.04), max(x, x + s_ * 0.04), y0 + 2.0, y1 - cabL - 0.3, 0.45, 0.6, RIM)
+        for zz in (0.9, H - 0.1):
+            mb.box(min(x, x + s_ * 0.03), max(x, x + s_ * 0.03), y0, by1, zz - 0.05, zz + 0.05, RIM)
     mb.box(-w * 0.7, w * 0.7, y1 - 0.06, y1 + 0.01, 0.75, 1.3, DARK)                  # grille
     mb.box(-w, w, y1 - 0.15, y1 + 0.1, 0.45, 0.72, DARK)
     mb.box(-0.26, 0.26, y1 + 0.1, y1 + 0.11, 0.5, 0.62, PLATE)
@@ -336,6 +341,18 @@ def bus(name):
         mb.box(s_ * w * 0.8 - 0.1, s_ * w * 0.8 + 0.1, y0 - 0.04, y0 + 0.02, 0.6, 1.15, TAIL)
     mb.box(-w, w, y1 - 0.12, y1 + 0.12, 0.25, 0.55, DARK)
     mb.box(-w, w, y0 - 0.12, y0 + 0.12, 0.25, 0.55, DARK)
+    for s_ in (-1, 1):    # side skirts, panel seams, wheel-arch lips
+        x = s_ * (w + 0.01)
+        mb.box(min(x, x + s_ * 0.03), max(x, x + s_ * 0.03), y0 + 0.3, y1 - 0.3, 0.3, 0.45, DARK)
+        for yy in (-5.0, -3.3, -1.6, 0.9, 2.6, 4.0):
+            mb.box(min(x, x + s_ * 0.008), max(x, x + s_ * 0.008), yy - 0.008, yy + 0.008, 0.45, 1.15, DARK)
+        for yy in (y0 + 2.6, y1 - 2.4):
+            for k in range(9):
+                a0, a1 = math.pi * k / 9, math.pi * (k + 1) / 9
+                p0 = (yy + math.cos(a0) * 0.62, 0.5 + math.sin(a0) * 0.62)
+                p1 = (yy + math.cos(a1) * 0.62, 0.5 + math.sin(a1) * 0.62)
+                mb.box(min(x, x + s_ * 0.04), max(x, x + s_ * 0.04), min(p0[0], p1[0]) - 0.03, max(p0[0], p1[0]) + 0.03,
+                       min(p0[1], p1[1]) - 0.03, max(p0[1], p1[1]) + 0.03, DARK)
     mb.box(-w * 0.9, w * 0.9, -3.0, 3.0, 3.15, 3.45, BUSP)                              # roof pods (HVAC)
     for yy in (y0 + 2.6, y1 - 2.4):
         for s_ in (-1, 1):

@@ -481,7 +481,14 @@ def p_pipes(name):
     return _finish(mb, name, ['metal_alu', 'metal_dark', 'louvre'])
 
 
+def p_shadow_blob(name):
+    mb = MB()
+    mb.quad((-0.5, -0.5, 0), (0.5, -0.5, 0), (0.5, 0.5, 0), (-0.5, 0.5, 0), 0, [(0, 0), (1, 0), (1, 1), (0, 1)])
+    return _finish(mb, name, ['contact_shadow'])
+
+
 BUILD = {
+    'shadow_blob': p_shadow_blob,
     'water_tower': p_water_tower, 'hvac': p_hvac, 'antenna': p_antenna,
     'lamp': p_lamp, 'signal_red': p_signal_red, 'signal_green': p_signal_green,
     'bulkhead': p_bulkhead, 'dish': p_dish, 'skylight': p_skylight, 'pipes': p_pipes,

@@ -278,9 +278,12 @@ def main():
     ST.build_ground(cols)
     ST.build_sidewalks(cols)
     ST.build_markings(cols, rng)
+    log('sidewalk slabs', ST.build_slabs(cols))
     SG._atlas(os.path.join(OUT, "city_tex"))
     VH.register([a for a in SG.INFO if 2.0 <= a['aspect'] <= 3.0][:2])
     VH2.register([a for a in SG.INFO if 2.0 <= a['aspect'] <= 3.0][:2])
+    import people
+    people.register()
     sigs = SL.place_street_furniture(cols, specs, rng)
     SL.build_awnings_and_sheds(cols, specs, rng)
     SL.place_steam(cols, rng)

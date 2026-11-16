@@ -22,7 +22,24 @@ def inst(col, proto, loc, rotz=0.0, scale=1.0, name=None):
     if scale != 1.0:
         ob.scale = (scale, scale, scale)
     col.objects.link(ob)
+    if proto in SHADOWED and loc[2] < 1.0:
+        sx, sy = SHADOWED[proto]
+        sh = bpy.data.objects.new(f"cshadow.{proto}.{_count[proto]:04d}", PR.get('shadow_blob'))
+        sh.location = (loc[0], loc[1], loc[2] + 0.006)
+        sh.rotation_euler = (0, 0, rotz)
+        sh.scale = (sx * scale, sy * scale, 1.0)
+        col.objects.link(sh)
     return ob
+
+
+# props that get a soft contact-shadow decal (footprint in metres)
+SHADOWED = {'hydrant': (0.7, 0.7), 'trash': (0.9, 0.9), 'newsbox': (0.8, 0.7), 'mailbox': (0.9, 0.8), 'bench': (2.3, 0.9),
+            'utilbox_0': (1.3, 1.0), 'utilbox_1': (1.3, 1.0), 'utilbox_2': (1.3, 1.0), 'planter': (1.6, 1.6),
+            'bus_shelter': (4.8, 2.0), 'kiosk_0': (3.6, 2.6), 'kiosk_1': (3.6, 2.6), 'kiosk_2': (3.6, 2.6),
+            'kiosk_3': (3.6, 2.6), 'bollard': (0.45, 0.45), 'meter': (0.4, 0.4), 'trashbags': (1.8, 1.2),
+            'cafe': (2.0, 2.0), 'lamp': (0.7, 0.7), 'tree_a': (2.5, 2.5), 'tree_b': (2.2, 2.2), 'tree_c': (2.8, 2.8),
+            'pp_walk_a': (0.6, 0.45), 'pp_walk_b': (0.6, 0.45), 'pp_walk_c': (0.6, 0.45), 'pp_stand': (0.55, 0.4),
+            'pp_stand_b': (0.55, 0.4), 'pp_phone': (0.55, 0.4), 'ped_a': (0.6, 0.45), 'ped_b': (0.6, 0.45)}
 
 
 def counts():

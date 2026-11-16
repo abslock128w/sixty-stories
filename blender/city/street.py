@@ -129,3 +129,36 @@ def build_markings(cols, rng):
     me = mb.build("MARKINGS", [MAT.get('paint_white'), MAT.get('paint_yellow'), MAT.get('bike_green')])
     new_object("MARKINGS", me, col)
     return segs
+
+
+def build_slabs(cols, y0=-700.0, y1=1300.0):
+    """Individual concrete flags on the hero-avenue sidewalks: ~1.5 m squares with 8 mm joints, each
+    slightly lifted/tilted and tinted (face attribute bcol), cut around the curb and building line."""
+    import random
+    r = random.Random(1515)
+    mb = MB(attrs=('bcol',))
+    ys = LY.street_ys()
+    inter = [(y - LY.ST_W / 2 - 0.0, y + LY.ST_W / 2) for y in ys]
+    for side in (-1, 1):
+        xa, xb = LY.ROAD_HALF + 0.33, LY.HERO_AVE_W / 2 - 0.02
+        nx = 4
+        sw = (xb - xa) / nx
+        y = y0
+        while y < y1:
+            ln = r.uniform(1.4, 1.6)
+            if any(a - 3.5 < y + ln and y < b + 3.5 for a, b in inter):
+                y += ln
+                continue
+            for i in range(nx):
+                x0 = side * (xa + i * sw + 0.004)
+                x1 = side * (xa + (i + 1) * sw - 0.004)
+                lift = r.uniform(0.0, 0.006) + (0.012 if r.random() < 0.04 else 0.0)
+                tint = r.uniform(0.85, 1.12)
+                c = (0.40 * tint, 0.39 * tint, 0.37 * tint, r.random())
+                zt = SIDEWALK_Z + 0.004 + lift
+                mb.box(min(x0, x1), max(x0, x1), y + 0.004, y + ln - 0.004, SIDEWALK_Z - 0.02, zt, 0, skip=('-z',),
+                       attrs={'bcol': c})
+            y += ln
+    me = mb.build("SIDEWALK_slabs", [MAT.get('slab_concrete')])
+    new_object("SIDEWALK_slabs", me, cols['street'])
+    return len(mb.F)
