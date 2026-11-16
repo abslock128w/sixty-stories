@@ -86,7 +86,7 @@ def p_subway(name):
         cyl(mb, x, -L / 2, 2.25, 2.3, 0.17, 0.02, n=12, mat=1)
     # sign band on the railing front
     mb.box(-W / 2, W / 2, L / 2 + 0.05, L / 2 + 0.08, 1.05, 1.35, 0)
-    return _finish(mb, name, ['paint_green', 'globe_green', 'room_dark'])
+    return _finish(mb, name, ['paint_green', 'globe_green', 'black_trim'])
 
 
 def p_bollard(name):
@@ -171,7 +171,7 @@ def p_drain(name):
     for k in range(7):
         x = -0.38 + k * 0.127
         mb.box(x - 0.025, x + 0.025, -0.2, 0.2, 0.008, 0.016, 1)
-    return _finish(mb, name, ['room_dark', 'metal_dark'])
+    return _finish(mb, name, ['black_trim', 'metal_dark'])
 
 
 def p_trashbags(name):

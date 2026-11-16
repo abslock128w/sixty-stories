@@ -597,6 +597,25 @@ def m_water(name):
     return m
 
 
+def _paint_layers(nb, col, metal=0.5, rough=0.32):
+    """Clearcoat paint with metallic flake and road dirt on the lower panels (object z)."""
+    tc = nb.n('ShaderNodeTexCoord')
+    geo = nb.n('ShaderNodeNewGeometry')
+    oz = nb.n('ShaderNodeSeparateXYZ', i_Vector=tc.outputs['Object']).outputs['Z']
+    flake = nb.n('ShaderNodeTexVoronoi', i_Vector=geo.outputs['Position'], i_Scale=900.0)
+    fn = nb.n('ShaderNodeBump', i_Strength=0.08, i_Distance=0.0005, i_Height=flake.outputs['Distance'])
+    dn = nb.n('ShaderNodeTexNoise', i_Vector=nb.vmath('MULTIPLY', tc.outputs['Object'], (6.0, 2.0, 14.0)), i_Scale=1.0,
+              i_Detail=4.0)
+    low = nb.n('ShaderNodeMapRange', i_Value=oz, **{'i_From Min': 0.75, 'i_From Max': 0.25}).outputs[0]
+    dirt = nb.math('MULTIPLY', low, nb.n('ShaderNodeMapRange', i_Value=dn.outputs['Fac'],
+                                          **{'i_From Min': 0.35, 'i_From Max': 0.7}).outputs[0], clamp=True)
+    base = nb.mix(nb.math('MULTIPLY', dirt, 0.75), col, (0.14, 0.12, 0.10, 1))
+    p = nb.principled(**{'Base Color': base, 'Metallic': nb.math('MULTIPLY', nb.math('SUBTRACT', 1.0, dirt), metal),
+                         'Roughness': nb.math('ADD', rough, nb.math('MULTIPLY', dirt, 0.5)), 'Normal': fn.outputs['Normal'],
+                         'Coat Weight': nb.math('SUBTRACT', 1.0, dirt), 'Coat Roughness': 0.025})
+    return p
+
+
 def m_car_paint(name):
     nb, m = _new(name)
     oi = nb.n('ShaderNodeObjectInfo')
@@ -605,9 +624,26 @@ def m_car_paint(name):
         (0.42, (0.10, 0.11, 0.13)), (0.52, (0.25, 0.02, 0.02)), (0.60, (0.03, 0.06, 0.15)),
         (0.68, (0.30, 0.30, 0.31)), (0.78, (0.85, 0.85, 0.84)), (0.88, (0.06, 0.12, 0.08)),
         (0.94, (0.18, 0.12, 0.08))], interp='CONSTANT')
-    p = nb.principled(**{'Base Color': col, 'Metallic': 0.5, 'Roughness': 0.32, 'Coat Weight': 1.0,
-                         'Coat Roughness': 0.03})
-    nb.out(p.outputs[0])
+    nb.out(_paint_layers(nb, col).outputs[0])
+    return m
+
+
+def _paint_mat(name, col, metal):
+    nb, m = _new(name)
+    nb.out(_paint_layers(nb, _c4(col), metal=metal).outputs[0])
+    return m
+
+
+def m_car_glass(name):
+    """Tinted automotive glass: Fresnel reflection, see-through near normal incidence."""
+    nb, m = _new(name)
+    fr = nb.n('ShaderNodeLayerWeight', i_Blend=0.3).outputs['Fresnel']
+    g = nb.principled(**{'Base Color': (0.01, 0.012, 0.014, 1), 'Roughness': 0.03, 'Specular IOR Level': 1.0})
+    tr = nb.n('ShaderNodeBsdfTransparent', i_Color=(0.42, 0.46, 0.46, 1))
+    mx = nb.n('ShaderNodeMixShader', i_Fac=nb.math('MINIMUM', nb.math('MULTIPLY_ADD', fr, 1.4, 0.35), 1.0))
+    nb.link(tr.outputs[0], mx.inputs[1])
+    nb.link(g.outputs[0], mx.inputs[2])
+    nb.out(mx.outputs[0])
     return m
 
 
@@ -775,6 +811,24 @@ def m_paint_worn(name, col):
     return m
 
 
+def m_contact_shadow(name):
+    """Soft ambient-occlusion decal under vehicles/props: dark centre fading to transparent at the UV edge."""
+    nb, m = _new(name)
+    uv = nb.n('ShaderNodeUVMap', uv_map="UVMap")
+    sp = nb.n('ShaderNodeSeparateXYZ', i_Vector=uv.outputs['UV'])
+    du = nb.math('ABSOLUTE', nb.math('SUBTRACT', sp.outputs['X'], 0.5))
+    dv = nb.math('ABSOLUTE', nb.math('SUBTRACT', sp.outputs['Y'], 0.5))
+    d = nb.math('MAXIMUM', nb.math('MULTIPLY', du, 2.0), nb.math('MULTIPLY', dv, 2.0))
+    a = nb.n('ShaderNodeMapRange', i_Value=d, **{'i_From Min': 0.55, 'i_From Max': 1.0, 'i_To Min': 0.8, 'i_To Max': 0.0}).outputs[0]
+    dk = nb.principled(**{'Base Color': (0.0, 0.0, 0.0, 1), 'Roughness': 1.0, 'Specular IOR Level': 0.0})
+    tr = nb.n('ShaderNodeBsdfTransparent')
+    mx = nb.n('ShaderNodeMixShader', i_Fac=a)
+    nb.link(tr.outputs[0], mx.inputs[1])
+    nb.link(dk.outputs[0], mx.inputs[2])
+    nb.out(mx.outputs[0])
+    return m
+
+
 BUILDERS = {}
 
 
@@ -805,9 +859,9 @@ def _reg():
     B['bike_green'] = lambda n: m_paint_worn(n, (0.08, 0.25, 0.10))
     B['water'] = m_water
     B['car_paint'] = m_car_paint
-    B['cab_yellow'] = lambda n: m_simple(n, (0.85, 0.55, 0.03), rough=0.3, coat=1.0, noise_amt=0.02)
+    B['cab_yellow'] = lambda n: _paint_mat(n, (0.85, 0.55, 0.03), 0.1)
     B['bus_paint'] = lambda n: m_simple(n, (0.75, 0.76, 0.78), rough=0.35, coat=0.6, noise_amt=0.05)
-    B['car_glass'] = lambda n: m_simple(n, (0.01, 0.012, 0.014), rough=0.05, spec=1.0, noise_amt=0.0)
+    B['car_glass'] = m_car_glass
     B['rubber'] = lambda n: m_simple(n, (0.02, 0.02, 0.02), rough=0.8, noise_amt=0.1)
     B['chrome'] = lambda n: m_simple(n, (0.8, 0.8, 0.8), rough=0.12, metal=1.0, noise_amt=0.0)
     B['headlight'] = lambda n: m_emit(n, (1.0, 0.93, 0.8), 'car_emit', 4.0)
@@ -835,6 +889,8 @@ def _reg():
     B['glass_clear'] = m_glass_clear
     B['shop'] = m_shop
     B['louvre'] = m_louvre
+    B['contact_shadow'] = m_contact_shadow
+    B['black_trim'] = lambda n: m_simple(n, (0.02, 0.02, 0.022), rough=0.45, noise_amt=0.2, noise_scale=8.0, spec=0.4)
     B['hvac_paint'] = lambda n: m_simple(n, (0.33, 0.32, 0.29), rough=0.55, metal=0.2, noise_amt=0.2, grime_k=0.4)
     B['tower_spandrel'] = m_tower_spandrel
     B['gargoyle'] = m_gargoyle

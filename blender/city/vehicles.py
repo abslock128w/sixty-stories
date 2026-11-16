@@ -23,7 +23,7 @@ def _finish(mb, name, mats, bevel=0.0):
 from cutil import MB
 
 PAINT, GLASS, RUB, CHROME, HEAD, TAIL, SIGN, DARK, PLATE, RIM = range(10)
-MATS = ['car_paint', 'car_glass', 'rubber', 'chrome', 'headlight', 'taillight', 'sign_white', 'room_dark', 'paint_white',
+MATS = ['car_paint', 'car_glass', 'rubber', 'chrome', 'headlight', 'taillight', 'sign_white', 'black_trim', 'paint_white',
         'metal_alu']
 
 
@@ -119,22 +119,50 @@ def wheel(mb, x, y, r=0.33, w=0.22, side=1):
                  (x + xb, y + math.cos(a1) * rb, r + math.sin(a1) * rb), (x + xb, y + math.cos(a0) * rb, r + math.sin(a0) * rb)]
             mb.poly(q if side > 0 else q[::-1], RUB, smooth=True)
     xf = x + side * w / 2 * 0.9
-    # rim disc (dish) and spokes
+    alloy = r < 0.45
+    rr = r * 0.74
+    # concave rim barrel + lip
     for k in range(n):
         a0, a1 = 2 * math.pi * k / n, 2 * math.pi * (k + 1) / n
-        tri = [(xf - side * 0.03, y, r), (xf, y + math.cos(a0) * r * 0.78, r + math.sin(a0) * r * 0.78),
-               (xf, y + math.cos(a1) * r * 0.78, r + math.sin(a1) * r * 0.78)]
+        q = [(xf, y + math.cos(a0) * rr, r + math.sin(a0) * rr), (xf, y + math.cos(a1) * rr, r + math.sin(a1) * rr),
+             (xf - side * 0.06, y + math.cos(a1) * rr * 0.95, r + math.sin(a1) * rr * 0.95),
+             (xf - side * 0.06, y + math.cos(a0) * rr * 0.95, r + math.sin(a0) * rr * 0.95)]
+        mb.poly(q if side > 0 else q[::-1], RIM)
+        tri = [(xf - side * 0.06, y, r), (xf - side * 0.06, y + math.cos(a0) * rr * 0.95, r + math.sin(a0) * rr * 0.95),
+               (xf - side * 0.06, y + math.cos(a1) * rr * 0.95, r + math.sin(a1) * rr * 0.95)]
         mb.poly(tri if side > 0 else tri[::-1], DARK)
-    for k in range(5):
-        a = 2 * math.pi * k / 5
-        ca, sa = math.cos(a), math.sin(a)
-        p = [(xf + side * 0.005, y + ca * 0.06 - sa * 0.03, r + sa * 0.06 + ca * 0.03),
-             (xf + side * 0.005, y + ca * 0.06 + sa * 0.03, r + sa * 0.06 - ca * 0.03),
-             (xf + side * 0.005, y + ca * r * 0.74 + sa * 0.045, r + sa * r * 0.74 - ca * 0.045),
-             (xf + side * 0.005, y + ca * r * 0.74 - sa * 0.045, r + sa * r * 0.74 + ca * 0.045)]
-        mb.poly(p if side > 0 else p[::-1], RIM)
-    cyl(mb, y, r, xf, xf + side * 0.01, 0.07, n=10, mat=RIM, axis='x')
-
+    if alloy:
+        ns = 10
+        for k in range(ns):   # split spokes, dished toward the hub
+            a = 2 * math.pi * k / ns
+            ca, sa = math.cos(a), math.sin(a)
+            hw0, hw1 = 0.018, 0.028
+            p = [(xf - side * 0.0, y + ca * 0.07 - sa * hw0, r + sa * 0.07 + ca * hw0),
+                 (xf - side * 0.0, y + ca * 0.07 + sa * hw0, r + sa * 0.07 - ca * hw0),
+                 (xf - side * 0.05, y + ca * rr * 0.96 + sa * hw1, r + sa * rr * 0.96 - ca * hw1),
+                 (xf - side * 0.05, y + ca * rr * 0.96 - sa * hw1, r + sa * rr * 0.96 + ca * hw1)]
+            mb.poly(p if side > 0 else p[::-1], RIM)
+        cyl(mb, y, r, xf - side * 0.01, xf + side * 0.005, 0.075, n=12, mat=RIM, axis='x')
+        cyl(mb, y, r, xf + side * 0.005, xf + side * 0.008, 0.035, n=8, mat=DARK, axis='x')
+    else:
+        # steel disc wheel: dished disc, 10 hand holes, hub with nuts
+        for k in range(n):
+            a0, a1 = 2 * math.pi * k / n, 2 * math.pi * (k + 1) / n
+            q = [(xf - side * 0.03, y + math.cos(a0) * 0.16, r + math.sin(a0) * 0.16),
+                 (xf - side * 0.03, y + math.cos(a1) * 0.16, r + math.sin(a1) * 0.16),
+                 (xf - side * 0.055, y + math.cos(a1) * rr * 0.94, r + math.sin(a1) * rr * 0.94),
+                 (xf - side * 0.055, y + math.cos(a0) * rr * 0.94, r + math.sin(a0) * rr * 0.94)]
+            mb.poly(q if side > 0 else q[::-1], RIM)
+        for k in range(10):
+            a = 2 * math.pi * (k + 0.5) / 10
+            cyl(mb, y + math.cos(a) * rr * 0.6, r + math.sin(a) * rr * 0.6, xf - side * 0.046, xf - side * 0.044, 0.035,
+                n=8, mat=DARK, axis='x')
+        cyl(mb, y, r, xf - side * 0.03, xf + side * 0.04, 0.12, 0.09, n=12, mat=CHROME, axis='x') if False else None
+        cyl(mb, y, r, xf - side * 0.03, xf + side * 0.03, 0.11, n=12, mat=CHROME, axis='x')
+        for k in range(8):
+            a = 2 * math.pi * k / 8
+            cyl(mb, y + math.cos(a) * 0.14, r + math.sin(a) * 0.14, xf - side * 0.03, xf + side * 0.0, 0.018, n=6,
+                mat=RIM, axis='x')
 
 def arch(mb, x, y, r, side):
     """Wheel opening: dark half-disc on the body side behind the tyre, with a lip."""
@@ -151,18 +179,14 @@ def details(mb, L, W, prof, front_z, cab=False):
     # head lamp units, grille, bumper, plate
     zb, zbelt, ztop, pw = _interp(prof, 0.97)
     zh = min(zbelt, ztop) - 0.12
-    for s in (-1, 1):
-        mb.box(s * w * 0.55 - 0.2, s * w * 0.55 + 0.2, y1 - 0.12, y1 - 0.04, zh - 0.06, zh + 0.05, HEAD)
-        mb.box(s * w * 0.55 - 0.21, s * w * 0.55 + 0.21, y1 - 0.13, y1 - 0.06, zh - 0.07, zh + 0.06, CHROME)
+
     mb.box(-w * 0.32, w * 0.32, y1 - 0.1, y1 - 0.03, zh - 0.18, zh + 0.03, DARK)                        # grille
     mb.box(-w * 0.33, w * 0.33, y1 - 0.11, y1 - 0.025, zh + 0.03, zh + 0.045, CHROME)
     mb.box(-w * 0.9, w * 0.9, y1 - 0.2, y1 + 0.02, zb + 0.05, zb + 0.2, DARK)                         # bumper
     mb.box(-0.26, 0.26, y1 + 0.02, y1 + 0.03, zb + 0.08, zb + 0.19, PLATE)
     zb, zbelt, ztop, pw = _interp(prof, -0.97)
     zt = min(zbelt, ztop) - 0.12
-    for s in (-1, 1):
-        mb.box(s * w * 0.62 - 0.26, s * w * 0.62 + 0.26, y0 - 0.03, y0 + 0.12, zt - 0.08, zt + 0.07, TAIL)
-        mb.box(s * w * 0.62 - 0.27, s * w * 0.62 + 0.27, y0 - 0.025, y0 + 0.11, zt - 0.09, zt + 0.08, DARK)
+
     mb.box(-w * 0.9, w * 0.9, y0 - 0.02, y0 + 0.2, zb + 0.05, zb + 0.2, DARK)
     mb.box(-0.26, 0.26, y0 - 0.03, y0 - 0.02, zb + 0.22, zb + 0.33, PLATE)
     # mirrors at the A pillar base
@@ -208,9 +232,9 @@ def _join(me_a, me_b):
 
 
 SPEC = {  # belt, roof, hood length, trunk/bed length, windscreen rake, rear-glass rake, sill z
-    'sedan': (0.92, 1.44, 1.25, 0.95, 0.80, 0.55, 0.30),
-    'hatch': (0.92, 1.48, 0.95, 0.22, 0.75, 0.25, 0.30),
-    'suv': (1.08, 1.76, 1.00, 0.22, 0.62, 0.15, 0.40),
+    'sedan': (0.98, 1.45, 1.15, 0.85, 1.05, 0.75, 0.30),
+    'hatch': (0.96, 1.50, 0.95, 0.22, 0.95, 0.35, 0.30),
+    'suv': (1.10, 1.72, 1.00, 0.22, 0.80, 0.25, 0.40),
     'pickup': (1.08, 1.82, 1.40, 1.95, 0.55, 0.08, 0.45),
 }
 
@@ -260,12 +284,12 @@ def body2(name, kind, L, W, mats):
             (y1 - hood * 0.85, belt - 0.02), (y1 - hood, belt), (y0 + trunk, belt), (y0 + 0.12, belt - 0.03),
             (y0, belt - 0.12), (y0 - 0.02, zs + 0.15)]
     _extrude_profile(lower, prof, w, PAINT)
-    me_l = _bevelled(lower, name + "_lo", mats, 0.08, 3, taper=(zs + 0.3, belt, 0.95))
+    me_l = _bevelled(lower, name + "_lo", mats, 0.15, 4, taper=(zs + 0.3, belt, 0.94))
     gh = MB()
     g0, g1 = y0 + trunk - 0.05, y1 - hood + 0.05
     gprof = [(g0, belt - 0.05), (g1, belt - 0.05), (g1 - rf, roof), (g0 + rr, roof)]
     _extrude_profile(gh, gprof, w * 0.9, GLASS)
-    me_g = _bevelled(gh, name + "_gh", mats, 0.07, 3, glass_rule=True, taper=(belt, roof, 0.78))
+    me_g = _bevelled(gh, name + "_gh", mats, 0.11, 4, glass_rule=True, taper=(belt, roof, 0.76))
     _join(me_l, me_g)
     import bpy
     bpy.data.meshes.remove(me_g)
@@ -285,14 +309,92 @@ def body2(name, kind, L, W, mats):
     return me_l
 
 
+def _cluster(name, L, W, belt, mats, front):
+    """Wrap-around lamp cluster per corner: bezel, reflector, lens; bevelled."""
+    mb = MB()
+    w = W / 2
+    y = L / 2 if front else -L / 2
+    sy = 1 if front else -1
+    z0, z1 = (belt - 0.26, belt - 0.12) if front else (belt - 0.22, belt - 0.05)
+    for s_ in (-1, 1):
+        xa, xb = s_ * w * 0.38, s_ * (w - 0.02)
+        x0, x1 = min(xa, xb), max(xa, xb)
+        # back face part
+        mb.box(x0, x1, y - sy * 0.1 - 0.01 if front else y - 0.02, y - sy * 0.1 + 0.01 if front else y + 0.12, z0, z1,
+               DARK) if False else None
+        mb.box(x0, x1, min(y, y - sy * 0.12), max(y, y - sy * 0.12) + 0.01 * sy, z0, z1, CHROME)
+        lens = HEAD if front else TAIL
+        mb.box(x0 + 0.02, x1 - 0.02, min(y + sy * 0.006, y - sy * 0.1), max(y + sy * 0.006, y - sy * 0.1), z0 + 0.02, z1 - 0.02,
+               lens)
+        # side wrap
+        xs = s_ * (w + 0.004)
+        mb.box(min(xs, xs - s_ * 0.06), max(xs, xs - s_ * 0.06), min(y - sy * 0.45, y - sy * 0.05),
+               max(y - sy * 0.45, y - sy * 0.05), z0 + 0.01, z1 - 0.01, lens)
+        if not front:   # amber indicator + clear reverse lamp strip
+            mb.box(x0 + 0.03, x0 + 0.12 if s_ > 0 else x0 + 0.12, min(y + 0.007, y - 0.05), max(y + 0.007, y - 0.05),
+                   z0 + 0.025, z1 - 0.025, 13)
+        else:   # DRL strip
+            mb.box(x0 + 0.03, x1 - 0.03, min(y + 0.008, y - 0.05), max(y + 0.008, y - 0.05), z1 - 0.035, z1 - 0.02, 12)
+    return _bevelled(mb, name + ("_hl" if front else "_tl"), mats, 0.012, 2)
+
+
+def _cabin(mb, L, W, belt, roof, hood, trunk, driver=True):
+    """Seats, dashboard, steering wheel and an optional driver, visible through the glass."""
+    w = W / 2
+    yd = L / 2 - hood - 0.35            # dashboard
+    mb.box(-w * 0.8, w * 0.8, yd - 0.3, yd, belt - 0.25, belt + 0.02, DARK)
+    ys = yd - 0.95
+    for x in (-w * 0.45, w * 0.45):
+        mb.box(x - 0.25, x + 0.25, ys - 0.25, ys + 0.25, belt - 0.55, belt - 0.4, 14)
+        mb.box(x - 0.24, x + 0.24, ys - 0.32, ys - 0.2, belt - 0.4, belt + 0.25, 14)
+        mb.box(x - 0.12, x + 0.12, ys - 0.3, ys - 0.22, belt + 0.25, belt + 0.38, 14)
+    yr = ys - 0.9
+    if yr > -L / 2 + trunk:
+        mb.box(-w * 0.8, w * 0.8, yr - 0.25, yr + 0.25, belt - 0.55, belt - 0.4, 14)
+        mb.box(-w * 0.8, w * 0.8, yr - 0.32, yr - 0.2, belt - 0.4, belt + 0.2, 14)
+    # steering wheel (left-hand drive: driver on -x)
+    xw = -w * 0.45
+    n = 12
+    for k in range(n):
+        a0, a1 = 2 * math.pi * k / n, 2 * math.pi * (k + 1) / n
+        p0 = (xw + math.cos(a0) * 0.19, yd - 0.35, belt + 0.12 + math.sin(a0) * 0.19)
+        p1 = (xw + math.cos(a1) * 0.19, yd - 0.35, belt + 0.12 + math.sin(a1) * 0.19)
+        mb.box(min(p0[0], p1[0]) - 0.015, max(p0[0], p1[0]) + 0.015, yd - 0.37, yd - 0.33, min(p0[2], p1[2]) - 0.015,
+               max(p0[2], p1[2]) + 0.015, DARK)
+    if driver:
+        x = xw
+        mb.box(x - 0.2, x + 0.2, ys - 0.2, ys + 0.05, belt - 0.4, belt + 0.2, 15)     # torso
+        cyl(mb, x, ys - 0.07, belt + 0.22, belt + 0.45, 0.09, 0.085, n=10, mat=16)   # head
+        for sx in (-1, 1):                                                         # arms to the wheel
+            mb.box(x + sx * 0.18 - 0.04, x + sx * 0.18 + 0.04, ys, yd - 0.4, belt + 0.02, belt + 0.1, 15)
+
+
 def car(name, kind, L, W, paint='car_paint', roof_sign=False):
     import bpy
     mats = list(MATS)
     mats[0] = paint
+    mats = mats + ['sig_amber', 'paint_white', 'cloth_dark', 'cloth_var3', 'skin', 'contact_shadow']
     prof = _profile(kind)
     me_body = body2(name, kind, L, W, mats)
+    belt, roofz, hood, trunk = SPEC[kind][:4]
+    for front in (True, False):
+        me_c = _cluster(name, L, W, belt, mats, front)
+        _join(me_body, me_c)
+        bpy.data.meshes.remove(me_c)
     mb = MB()
-    r = 0.34 if kind in ('sedan', 'hatch') else 0.40
+    _cabin(mb, L, W, belt, roofz, hood, trunk, driver=True)
+    mb.quad((-W / 2 - 0.25, -L / 2 - 0.3, 0.012), (W / 2 + 0.25, -L / 2 - 0.3, 0.012), (W / 2 + 0.25, L / 2 + 0.3, 0.012),
+            (-W / 2 - 0.25, L / 2 + 0.3, 0.012), mat=17)
+    # door handles, wipers, fuel flap
+    w = W / 2
+    for yy in (0.05 * L, -0.25 * L):
+        for s_ in (-1, 1):
+            x = s_ * (w * 0.955)
+            mb.box(min(x, x + s_ * 0.025), max(x, x + s_ * 0.025), yy - 0.1, yy + 0.06, belt - 0.12, belt - 0.085, CHROME)
+    yw = L / 2 - hood + 0.06
+    for xw in (-0.35, 0.25):
+        mb.box(xw - 0.3, xw + 0.3, yw - 0.02, yw + 0.02, belt + 0.0, belt + 0.03, DARK)
+    r = 0.36 if kind in ('sedan', 'hatch') else 0.40
     for yy in (-L / 2 + L * 0.19, L / 2 - L * 0.18):
         for s in (-1, 1):
             arch(mb, s * W / 2 * 0.975, yy, r, s)
@@ -362,6 +464,8 @@ def boxtruck(name, L, W, H, cabL, paint, ad=None, step=False):
     mats[0] = paint
     mats.append('ad_print')
     mats.append('bus_paint')
+    mats.append('contact_shadow')
+    mb.quad((-w - 0.3, y0 - 0.3, 0.012), (w + 0.3, y0 - 0.3, 0.012), (w + 0.3, y1 + 0.3, 0.012), (-w - 0.3, y1 + 0.3, 0.012), mat=12)
     return _finish(mb, name, mats, bevel=0.035)
 
 
@@ -391,7 +495,8 @@ def bus(name):
         for s in (-1, 1):
             arch(mb, s * w * 0.995, yy, 0.5, s)
             wheel(mb, s * (w - 0.13), yy, r=0.5, w=0.3, side=s)
-    mats = list(MATS) + ['ad_print', 'bus_paint', 'paint_blue', 'sig_amber']
+    mats = list(MATS) + ['ad_print', 'bus_paint', 'paint_blue', 'sig_amber', 'contact_shadow']
+    mb.quad((-w - 0.3, y0 - 0.3, 0.012), (w + 0.3, y0 - 0.3, 0.012), (w + 0.3, y1 + 0.3, 0.012), (-w - 0.3, y1 + 0.3, 0.012), mat=14)
     return _finish(mb, name, mats, bevel=0.06)
 
 

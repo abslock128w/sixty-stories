@@ -360,7 +360,7 @@ def _haze_material():
     out.location = (600, 0)
     vol = nt.nodes.new('ShaderNodeVolumePrincipled')
     vol.location = (300, 0)
-    vol.inputs['Anisotropy'].default_value = 0.8
+    vol.inputs['Anisotropy'].default_value = 0.68
     vol.inputs['Absorption Color'].default_value = (0.0, 0.0, 0.0, 1)
     nt.links.new(vol.outputs[0], out.inputs['Volume'])
     dens = ctrl_value_node(nt, "haze_density", location=(-200, -100))
@@ -391,6 +391,27 @@ def _haze_variant(base, name, mult):
         m.node_tree.links.new(dens.outputs[0], mul.inputs[0])
         m.node_tree.links.new(mul.outputs[0], vol.inputs['Density'])
     mul.inputs[1].default_value = mult
+    if name.endswith('canyon') and m.node_tree.nodes.get("HazeBreakup") is None:
+        # heterogeneous breakup so shafts vary in density (slow-moving blobs ~20-60 m)
+        nt = m.node_tree
+        tc = nt.nodes.new('ShaderNodeTexCoord')
+        nz = nt.nodes.new('ShaderNodeTexNoise')
+        nz.name = "HazeBreakup"
+        nz.inputs['Scale'].default_value = 0.035
+        nz.inputs['Detail'].default_value = 2.0
+        nt.links.new(tc.outputs['Object'], nz.inputs['Vector'])
+        mr = nt.nodes.new('ShaderNodeMapRange')
+        mr.inputs['From Min'].default_value = 0.3
+        mr.inputs['From Max'].default_value = 0.7
+        mr.inputs['To Min'].default_value = 0.25
+        mr.inputs['To Max'].default_value = 1.6
+        nt.links.new(nz.outputs['Fac'], mr.inputs['Value'])
+        m2 = nt.nodes.new('ShaderNodeMath')
+        m2.operation = 'MULTIPLY'
+        vol = [n for n in nt.nodes if n.type == 'PRINCIPLED_VOLUME'][0]
+        nt.links.new(mul.outputs[0], m2.inputs[0])
+        nt.links.new(mr.outputs[0], m2.inputs[1])
+        nt.links.new(m2.outputs[0], vol.inputs['Density'])
     return m
 
 
@@ -399,7 +420,7 @@ HAZE_BOXES = [
     ("ATMO_haze_box", 1.0, None, None, None, None, -2.0, 650.0),
     ("ATMO_haze_low_box", 2.0, None, None, None, None, -1.0, 140.0),
     # the avenue corridor: a denser warm veil inside the canyon (Manhattanhenge air)
-    ("ATMO_haze_canyon", 3.0, -16.0, 16.0, -1200.0, 1460.0, -0.5, 80.0),
+    ("ATMO_haze_canyon", 2.2, -16.0, 16.0, -1200.0, 1460.0, -0.5, 80.0),
 ]
 
 
@@ -441,7 +462,7 @@ def _build_haze(scene):
 # Recommended per-shot overrides applied on top of dusk_values() (key them per shot).
 PRESETS = {
     "none": dict(),
-    "canyon": dict(exposure=1.4),                        # s3-s5 (defaults + canyon exposure)
+    "canyon": dict(exposure=1.3, sky_strength=0.24),                        # s3-s5 (defaults + canyon exposure)
     "aerial": dict(haze_density=0.00012, haze_r=0.18, haze_g=0.17, haze_b=0.17, exposure=0.5, sky_strength=0.13),  # s1, s6 wide
     "closeup": dict(haze_density=0.0002, exposure=0.4),  # s2 perch, 85-135 mm
     "dusk_wide": dict(haze_density=0.00012, haze_r=0.35, haze_g=0.32, haze_b=0.36),  # apply_preset(scene, "dusk_wide", dusk=1.0): s6 end

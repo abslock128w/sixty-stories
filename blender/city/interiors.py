@@ -45,12 +45,14 @@ def _lit(nb):
     frac = nb.math('MINIMUM', nb.math('MULTIPLY_ADD', nb.ctrl('window_frac'), ROOM_FRAC_MUL, ROOM_FRAC_ADD), 0.95)
     lit = nb.math('LESS_THAN', rl, frac)
     lvl = nb.math('MULTIPLY_ADD', nb.ctrl('sun_strength'), ROOM_DAY_BOOST, nb.ctrl('window_emit'))
+    lvl = nb.math('MULTIPLY', lvl, _inst(nb, 'rb'))   # per-instance brightness (shops are brighter)
     return nb.math('MULTIPLY', lit, lvl), _inst(nb, 'rt'), _inst(nb, 'rr')
 
 
 ROOM_FRAC_MUL = 1.5
 ROOM_FRAC_ADD = 0.42
 ROOM_DAY_BOOST = 0.07
+SHOP_BOOST = 2.4
 
 
 def _lamp_col(nb, rt):
@@ -676,8 +678,10 @@ class RoomPoints:
         nx, ny = n_out
         th = math.atan2(nx, -ny)          # local +y -> inward (-n)
         sx = width / 2.0 * (-1 if mirror else 1)
+        name = rtype if isinstance(rtype, str) else DEFS[rtype][0]
+        rb = SHOP_BOOST if name.startswith('shop') else 1.0
         self.P.append((loc, (0.0, 0.0, th), (sx, depth / D, storey / 3.8), INDEX[rtype] if isinstance(rtype, str) else rtype,
-                       rr, rl, rt))
+                       rr, rl, rt, rb))
 
     def build(self, name, col, kit):
         if not self.P:
@@ -691,7 +695,7 @@ class RoomPoints:
             a.data.foreach_set("vector", np.array([p[idx] for p in self.P], dtype=np.float32).ravel())
         a = me.attributes.new('rtype', 'INT', 'POINT')
         a.data.foreach_set("value", np.array([p[3] for p in self.P], dtype=np.int32))
-        for an, idx in (('rr', 4), ('rl', 5), ('rt', 6)):
+        for an, idx in (('rr', 4), ('rl', 5), ('rt', 6), ('rb', 7)):
             a = me.attributes.new(an, 'FLOAT', 'POINT')
             a.data.foreach_set("value", np.array([p[idx] for p in self.P], dtype=np.float32))
         ob = bpy.data.objects.new(name, me)

@@ -363,3 +363,76 @@ The `s_street` camera was held fixed throughout. Step renders (1280 px, 64 spp) 
 - Lighting (priority 7): the end of the avenue is still over-exposed.
 - Street-object wear (priority 5).
 - Material pass (priority 6).
+
+## 2026-11-16, Overhaul A (vehicles) and B (lighting)
+
+New renders in `blender/out/preview/city/`:
+- `overhaul_05_vehicles_close.png` (`car_close`).
+- `overhaul_05_bus_truck_close.png` (`bus_close`). It shows a cab in the foreground with a bus behind; no truck is in frame.
+- `overhaul_06_lighting.png`: the fixed `s_street` view.
+- `xstreet_close.png`: an unplanned cross-street view.
+
+### A. Vehicles
+
+**Search for free models**
+- I spent about 15 minutes looking on public GitHub for CC0 or MIT vehicle models.
+- The only CC0 model set found, a USD port of Poly Haven assets, has no vehicles.
+- Nothing usable was found, so vehicles stay procedural. Nothing was imported, so `CREDITS.md` is unchanged.
+
+**Car bodies**
+- Larger, rounder bevels: 0.15 m on the lower body, 0.11 m on the glass cabin, 4 segments each.
+- Proportions changed: more steeply raked windscreens and rear glass, higher beltline, 0.36–0.40 m wheels.
+
+**Lamps**
+- Wrap-around lamp clusters at all four corners, each with a chrome bezel, lens, and a side-wrap section.
+- Rear clusters have an amber indicator; front clusters have a daytime running-light strip.
+
+**Wheels**
+- Cars: 10-spoke split alloys with a concave barrel, centre cap and hub.
+- Trucks and buses: steel disc wheels with 10 hand holes, hub and 8 nuts.
+
+**Interior**
+- Seats, dashboard, steering wheel and a driver figure, visible through the new see-through glass.
+
+**Exterior details**
+- Door handles and wipers.
+
+**Materials**
+- `car_glass` now reflects at grazing angles and is tinted see-through at normal incidence.
+- Car paint now has a clearcoat, a metallic-flake bump, and road dirt on the lower panels.
+- The taxi's yellow paint uses the same layered material.
+
+**Contact shadows**
+- A soft shadow decal sits under every car, truck and bus.
+
+**Bug fixed**
+- Props and vehicles were using the room material `room_dark`, which became emissive in round 5. Grilles, bumpers, wheel wells and drain grates glowed pale.
+- They now use a new `black_trim` material.
+
+### B. Lighting
+
+**Canyon haze**
+- The canyon haze box is now heterogeneous: noise breaks it into blobs of 0.25–1.6× density, so the shafts vary.
+- Its density multiplier dropped from 3.0 to 2.2.
+- Haze anisotropy dropped from 0.80 to 0.68. Together these reduce the blown-out glow at the end of the avenue.
+
+**Canyon preset**
+- `sky_strength` raised to 0.24 for more fill in the shade; `exposure` set to 1.3.
+
+**Shop interiors**
+- About 2.4× brighter, via a new per-instance room brightness attribute `rb`.
+
+### Honest list
+
+**Cars**
+- Still read as boxy 1980s sedans, not modern curved cars.
+- The B-pillar boxes and mirrors protrude as visible blocks in close-up.
+- No modelled headlight lens interior.
+
+**Buses and trucks**
+- Bodies are still boxy.
+
+**Lighting**
+- The sky at the end of the avenue still clips to white.
+- Contact shadows exist only for vehicles, not for street furniture.
+- No light falls on the street from shop interiors, because room surfaces are emission-only.
