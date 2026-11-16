@@ -924,6 +924,26 @@ def m_paint_worn(name, col):
     return m
 
 
+def m_sill_stain(name):
+    """Rain-wash stain decal below window sills: dark at the top, streaky, fading downward."""
+    nb, m = _new(name)
+    uv = nb.n('ShaderNodeUVMap', uv_map="UVMap")
+    sp = nb.n('ShaderNodeSeparateXYZ', i_Vector=uv.outputs['UV'])
+    geo = nb.n('ShaderNodeNewGeometry')
+    st = nb.n('ShaderNodeTexNoise', i_Vector=nb.vmath('MULTIPLY', geo.outputs['Position'], (9.0, 9.0, 0.6)), i_Scale=1.5, i_Detail=3.0)
+    edge = nb.math('MULTIPLY', nb.math('SUBTRACT', 1.0, nb.math('ABSOLUTE', nb.math('MULTIPLY', nb.math('SUBTRACT', sp.outputs['X'], 0.5), 2.0))), 1.5)
+    a = nb.math('MULTIPLY', nb.math('MULTIPLY', nb.math('POWER', sp.outputs['Y'], 1.6), nb.math('MINIMUM', edge, 1.0)),
+                nb.n('ShaderNodeMapRange', i_Value=st.outputs['Fac'], **{'i_From Min': 0.35, 'i_From Max': 0.65}).outputs[0])
+    a = nb.math('MULTIPLY', a, 0.55)
+    dk = nb.principled(**{'Base Color': (0.05, 0.045, 0.04, 1), 'Roughness': 0.7})
+    tr = nb.n('ShaderNodeBsdfTransparent')
+    mx = nb.n('ShaderNodeMixShader', i_Fac=a)
+    nb.link(tr.outputs[0], mx.inputs[1])
+    nb.link(dk.outputs[0], mx.inputs[2])
+    nb.out(mx.outputs[0])
+    return m
+
+
 def m_contact_shadow(name):
     """Soft ambient-occlusion decal under vehicles/props: dark centre fading to transparent at the UV edge."""
     nb, m = _new(name)
@@ -1004,6 +1024,7 @@ def _reg():
     B['shop'] = m_shop
     B['louvre'] = m_louvre
     B['contact_shadow'] = m_contact_shadow
+    B['sill_stain'] = m_sill_stain
     B['black_trim'] = lambda n: m_simple(n, (0.02, 0.02, 0.022), rough=0.45, noise_amt=0.2, noise_scale=8.0, spec=0.4)
     B['hvac_paint'] = lambda n: m_simple(n, (0.33, 0.32, 0.29), rough=0.55, metal=0.2, noise_amt=0.2, grime_k=0.4)
     B['tower_spandrel'] = m_tower_spandrel

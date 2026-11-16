@@ -462,7 +462,7 @@ def _build_haze(scene):
 # Recommended per-shot overrides applied on top of dusk_values() (key them per shot).
 PRESETS = {
     "none": dict(),
-    "canyon": dict(exposure=1.3, sky_strength=0.24),                        # s3-s5 (defaults + canyon exposure)
+    "canyon": dict(exposure=1.3, sky_strength=0.24, window_frac=0.24),                        # s3-s5 (defaults + canyon exposure)
     "aerial": dict(haze_density=0.00012, haze_r=0.18, haze_g=0.17, haze_b=0.17, exposure=0.5, sky_strength=0.13),  # s1, s6 wide
     "closeup": dict(haze_density=0.0002, exposure=0.4),  # s2 perch, 85-135 mm
     "dusk_wide": dict(haze_density=0.00012, haze_r=0.35, haze_g=0.32, haze_b=0.36),  # apply_preset(scene, "dusk_wide", dusk=1.0): s6 end

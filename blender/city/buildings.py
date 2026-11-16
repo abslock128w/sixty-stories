@@ -9,7 +9,7 @@ from cutil import MB, hash01
 import layout as LY
 
 SLOTS = ['wall', 'trim', 'window', 'spandrel', 'metal', 'roof', 'shop', 'curtain', 'cw_spandrel', 'blank', 'louvre', 'patina',
-         'alt_brick', 'alt_stone', 'alt_trim', 'alt_terracotta']
+         'alt_brick', 'alt_stone', 'alt_trim', 'alt_terracotta', 'sill_stain']
 S = {k: i for i, k in enumerate(SLOTS)}
 
 BRICK_COLS = [(0.225, 0.090, 0.053), (0.270, 0.120, 0.068), (0.315, 0.188, 0.112), (0.180, 0.075, 0.053),
@@ -106,6 +106,7 @@ def mats_for(P):
         'alt_stone': MAT.get('limestone'),
         'alt_trim': MAT.get('trim'),
         'alt_terracotta': MAT.get('terracotta'),
+        'sill_stain': MAT.get('sill_stain'),
     }
     return [m[k] for k in SLOTS]
 
@@ -332,6 +333,10 @@ def build_facade(mb, face, z0, z1, P, rng, bcol, storefront, ext_end, fl_rand, z
                 face.box(mb, s0 + fw, s1 - fw, 0, fd * 0.8, tz - 0.03, tz + 0.03, M, A)
             if P['sills']:
                 face.box(mb, s0 - 0.07, s1 + 0.07, 0, ds + 0.08, sz - 0.07, sz + 0.03, TS, A)
+            if not curtain and sz > 3.0 and hash01(fz, k, bcol[3]) < 0.7:
+                # rain-wash stain decal under the sill (weathering)
+                hst = 0.5 + hash01(k, fz) * 1.1
+                face.quad(mb, s0 - 0.05, s1 + 0.05, ds + 0.004, sz - 0.07 - hst, sz - 0.07, S['sill_stain'], A)
             if P['lintels']:
                 face.box(mb, s0 - 0.14, s1 + 0.14, 0, ds + 0.04, hz - 0.02, hz + 0.24, TS, A)
         if curtain and fi % 1 == 0:
