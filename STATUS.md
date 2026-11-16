@@ -135,3 +135,10 @@ at medium effort. An hourly scheduled task re-wakes the main session; on wake, r
   review -> full detached render. 3. During the render: small site fix workflow using
   tools/dev/site_findings_unverified.json (fixers verify each item first), then pack,
   build, check, publish as a private Artifact; republish as passes land.
+- ~07:05 UTC: OWNER asked for a more realistic city: 15-20 maximum-detail buildings with
+  visible interiors (kitchens etc.), reused across the city. CITY builder (agent
+  a33d0be51224ca7c4) resumed for round 4 (layout, meta, material names frozen). This
+  changes city.blend, so DO NOT start the s1 pre-render: wait for the city, then rebuild
+  film.blend + looklab plate, re-check looks/final.py on the new city, then render.
+  Owner also suggested downloading a free Spider-Man model: declined (same reason as
+  building one; also model sites are not reachable from this machine).

@@ -199,6 +199,18 @@ def emission_add(nb, bsdf, color, strength):
 
 
 # ----------------------------------------------------------------- windows
+ROOM_LOD = (70.0, 110.0)
+
+
+def room_lod(nb):
+    """1 near the camera, 0 beyond ROOM_LOD[1] m: distant panes stay opaque (painted interior),
+    so rays only enter the room modules where they can be seen."""
+    lp = nb.n('ShaderNodeLightPath')
+    r = nb.n('ShaderNodeMapRange', i_Value=lp.outputs['Ray Length'],
+             **{'i_From Min': ROOM_LOD[0], 'i_From Max': ROOM_LOD[1], 'i_To Min': 1.0, 'i_To Max': 0.0})
+    return r.outputs[0]
+
+
 def _window_shader(nb, curtain=False):
     """Shared window/pane network. Returns shader socket."""
     win = nb.attr('win')
@@ -228,6 +240,12 @@ def _window_shader(nb, curtain=False):
     base = nb.mix(bl, interior, blindc)
     # blinds are lit by the room (translucent glow), slightly weaker
     estr = nb.math('MULTIPLY', estr, nb.math('MULTIPLY_ADD', bl, -0.35, 1.0))
+    # panes with a real room module behind them ('wroom' face attribute = 1): the room's own
+    # lamps light it, so the painted-on interior glow is switched off (blinds keep theirs)
+    wr = nb.n('ShaderNodeSeparateColor', i_Color=nb.attr('wroom').outputs['Color']).outputs[0]
+    clear = nb.math('MULTIPLY', wr, nb.math('SUBTRACT', 1.0, bl))
+    clear = nb.math('MULTIPLY', clear, room_lod(nb))
+    estr = nb.math('MULTIPLY', estr, nb.math('SUBTRACT', 1.0, clear))
     # ---- glass tilt wobble from per-pane random
     wn = nb.n('ShaderNodeTexWhiteNoise', noise_dimensions='3D',
               i_Vector=nb.vmath('MULTIPLY', win.outputs['Color'], (137.1, 71.3, 13.7)))
@@ -266,6 +284,17 @@ def _window_shader(nb, curtain=False):
     estr2 = nb.math('MULTIPLY', estr2, nb.math('SUBTRACT', 1.0, bl))
     estr2 = nb.math('MULTIPLY', estr2, 0.6 if curtain else 0.9)
     sh = emission_add(nb, sh, envc, estr2)
+    # see-through glass into the room: Fresnel decides reflect vs transmit (Transparent BSDF so
+    # daylight and shadows enter the room cheaply; the coat above provides the reflection)
+    fr_ = nb.n('ShaderNodeFresnel', i_IOR=1.52, i_Normal=nrm).outputs[0]
+    refl_w = nb.math('MINIMUM', nb.math('MULTIPLY_ADD', fr_, 2.2 if curtain else 2.0, 0.22 if curtain else 0.03), 1.0)
+    tfac = nb.math('MULTIPLY', clear, nb.math('SUBTRACT', 1.0, refl_w))
+    tr = nb.n('ShaderNodeBsdfTransparent', i_Color=(0.92, 0.94, 0.93, 1) if not curtain else nb.mix(0.3, (0.92, 0.94, 0.93, 1), bc.outputs['Color']))
+    mxr = nb.n('ShaderNodeMixShader', i_Fac=tfac)
+    mxr.name = 'ROOM_see_through'
+    nb.link(sh, mxr.inputs[1])
+    nb.link(tr.outputs[0], mxr.inputs[2])
+    sh = mxr.outputs[0]
     if not curtain:
         # thin frame + mullion inside the opening (UV based)
         fw = 0.035
@@ -792,8 +821,18 @@ def m_shop(name):
                    [(0.0, (1.0, 0.70, 0.40)), (0.6, (1.0, 0.85, 0.65)), (0.85, (0.85, 0.92, 1.0))], interp='CONSTANT')
     s = nb.math('MULTIPLY', nb.math('MULTIPLY_ADD', sep.outputs[0], 1.0, 0.6), inner)
     s = nb.math('MULTIPLY', s, nb.math('ADD', nb.ctrl('street_emit'), 1.2))
+    wr = nb.n('ShaderNodeSeparateColor', i_Color=nb.attr('wroom').outputs['Color']).outputs[0]
+    wr = nb.math('MULTIPLY', wr, room_lod(nb))
+    s = nb.math('MULTIPLY', s, nb.math('SUBTRACT', 1.0, wr))
     p = nb.principled(**{'Base Color': (0.02, 0.02, 0.02, 1), 'Roughness': 0.03, 'IOR': 1.52})
-    nb.out(emission_add(nb, p.outputs[0], ecol, s))
+    sh = emission_add(nb, p.outputs[0], ecol, s)
+    fr_ = nb.n('ShaderNodeFresnel', i_IOR=1.52).outputs[0]
+    tfac = nb.math('MULTIPLY', wr, nb.math('SUBTRACT', 1.0, nb.math('MINIMUM', nb.math('MULTIPLY_ADD', fr_, 2.5, 0.08), 1.0)))
+    tr = nb.n('ShaderNodeBsdfTransparent', i_Color=(0.85, 0.88, 0.86, 1))
+    mx = nb.n('ShaderNodeMixShader', i_Fac=tfac)
+    nb.link(sh, mx.inputs[1])
+    nb.link(tr.outputs[0], mx.inputs[2])
+    nb.out(mx.outputs[0])
     return m
 
 

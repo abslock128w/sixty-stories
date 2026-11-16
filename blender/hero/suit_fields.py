@@ -461,9 +461,9 @@ def sail_fields(P, J, weights, grip, inner_f, side_f):
     w_leg = g(('upperleg', 'lowerleg', 'foot', 'toes'))
     TAIL = (0.168, 0.925)
     # front edge: right neck base -> left lower ribs -> tail on the left hip (one straight line)
-    f_front = -_seg_sd(x, z, (-0.062, 1.49), TAIL)
+    f_front = _seg_sd(x, z, (-0.062, 1.49), TAIL)
     # back edge: right side of the nape -> left waist -> tail
-    f_back = -_seg_sd(x, z, (-0.048, 1.545), TAIL)
+    f_back = _seg_sd(x, z, (-0.048, 1.545), TAIL)
     yb = np.clip((y - 0.0) / 0.12, 0, 1); yb = yb * yb * (3 - 2 * yb)
     f_sail = f_front * (1 - yb) + f_back * yb
     f_sail = np.where(z < TAIL[1] - 0.02, -0.05, f_sail)

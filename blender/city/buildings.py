@@ -31,14 +31,17 @@ class LotIndex:
                 for j in range(int(math.floor(y0 / cell)), int(math.floor(y1 / cell)) + 1):
                     self.g.setdefault((i, j), []).append(s)
 
-    def height_at(self, x, y):
+    def height_at(self, x, y, exclude=None):
         c = self.g.get((int(math.floor(x / self.cell)), int(math.floor(y / self.cell))), [])
         h = 0.0
         for s in c:
+            if s is exclude:
+                continue
             x0, x1, y0, y1 = s['lot']
             if x0 <= x <= x1 and y0 <= y <= y1:
                 h = max(h, s['height'])
-        if LY.TOWER['x0'] <= x <= LY.TOWER['x1'] and LY.TOWER['y0'] <= y <= LY.TOWER['y1']:
+        if (LY.TOWER['x0'] <= x <= LY.TOWER['x1'] and LY.TOWER['y0'] <= y <= LY.TOWER['y1']
+                and not (exclude is not None and exclude.get('kind') == 'tower')):
             h = max(h, 240.0)
         return h
 
@@ -115,6 +118,11 @@ def bcol_for(P, rng):
 
 
 # ----------------------------------------------------------------- facade
+ROOM_DEPTH = 3.4      # modules are 4.5 m deep, compressed so the back wall reads through the window
+ROOMS_ZMAX = 100.0   # rooms only where web-swing / street cameras get close (The Tower: full height)
+ROOMS = None   # set by build_near: dict(pts=RoomPoints, rng=Random, use=str, ac_p=float, face_ok=callable)
+
+
 class Face:
     def __init__(self, p0, p1):
         self.p0 = p0
@@ -195,14 +203,19 @@ def build_facade(mb, face, z0, z1, P, rng, bcol, storefront, ext_end, fl_rand, z
         for k in range(n):
             s0 = cw + k * b + (pw / 2 if k > 0 else 0)
             s1 = cw + (k + 1) * b - (pw / 2 if k < n - 1 else 0)
+            RC = ROOMS if (ROOMS and ROOMS['face_ok'](face)) else None
+            rf = (1.0, 0, 0, 0) if RC else (0.0, 0, 0, 0)
+            if RC:
+                RC['pts'].add(face.pt((s0 + s1) / 2, -0.05, z0), face.n, b - 0.06, 4.5, P['gh'] - 0.3, 'shop',
+                              RC['rng'].random(), 0.0, RC['rng'].random() * 0.75, RC['rng'].random() < 0.5)
             if curtain:
                 face.quad(mb, s0, s1, 0, z0 + 0.1, ztop_store - 0.6,
-                          S['shop'], {'bcol': bcol, 'win': (rng.random() * 0.4, 0.0, 0.0, rng.random())})
+                          S['shop'], {'bcol': bcol, 'win': (rng.random() * 0.4, 0.0, 0.0, rng.random()), 'wroom': rf})
                 face.box(mb, s0, s1, 0, 0.12, ztop_store - 0.6, ztop_store, S['trim'], A, caps=False)
             else:
                 face.box(mb, s0, s1, 0, 0.1, z0, z0 + 0.5, S['trim'], A, caps=False)
                 face.quad(mb, s0, s1, 0, z0 + 0.5, ztop_store - 1.0,
-                          S['shop'], {'bcol': bcol, 'win': (rng.random(), 0.0, 0.0, rng.random())})
+                          S['shop'], {'bcol': bcol, 'win': (rng.random(), 0.0, 0.0, rng.random()), 'wroom': rf})
                 face.box(mb, s0, s1, 0, max(ds, 0.12) + 0.04, ztop_store - 1.0, ztop_store - 0.2, S['metal'], A, caps=False)
                 face.box(mb, s0, s1, 0, max(ds, 0.1), ztop_store - 0.2, ztop_store, S['trim'], A, caps=False)
     # window rows + spandrels between
@@ -238,15 +251,42 @@ def build_facade(mb, face, z0, z1, P, rng, bcol, storefront, ext_end, fl_rand, z
             blind = rng.uniform(0.08, 0.9) if rng.random() < blind_p else 0.0
             tint = rng.random() * (1 - P['cool_p']) if rng.random() > P['cool_p'] else 0.8 + rng.random() * 0.2
             wa = {'bcol': bcol, 'win': (r, lrank, blind, tint)}
+            RC = ROOMS if (ROOMS and ROOMS['face_ok'](face) and fz < ROOMS.get('zmax', 1e9)) else None
+            if RC:
+                sc = (s0 + s1) / 2
+                wroom_w = b - 0.05
+                place = True
+                if curtain:
+                    # open floors behind curtain walls: one module spans two bays
+                    if k % 2 == 1:
+                        place = False
+                    elif k + 1 < n:
+                        sc = s0 + b
+                        wroom_w = 2 * b - 0.05
+                depth = min(ROOM_DEPTH, min(sc, L - sc) - wroom_w / 2 - 0.1)
+                if depth >= 1.6:
+                    rr_ = RC['rng']
+                    if place:
+                        # tenant groups share finishes (wall colour etc.): 4 bays on a floor
+                        grp = hash01(id(face) % 9973, int(fz * 10), k // (4 if curtain else 3))
+                        RC['pts'].add(face.pt(sc, -0.04, fz), face.n, wroom_w, depth, P['sh'],
+                                      pick_room(random.Random(grp * 1e6) if curtain else rr_, RC['use']),
+                                      grp, lrank, tint, rr_.random() < 0.5)
+                    wa['wroom'] = (1.0, 0, 0, 0)
+                    if RC.get('fe') and k % 6 == 2 and fz > P['gh'] + 1.0 and n > 3:
+                        RC['pts'].add(face.pt(sc, 0.0, fz), face.n, 2.0, 4.5, P['sh'], 'fire_escape', 0.5, 1.0, 0.0, False)
+                    elif RC['ac_p'] and rr_.random() < RC['ac_p'] and fz > 3.0:
+                        RC['pts'].add(face.pt(sc, 0.0, fz), face.n, min(b, 2.0), 4.5, P['sh'], 'ac', rr_.random(), 1.0, 0.0,
+                                      False)
             if P.get('pairs') and (s1 - s0) > 1.6:
                 mid = (s0 + s1) / 2
                 face.quad(mb, s0, mid - 0.12, 0.0, sz, hz, S['curtain'] if curtain else S['window'], wa)
                 face.quad(mb, mid + 0.12, s1, 0.0, sz, hz, S['curtain'] if curtain else S['window'],
-                          {'bcol': bcol, 'win': (rng.random(), lrank, blind, tint)})
+                          {'bcol': bcol, 'win': (rng.random(), lrank, blind, tint), 'wroom': wa.get('wroom')})
                 face.box(mb, mid - 0.12, mid + 0.12, 0, ds, sz, hz, S['wall'], A, caps=False)
             else:
                 face.quad(mb, s0, s1, 0.0, sz, hz, S['curtain'] if curtain else S['window'], wa)
-            if P.get('frames_z') is not None and sz >= P['frames_z']:
+            if P.get('frames_z') is not None and sz >= P['frames_z'] and sz < P.get('frames_zmax', 1e9) and (P.get('arch') is None or RC):
                 fw, fd = 0.07, 0.09
                 M = S['metal']
                 face.box(mb, s0, s0 + fw, 0, fd, sz, hz, M, A)
@@ -263,6 +303,48 @@ def build_facade(mb, face, z0, z1, P, rng, bcol, storefront, ext_end, fl_rand, z
         if curtain and fi % 1 == 0:
             # horizontal transom fins at slab level
             face.box(mb, cw, L - cw, 0, dp * 0.6, fz - 0.06, fz + 0.06, S['trim'], A, caps=False)
+
+
+def roof_clutter(spec, tiers, P, out):
+    """Hero-library rooftops: HVAC, duct runs, tanks set back from the avenue, and terraces
+    with furniture on setback roofs (separate RNG: the building's massing RNG is untouched)."""
+    r = random.Random(spec['seed'] * 17 + 3)
+    terrace = P.get('use') in ('residential', 'hotel') or r.random() < 0.3
+    for i, t in enumerate(tiers):
+        x0, x1, y0, y1 = poly_bounds(t['poly'])
+        nxt = poly_bounds(tiers[i + 1]['poly']) if i + 1 < len(tiers) else None
+        z = t['z1']
+
+        def free(px, py, m):
+            if not (x0 + m <= px <= x1 - m and y0 + m <= py <= y1 - m):
+                return False
+            if nxt and nxt[0] - m <= px <= nxt[1] + m and nxt[2] - m <= py <= nxt[3] + m:
+                return False
+            return True
+        far_from_ave = lambda px: abs(px) > 16 + 14
+        placed = 0
+        for _ in range(40):
+            px, py = r.uniform(x0, x1), r.uniform(y0, y1)
+            if nxt is not None and terrace and placed < 3 and free(px, py, 3.0):
+                out.append(('terrace', (px, py, z), r.choice([0, 1.5708]), 1.0))
+                placed += 1
+            elif nxt is None and free(px, py, 2.5):
+                k = r.random()
+                if k < 0.45:
+                    out.append(('hvac', (px, py, z), r.choice([0, 1.5708]), 1.0))
+                elif k < 0.7:
+                    out.append(('ductrun', (px, py, z), r.choice([0, 1.5708]), 1.0))
+                elif k < 0.8 and far_from_ave(px):
+                    out.append(('rooftank', (px, py, z), 0.0, r.uniform(0.8, 1.1)))
+                elif k < 0.9 and terrace:
+                    out.append(('terrace', (px, py, z), r.choice([0, 1.5708]), 1.0))
+            if placed >= 3 and nxt is not None:
+                break
+
+
+def pick_room(rng, use):
+    import interiors as INT
+    return INT.pick(rng, use)
 
 
 def offset_poly(poly, d):
@@ -374,11 +456,46 @@ def build_near(spec, lidx, protos_out, P=None, tiers=None, crown=None, bcol=None
         bcol = bcol_for(P, rng)
     if spec['style'] == 'twin':
         bcol = (0.20, 0.25, 0.27, 0.5)
-    mb = mb or MB(attrs=('win', 'bcol'))
+    global ROOMS
+    import interiors as INT
+    if not P.get('rooms'):
+        import library
+        arch = library.choose(spec)
+        P, bcol = library.apply(arch, P, bcol)
+        spec['archetype'] = arch['name']
+    # rooms on faces that look onto the hero avenue (the corridor the cameras fly); cross-street
+    # and rear faces keep painted interiors (cost)
+    face_ok = P.get('room_face_ok', lambda f: abs(f.n[0]) > 0.7 and f.n[0] * (f.p0[0] + f.p1[0]) < 0
+                    and abs((f.p0[0] + f.p1[0]) / 2) < 16 + 30)
+    ROOMS = dict(pts=INT.RoomPoints(), rng=random.Random(spec['seed'] * 13 + 5), use=P.get('use', 'office'),
+                 ac_p=P.get('ac_p', 0.0), face_ok=face_ok, fe=P.get('fire_escape', False),
+                 zmax=P.get('rooms_zmax', ROOMS_ZMAX))
+    mb = mb or MB(attrs=('win', 'bcol', 'wroom'))
     flr_seed = rng.random()
     fl_rand = lambda fz: hash01(spec['seed'], int(fz * 10))
     x0, x1, y0, y1 = spec['lot']
     block = spec.get('block')
+    # The crown is built from the same RNG after the facades. Round 5 fixed faces that wrongly saw
+    # their own lot as a neighbour (blank walls), which changes RNG consumption; to keep every crown
+    # (and city_meta top_z) identical, replay the old facade decisions on a scratch RNG + mesh.
+    rng_old = random.Random()
+    rng_old.setstate(rng.getstate())
+    _rooms_saved, ROOMS = ROOMS, None
+    scratch = MB(attrs=('win', 'bcol', 'wroom'))
+    for t in tiers:
+        poly = [p for i, p in enumerate(t['poly']) if math.hypot(p[0] - t['poly'][i - 1][0], p[1] - t['poly'][i - 1][1]) > 0.05]
+        fs = [Face(poly[i], poly[(i + 1) % len(poly)]) for i in range(len(poly))]
+        ko = [max(lidx.height_at((f.p0[0] + f.p1[0]) / 2 + f.n[0] * 1.5, (f.p0[1] + f.p1[1]) / 2 + f.n[1] * 1.5),
+                  lidx.height_at(*f.pt(f.L * 0.2, 1.5, 0)[:2]), lidx.height_at(*f.pt(f.L * 0.8, 1.5, 0)[:2])) for f in fs]
+        for i, f in enumerate(fs):
+            zb = t['z0']
+            if ko[i] > t['z0'] + 0.5:
+                zb = min(t['z1'], ko[i])
+            if zb < t['z1'] - 2.0:
+                build_facade(scratch, f, zb, t['z1'], P, rng_old, bcol, (t['z0'] == 0.0 and zb == 0.0),
+                             ext_end=False, fl_rand=fl_rand)
+    ROOMS = _rooms_saved
+    del scratch
     for ti, t in enumerate(tiers):
         poly = [p for i, p in enumerate(t['poly']) if math.hypot(p[0] - t['poly'][i - 1][0], p[1] - t['poly'][i - 1][1]) > 0.05]
         t['poly'] = poly
@@ -389,8 +506,9 @@ def build_near(spec, lidx, protos_out, P=None, tiers=None, crown=None, bcol=None
             # is the face on the lot line toward a street, a party wall, or exposed (inset)?
             mx = (f.p0[0] + f.p1[0]) / 2 + f.n[0] * 1.5
             my = (f.p0[1] + f.p1[1]) / 2 + f.n[1] * 1.5
-            nh = max(lidx.height_at(mx, my), lidx.height_at(f.pt(f.L * 0.2, 1.5, 0)[0], f.pt(f.L * 0.2, 1.5, 0)[1]),
-                     lidx.height_at(f.pt(f.L * 0.8, 1.5, 0)[0], f.pt(f.L * 0.8, 1.5, 0)[1]))
+            # (exclude this lot: setback / plaza-inset tiers used to see their own lot as a neighbour)
+            nh = max(lidx.height_at(mx, my, spec), lidx.height_at(f.pt(f.L * 0.2, 1.5, 0)[0], f.pt(f.L * 0.2, 1.5, 0)[1], spec),
+                     lidx.height_at(f.pt(f.L * 0.8, 1.5, 0)[0], f.pt(f.L * 0.8, 1.5, 0)[1], spec))
             kinds.append(nh)
         for i, f in enumerate(faces):
             nh = kinds[i]
@@ -422,8 +540,15 @@ def build_near(spec, lidx, protos_out, P=None, tiers=None, crown=None, bcol=None
             mb.poly([(p[0], p[1], t['z1']) for p in cp], S['roof'], None, A)
     top = tiers[-1]
     roof_z = top['z1']
+    rng.setstate(rng_old.getstate())
     extra_top = build_crown(mb, crown, top, P, rng, bcol, spec, protos_out) if crown else 0.0
+    if P.get('rooms') and P.get('arch'):
+        roof_clutter(spec, tiers, P, protos_out)
     me = mb.build(f"B{spec['id']}_{spec['style']}", mats or mats_for(P))
+    spec['_rooms'] = ROOMS['pts']
+    spec['_P'] = P
+    spec['_bcol'] = bcol
+    ROOMS = None
     spec['roof_z'] = roof_z
     spec['top_z'] = roof_z + extra_top
     spec['tiers'] = [dict(poly=[tuple(map(float, p)) for p in t['poly']], z0=t['z0'], z1=t['z1']) for t in tiers]

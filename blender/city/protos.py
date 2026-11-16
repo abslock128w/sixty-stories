@@ -395,9 +395,45 @@ def p_truck(name):
     return _boxveh(name, 8.0, 2.45, 3.5, 2.2, 'car_paint')
 
 
+def p_terrace(name):
+    """Roof-terrace set: deck, table with parasol, four chairs, two planters with shrubs."""
+    mb = MB()
+    mb.box(-2.4, 2.4, -1.8, 1.8, 0.0, 0.06, 0)                     # timber deck
+    mb.box(-0.5, 0.5, -0.5, 0.5, 0.72, 0.75, 1)                    # table
+    mb.box(-0.04, 0.04, -0.04, 0.04, 0.06, 0.72, 1)
+    for (x, y) in ((-0.8, 0), (0.8, 0), (0, -0.8), (0, 0.8)):
+        mb.box(x - 0.22, x + 0.22, y - 0.22, y + 0.22, 0.44, 0.48, 1)
+        mb.box(x - 0.02, x + 0.02, y - 0.02, y + 0.02, 0.06, 0.44, 1)
+    cyl(mb, 0, 0, 0.75, 2.4, 0.02, 0.02, n=6, mat=1)
+    cyl(mb, 0, 0, 2.1, 2.45, 1.3, 0.05, n=8, mat=2)                 # parasol
+    for x in (-2.0, 2.0):
+        mb.box(x - 0.35, x + 0.35, 1.0, 1.7, 0.06, 0.6, 3)
+        cyl(mb, x, 1.35, 0.6, 1.4, 0.45, 0.2, n=8, mat=4)
+    return _finish(mb, name, ['plywood', 'metal_dark', 'fabric_cream', 'concrete', 'leaves'])
+
+
+def p_rooftank(name):
+    mb = MB()
+    cyl(mb, 0, 0, 0.0, 0.25, 1.1, 1.1, n=16, mat=1)
+    cyl(mb, 0, 0, 0.25, 2.6, 1.0, 1.0, n=16, mat=0)
+    cyl(mb, 0, 0, 2.6, 3.0, 1.0, 0.2, n=16, mat=0)
+    mb.box(0.9, 1.3, -0.1, 0.1, 0.25, 2.8, 1)
+    return _finish(mb, name, ['metal_alu', 'metal_dark'])
+
+
+def p_ductrun(name):
+    mb = MB()
+    mb.box(-3.0, 3.0, -0.35, 0.35, 0.4, 1.1, 0)
+    for x in (-2.5, 0.0, 2.5):
+        mb.box(x - 0.08, x + 0.08, -0.4, 0.4, 0.0, 0.4, 1)
+    mb.box(2.6, 3.2, -0.5, 0.5, 0.0, 1.6, 0)
+    return _finish(mb, name, ['metal_alu', 'metal_dark'])
+
+
 BUILD = {
     'water_tower': p_water_tower, 'hvac': p_hvac, 'antenna': p_antenna,
     'lamp': p_lamp, 'signal_red': p_signal_red, 'signal_green': p_signal_green,
+    'terrace': p_terrace, 'rooftank': p_rooftank, 'ductrun': p_ductrun,
     'hydrant': p_hydrant, 'trash': p_trash, 'newsbox': p_newsbox, 'manhole': p_manhole, 'vent': p_vent,
     'bus_shelter': p_bus_shelter, 'tree_a': p_tree_a, 'tree_b': p_tree_b, 'tree_c': p_tree_c,
     'ped_a': p_ped_a, 'ped_b': p_ped_b,

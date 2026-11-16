@@ -62,13 +62,13 @@ via the `interp` argument.
 Lines ("web")
 -------------
 add_web(rig, hand, anchor, frame_on, frame_off, name, slack=0.0, attach='grip')
-creates a geometry-nodes line (radius 4.5 mm, pale braided fibre) between an empty that
+creates a geometry-nodes line (default radius 6 mm, taut pale gold-bronze cable) between an empty that
 is bone-parented to grip/nozzle and an empty at `anchor` (world space), with a small
-grapple head at the anchor. It follows the hand at every (sub)frame, so it is correct
+gold kite-shaped grapnel at the anchor and a T-handle (along the grip bone's X axis) at
+the hand. It follows the hand at every (sub)frame, so it is correct
 under motion blur and when HERO_RIG itself is animated. Visibility (render + viewport)
 is keyed on at frame_on and off at frame_off (CONSTANT keys). slack (0..1) sags the line
-(slack * 6% of its length at mid-span, shaped as a catenary-like curve, plus a slight
-lateral wave). key_slack(web, frame, value) animates it.
+(slack * 6% of its length at mid-span, a smooth catenary-like sag). key_slack(web, frame, value) animates it.
 
 Render detail / cost
 --------------------
@@ -122,6 +122,7 @@ HANDS = {
     'claw': dict(f=[(30, 55, 40), (32, 55, 40), (34, 58, 40), (36, 60, 40)], spread=1.0, thumb=(10, 0, 20, 25)),
     'point': dict(f=[(0, 5, 3), (75, 90, 55), (80, 90, 55), (85, 90, 55)], spread=0.0, thumb=(25, 25, 25, 30)),
     'expressive': dict(f=[(5, 12, 6), (14, 20, 10), (22, 28, 14), (30, 34, 18)], spread=1.1, thumb=(-5, -15, 8, 8)),
+    'blade': dict(f=[(0, 2, 1), (0, 2, 1), (1, 2, 1), (2, 3, 1)], spread=-0.35, thumb=(20, 30, 15, 10)),
     'open': dict(f=[(-6, 6, 3), (2, 10, 5), (8, 16, 8), (14, 22, 12)], spread=1.5, thumb=(-12, -28, 4, 4)),
 }
 
@@ -136,28 +137,29 @@ POSES = {
         ground=True),
     # deep gargoyle squat: on the balls of the feet, knees wide, left hand planted between
     # the feet, right forearm draped over the right knee, head tilted down to the street
+    # falconer's kneel on the ledge: right knee down, left foot forward and flat, torso
+    # long and upright, left forearm across the raised left knee, right hand resting on
+    # the ornament (a point 0.45 m up, 0.30 m ahead and 0.24 m to his right), head turned
+    # out over the street to his right and slightly down
     'perch_crouch': dict(
-        root_loc=(0, 0.06, -0.62), root_rot=(20, 0, -5), spine=(34, 5, -8), neck=(14, -4, 0),
-        head_aim=(0.08, -0.45, -0.89),
-        clav_L=(-2, 16), clav_R=(-4, 10),
-        leg_L=dict(ik=(0.15, 0.0, 0.125), pole=(0.6, 0.9, 0.35), foot_aim=(0.32, 0.86, -0.40), toes=38),
-        leg_R=dict(ik=(0.17, 0.04, 0.125), pole=(0.65, 0.85, 0.35), foot_aim=(0.40, 0.82, -0.40), toes=38),
-        arm_L=dict(ik=(0.045, -0.31, 0.112), pole=(0.8, -0.5, 0.3), pron=0,
-                   hand_aim=((0.12, 1, -0.05), (0, 0, 1)), hand='plant'),
-        arm_R=dict(ik=('lowerleg01', (-0.07, -0.09, 0.03)), pole=(1.0, -0.3, 0.3), pron=30,
-                   hand_aim=((-0.35, 0.45, -1), (0.2, 1, 0.1)), hand='relaxed'),
+        root_loc=(0, 0.05, -0.45), root_rot=(4, 0, 6), spine=(8, 0, 6), neck=(4, -6, 0),
+        head_aim=(-0.55, -0.80, -0.22),
+        clav_L=(4, 4), clav_R=(0, 2),
+        leg_L=dict(ik=(0.12, -0.28, 0.105), pole=(0.25, 1.0, 0.2), foot_aim=(0.06, 1.0, -0.15), toes=0),
+        leg_R=dict(ik=(0.11, 0.34, 0.095), pole=(0.05, 1.0, -0.6), foot_aim=(0.0, -0.15, -1.0), toes=55),
+        arm_L=dict(ik=('lowerleg01', (-0.11, -0.05, 0.03)), pole=(1.0, 0.2, -0.4), pron=40,
+                   hand_aim=((-0.8, -0.3, -0.4), (0.0, 0.0, 1.0)), hand='relaxed'),
+        arm_R=dict(ik=(0.24, -0.30, 0.46), pole=(1.0, 0.3, -0.5), pron=30, wrist=(10, 0), hand='relaxed'),
         ground=True),
     'perch_look_up': dict(
         base='perch_crouch',
-        spine=(26, 4, -8), neck=(-6, -4, 0), head_aim=(0.12, -0.97, 0.20),
-        arm_R=dict(ik=('lowerleg01', (-0.07, -0.10, 0.04)), pole=(1.0, -0.3, 0.3), pron=30,
-                   hand_aim=((-0.3, 0.6, -1), (0.2, 1, 0.1)), hand='relaxed')),
+        spine=(2, 0, 5), neck=(-6, -4, 0), head_aim=(-0.32, -0.94, 0.12)),
     # launch off the ledge: body pitched forward, arms reaching, push-off leg extended
     'leap': dict(
         root_rot=(30, 0, 4), spine=(-12, 0, 6), neck=(-14, 0, 0), head=(-8, 4, 0),
         clav_L=(8, 8), clav_R=(8, 8),
-        arm_L=dict(up=(0.25, 0.85, 0.5), fore=(0.15, 0.95, 0.35), pron=30, wrist=(15, 0), hand='open'),
-        arm_R=dict(up=(0.3, 0.8, 0.25), fore=(0.2, 0.95, 0.15), pron=30, wrist=(10, 0), hand='open'),
+        arm_L=dict(up=(0.25, 0.85, 0.5), fore=(0.15, 0.95, 0.35), pron=30, wrist=(15, 0), hand='relaxed'),
+        arm_R=dict(up=(0.3, 0.8, 0.25), fore=(0.2, 0.95, 0.15), pron=30, wrist=(10, 0), hand='relaxed'),
         leg_L=dict(thigh=(0.08, 0.75, -0.45), shin=(0.04, -0.4, -1), foot=(-30, 0), toes=-10),
         leg_R=dict(thigh=(0.05, -0.45, -1), shin=(0.03, -0.75, -0.6), foot=(-50, 0), toes=-25)),
     # head first, arms swept back along the body, legs together, toes pointed
@@ -175,60 +177,63 @@ POSES = {
         arm_L=dict(up=(0.45, -0.5, -0.9), fore=(0.3, -0.25, -1), pron=-30, wrist=(-15, 0), hand='flat'),
         leg_L=dict(thigh=(0.06, -0.15, -1), shin=(0.04, -0.6, -1), foot=(-55, 0), toes=-20),
         leg_R=dict(thigh=(0.04, 0.2, -1), shin=(0.02, -0.25, -1), foot=(-50, 0), toes=-20)),
-    # firing arm thrown out straight, wrist cocked back (nozzle along the forearm)
+    # firing arm thrown out straight, blade hand along the forearm
     'shoot_R': dict(
         root_rot=(4, 0, 0), spine=(2, -6, 24), neck=(0, 14, 0), head_aim=(-0.45, -0.85, 0.28),
         clav_R=(6, 14),
-        arm_R=dict(up=(0.35, 0.88, 0.32), fore=(0.33, 0.88, 0.34), pole=(-0.3, 0.2, -1), pron=-85, wrist=(68, -8), hand='spread'),
-        arm_L=dict(up=(0.6, -0.45, -0.45), fore=(0.3, 0.2, -0.9), pron=10, wrist=(0, 0), hand='open'),
-        leg_L=dict(thigh=(0.1, 0.6, -0.6), shin=(0.06, -0.55, -1), foot=(-25, 0), toes=-8),
-        leg_R=dict(thigh=(0.06, -0.3, -1), shin=(0.04, -0.85, -0.55), foot=(-48, 0), toes=-22)),
+        arm_R=dict(up=(0.35, 0.88, 0.32), fore=(0.33, 0.88, 0.34), pole=(-0.3, 0.2, -1), pron=-85, wrist=(0, 0), hand='blade'),
+        arm_L=dict(up=(0.6, -0.45, -0.45), fore=(0.3, 0.2, -0.9), pron=10, wrist=(0, 0), hand='relaxed'),
+        leg_L=dict(thigh=(0.1, 0.6, -0.6), shin=(0.06, -0.55, -1), foot=(-30, 0), toes=-12),
+        leg_R=dict(thigh=(0.06, -0.3, -1), shin=(0.04, -0.85, -0.55), foot=(-52, 0), toes=-25)),
     # hanging from the right hand, body arced, legs trailing and bent
     'swing_R': dict(
         root_rot=(-22, 0, -8), spine=(-30, 8, -12), neck=(-6, -6, 0), head_aim=(0.12, -0.96, -0.05),
         clav_R=(30, 2), clav_L=(4, -18),
-        arm_R=dict(up=(0.12, 0.10, 1), fore=(0.08, 0.06, 1), pole=(0.2, -1, 0), pron=60, wrist=(-12, 0), hand='grip'),
-        arm_L=dict(up=(0.55, -0.75, -0.3), fore=(0.35, -0.92, -0.05), pron=-20, wrist=(-20, 8), hand='open'),
+        arm_R=dict(up=(0.12, 0.10, 1), fore=(0.08, 0.06, 1), pole=(0.2, -1, 0), pron=60, wrist=(-12, 0), hand='fist'),
+        arm_L=dict(up=(0.55, -0.75, -0.3), fore=(0.35, -0.92, -0.05), pron=-20, wrist=(-20, 8), hand='relaxed'),
         leg_L=dict(thigh=(0.10, -0.22, -1), shin=(0.05, -0.85, -0.55), foot=(-48, 0), toes=-20),
         leg_R=dict(thigh=(0.06, -0.62, -0.8), shin=(0.03, -0.98, -0.2), foot=(-58, 0), toes=-25)),
     'swing_tuck': dict(
         root_rot=(-20, 0, -5), spine=(26, 4, -6), neck=(10, 0, 0), head=(-6, -6, 0),
         clav_R=(30, 0),
-        arm_R=dict(up=(0.1, 0.12, 1), fore=(0.05, 0.1, 1), pole=(0.2, -1, 0), pron=60, wrist=(-10, 0), hand='grip'),
+        arm_R=dict(up=(0.1, 0.12, 1), fore=(0.05, 0.1, 1), pole=(0.2, -1, 0), pron=60, wrist=(-10, 0), hand='fist'),
         arm_L=dict(up=(0.45, 0.6, -0.35), fore=(0.1, 0.9, 0.2), pron=40, wrist=(10, 0), hand='fist'),
         leg_L=dict(thigh=(0.22, 1, 0.55), shin=(0.08, -0.25, -1), foot=(-35, 0), toes=-15),
         leg_R=dict(thigh=(0.18, 1, 0.25), shin=(0.04, -0.45, -1), foot=(-40, 0), toes=-15)),
-    # full back arch after letting go, arms wide
+    # full hollow-back arch after letting go, arms wide and back, knees bent back
     'release_arch': dict(
-        root_rot=(-25, 0, 0), spine=(-50, 0, 0), neck=(-20, 0, 0), head=(-24, 0, 0),
-        clav_L=(16, -14), clav_R=(16, -14),
-        arm_L=dict(up=(1, -0.25, 0.35), fore=(0.9, -0.4, 0.3), pron=-30, wrist=(-15, 0), hand='spread'),
-        arm_R=dict(up=(1, -0.2, 0.45), fore=(0.9, -0.35, 0.4), pron=-30, wrist=(-15, 0), hand='spread'),
-        leg_L=dict(thigh=(0.12, -0.35, -1), shin=(0.06, -0.75, -0.8), foot=(-50, 0), toes=-22),
-        leg_R=dict(thigh=(0.16, -0.12, -1), shin=(0.08, -0.95, -0.5), foot=(-55, 0), toes=-25)),
+        root_rot=(-18, 0, 0), spine=(-62, 0, 0), neck=(-24, 0, 0), head=(-26, 0, 0),
+        clav_L=(18, -16), clav_R=(18, -16),
+        arm_L=dict(up=(1, -0.35, 0.55), fore=(0.8, -0.55, 0.45), pron=-30, wrist=(-15, 0), hand='relaxed'),
+        arm_R=dict(up=(1, -0.3, 0.6), fore=(0.8, -0.5, 0.5), pron=-30, wrist=(-15, 0), hand='relaxed'),
+        leg_L=dict(thigh=(0.12, -0.32, -1), shin=(0.06, -0.95, -0.45), foot=(-55, 0), toes=-25),
+        leg_R=dict(thigh=(0.15, -0.2, -1), shin=(0.08, -1.0, -0.2), foot=(-58, 0), toes=-25)),
+    # tight tuck in the flip: hands on the shins, chin to chest
     'flip_tuck': dict(
-        root_rot=(40, 0, 0), spine=(48, 0, 0), neck=(20, 0, 0), head=(16, 0, 0),
-        clav_L=(4, 18), clav_R=(4, 18),
-        arm_L=dict(up=(0.3, 0.9, -0.2), fore=(0.05, 0.05, -1), pole=(0, -1, 0.3), pron=50, wrist=(0, 0), hand='fist'),
-        arm_R=dict(up=(0.3, 0.9, -0.2), fore=(0.05, 0.05, -1), pole=(0, -1, 0.3), pron=50, wrist=(0, 0), hand='fist'),
-        leg_L=dict(thigh=(0.22, 1, 0.45), shin=(0.06, -0.25, -1), foot=(-40, 0), toes=-15),
-        leg_R=dict(thigh=(0.20, 1, 0.42), shin=(0.06, -0.2, -1), foot=(-40, 0), toes=-15)),
-    # weightless at the top of the arc: R arm firing forward, L arm swept back,
-    # L knee drawn up, R leg trailing
+        root_rot=(40, 0, 0), spine=(50, 0, 0), neck=(28, 0, 0), head=(24, 0, 0),
+        clav_L=(4, 16), clav_R=(4, 16),
+        leg_L=dict(thigh=(0.14, 1, 0.5), shin=(0.04, -0.25, -1), foot=(-45, 0), toes=-20),
+        leg_R=dict(thigh=(0.12, 1, 0.47), shin=(0.04, -0.2, -1), foot=(-45, 0), toes=-20),
+        arm_L=dict(ik=('lowerleg01', (0.02, -0.07, -0.14)), pole=(1, 0.3, -0.3), pron=50, wrist=(0, 0), hand='fist'),
+        arm_R=dict(ik=('lowerleg01', (0.02, -0.07, -0.14)), pole=(1, 0.3, -0.3), pron=50, wrist=(0, 0), hand='fist')),
+    # aerialist's layout at the top of the arc: long open body, legs extended and slightly
+    # split, chest lifted, right arm reaching along the travel direction (-Y), left arm
+    # swept back; no tucked knee
     'apex_classic': dict(
-        root_rot=(-6, 0, 6), spine=(-16, -6, 18), neck=(-4, 10, 0), head_aim=(-0.35, -0.9, 0.25),
-        clav_R=(14, 14), clav_L=(4, -12),
-        arm_R=dict(up=(0.32, 0.85, 0.42), fore=(0.3, 0.85, 0.44), pole=(-0.3, 0.2, -1), pron=-85, wrist=(68, -8), hand='spread'),
-        arm_L=dict(up=(0.55, -0.75, -0.2), fore=(0.45, -0.88, 0.05), pron=-30, wrist=(-25, 5), hand='open'),
-        leg_L=dict(thigh=(0.22, 1, 0.4), shin=(0.08, -0.12, -1), foot=(-38, 0), toes=-18),
-        leg_R=dict(thigh=(0.05, -0.45, -1), shin=(0.03, -0.95, -0.35), foot=(-60, 0), toes=-28)),
+        root_rot=(-12, 0, 4), spine=(-16, -4, 10), neck=(-6, 6, 0), head_aim=(-0.2, -0.92, 0.35),
+        clav_R=(16, 12), clav_L=(6, -14),
+        arm_R=dict(up=(0.2, 0.85, 0.5), fore=(0.18, 0.85, 0.52), pole=(-0.3, 0.2, -1), pron=-60, wrist=(0, 0), hand='blade'),
+        arm_L=dict(up=(0.55, -0.78, -0.15), fore=(0.45, -0.88, 0.05), pron=-30, wrist=(-20, 5), hand='relaxed'),
+        leg_L=dict(thigh=(0.08, 0.12, -1), shin=(0.05, 0.02, -1), foot=(-58, 0), toes=-25),
+        leg_R=dict(thigh=(0.06, -0.32, -1), shin=(0.04, -0.4, -1), foot=(-60, 0), toes=-28)),
+    # skydiver arch: belly down, hips lowest, arms and legs up and open
     'freefall_spread': dict(
-        root_rot=(-70, 0, 0), spine=(-26, 0, 0), neck=(-24, 0, 0), head=(-14, 0, 0),
-        clav_L=(10, -6), clav_R=(10, -6),
-        arm_L=dict(up=(1, -0.2, 0.25), fore=(0.6, -0.15, 0.75), pole=(0, 1, 0.2), pron=-40, wrist=(-15, 0), hand='spread'),
-        arm_R=dict(up=(1, -0.2, 0.25), fore=(0.6, -0.15, 0.75), pole=(0, 1, 0.2), pron=-40, wrist=(-15, 0), hand='spread'),
-        leg_L=dict(thigh=(0.55, -0.15, -1), shin=(0.25, -0.75, -0.7), foot=(-45, 0), toes=-15),
-        leg_R=dict(thigh=(0.55, -0.15, -1), shin=(0.25, -0.75, -0.7), foot=(-45, 0), toes=-15)),
+        root_rot=(82, 0, 0), spine=(-26, 0, 0), neck=(-28, 0, 0), head=(-18, 0, 0),
+        clav_L=(10, -4), clav_R=(10, -4),
+        arm_L=dict(up=(1, -0.15, 0.45), fore=(0.55, -0.3, 0.8), pole=(0, 1, 0.2), pron=-40, wrist=(-15, 0), hand='relaxed'),
+        arm_R=dict(up=(1, -0.15, 0.45), fore=(0.55, -0.3, 0.8), pole=(0, 1, 0.2), pron=-40, wrist=(-15, 0), hand='relaxed'),
+        leg_L=dict(thigh=(0.38, -0.32, -1), shin=(0.18, -0.95, -0.45), foot=(-50, 0), toes=-22),
+        leg_R=dict(thigh=(0.38, -0.32, -1), shin=(0.18, -0.95, -0.45), foot=(-50, 0), toes=-22)),
 }
 
 
@@ -802,7 +807,7 @@ def _web_nodegroup():
 
 
 def add_web(rig, hand='R', anchor=(0, 0, 0), frame_on=1, frame_off=100, name='HERO_web',
-            slack=0.0, attach='grip', collection=None, radius=0.0045):
+            slack=0.0, attach='grip', collection=None, radius=0.006):
     """Line from the hand to a world-space anchor; see module doc."""
     side = hand
     col = collection or (rig.users_collection[0] if rig.users_collection else bpy.context.scene.collection)
@@ -830,7 +835,7 @@ def add_web(rig, hand='R', anchor=(0, 0, 0), frame_on=1, frame_off=100, name='HE
     _set_input(mod, ids['Slack'], float(slack))
     _set_input(mod, ids['Radius'], float(radius))
     _set_input(mod, ids['Material'], _web_material())
-    _set_input(mod, ids['Head Material'], bpy.data.materials.get('HERO_gunmetal') or _web_material())
+    _set_input(mod, ids['Head Material'], bpy.data.materials.get('HERO_gold') or _web_material())
     ob['slack_id'] = ids['Slack']
     ob.cycles.use_motion_blur = True if hasattr(ob, 'cycles') else None
     # visibility

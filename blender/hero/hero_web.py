@@ -12,7 +12,7 @@ def make_nodegroup(name='HERO_web_line'):
     I.new_socket('Hand', in_out='INPUT', socket_type='NodeSocketObject')
     I.new_socket('Anchor', in_out='INPUT', socket_type='NodeSocketObject')
     s = I.new_socket('Slack', in_out='INPUT', socket_type='NodeSocketFloat'); s.default_value = 0.0
-    r = I.new_socket('Radius', in_out='INPUT', socket_type='NodeSocketFloat'); r.default_value = 0.0045
+    r = I.new_socket('Radius', in_out='INPUT', socket_type='NodeSocketFloat'); r.default_value = 0.006
     I.new_socket('Material', in_out='INPUT', socket_type='NodeSocketMaterial')
     I.new_socket('Head Material', in_out='INPUT', socket_type='NodeSocketMaterial')
     I.new_socket('Geometry', in_out='OUTPUT', socket_type='NodeSocketGeometry')
@@ -64,7 +64,7 @@ def make_nodegroup(name='HERO_web_line'):
     sag = math('MULTIPLY', par.outputs[0], amp.outputs[0])
     # a little lateral S-wave in a just-fired line
     wv = math('SINE', math('MULTIPLY', f, 9.42).outputs[0])
-    lat = math('MULTIPLY', math('MULTIPLY', wv.outputs[0], amp.outputs[0]).outputs[0], 0.25)
+    lat = math('MULTIPLY', math('MULTIPLY', wv.outputs[0], amp.outputs[0]).outputs[0], 0.0)
     side = math('NORMALIZE', math('CROSS_PRODUCT', AB.outputs[0], (0.0, 0.0, 1.0), vec=True).outputs[0], vec=True)
     comb = node('ShaderNodeCombineXYZ')
     negsag = math('MULTIPLY', sag.outputs[0], -1.0)
@@ -82,7 +82,7 @@ def make_nodegroup(name='HERO_web_line'):
     sp2 = node('GeometryNodeSplineParameter')
     L.new(sp2.outputs['Length'], st1.inputs['Value'])
     circ = node('GeometryNodeCurvePrimitiveCircle')
-    circ.inputs['Resolution'].default_value = 10
+    circ.inputs['Resolution'].default_value = 12
     circ.inputs['Radius'].default_value = 1.0
     st2 = node('GeometryNodeStoreNamedAttribute', data_type='FLOAT', domain='POINT')
     st2.inputs['Name'].default_value = 'web_t'
@@ -101,33 +101,34 @@ def make_nodegroup(name='HERO_web_line'):
     sm1 = node('GeometryNodeSetMaterial')
     L.new(c2m.outputs[0], sm1.inputs['Geometry'])
     L.new(gi.outputs['Material'], sm1.inputs['Material'])
-    # grapple head at the anchor, pointing back along the line
-    cone = node('GeometryNodeMeshCone')
-    cone.inputs['Vertices'].default_value = 16
-    cone.inputs['Radius Top'].default_value = 0.004
-    cone.inputs['Radius Bottom'].default_value = 0.011
-    cone.inputs['Depth'].default_value = 0.05
-    cyl = node('GeometryNodeMeshCylinder')
-    cyl.inputs['Vertices'].default_value = 16
-    cyl.inputs['Radius'].default_value = 0.013
-    cyl.inputs['Depth'].default_value = 0.022
-    tcyl = node('GeometryNodeTransform')
-    L.new(cyl.outputs['Mesh'], tcyl.inputs['Geometry'])
-    tcyl.inputs['Translation'].default_value = (0, 0, -0.03)
-    # three claws
-    claw = node('GeometryNodeMeshCube')
-    claw.inputs['Size'].default_value = (0.004, 0.035, 0.006)
+    # kite-shaped grapnel at the anchor: two 4-sided cones base to base (short nose,
+    # long tail toward the line), flattened
+    c1 = node('GeometryNodeMeshCone')
+    c1.inputs['Vertices'].default_value = 4
+    c1.inputs['Radius Bottom'].default_value = 0.03
+    c1.inputs['Radius Top'].default_value = 0.0
+    c1.inputs['Depth'].default_value = 0.035
+    t1 = node('GeometryNodeTransform')
+    L.new(c1.outputs['Mesh'], t1.inputs['Geometry'])
+    t1.inputs['Translation'].default_value = (0, 0, 0.0175)
+    c2 = node('GeometryNodeMeshCone')
+    c2.inputs['Vertices'].default_value = 4
+    c2.inputs['Radius Bottom'].default_value = 0.03
+    c2.inputs['Radius Top'].default_value = 0.0
+    c2.inputs['Depth'].default_value = 0.075
+    t2 = node('GeometryNodeTransform')
+    L.new(c2.outputs['Mesh'], t2.inputs['Geometry'])
+    t2.inputs['Translation'].default_value = (0, 0, -0.0375)
+    t2.inputs['Rotation'].default_value = (3.14159265, 0, 0)
     joinh = node('GeometryNodeJoinGeometry')
-    L.new(cone.outputs['Mesh'], joinh.inputs[0])
-    L.new(tcyl.outputs[0], joinh.inputs[0])
-    import math as _m
-    for k in range(3):
-        tc = node('GeometryNodeTransform')
-        L.new(claw.outputs['Mesh'], tc.inputs['Geometry'])
-        a = 2 * _m.pi * k / 3
-        tc.inputs['Translation'].default_value = (0.016 * _m.cos(a), 0.016 * _m.sin(a), -0.035)
-        tc.inputs['Rotation'].default_value = (0.5 * _m.sin(a), -0.5 * _m.cos(a), a + _m.pi / 2)
-        L.new(tc.outputs[0], joinh.inputs[0])
+    L.new(t1.outputs[0], joinh.inputs[0]); L.new(t2.outputs[0], joinh.inputs[0])
+    flat = node('GeometryNodeTransform')
+    L.new(joinh.outputs[0], flat.inputs['Geometry'])
+    flat.inputs['Scale'].default_value = (1.0, 0.35, 1.0)
+    flat.inputs['Rotation'].default_value = (0, 0, 0.785398)
+    joinh2 = node('GeometryNodeJoinGeometry')
+    L.new(flat.outputs[0], joinh2.inputs[0])
+    joinh = joinh2
     # orient: local +Z of the head toward the anchor (away from the hand)
     dirv = math('NORMALIZE', AB.outputs[0], vec=True)
     al = node('FunctionNodeAlignRotationToVector')
@@ -144,8 +145,23 @@ def make_nodegroup(name='HERO_web_line'):
     sm2 = node('GeometryNodeSetMaterial')
     L.new(th.outputs[0], sm2.inputs['Geometry'])
     L.new(gi.outputs['Head Material'], sm2.inputs['Material'])
+    # T-handle the fist closes around: a short bar along the hand empty's local X
+    bar = node('GeometryNodeMeshCylinder')
+    bar.inputs['Vertices'].default_value = 16
+    bar.inputs['Radius'].default_value = 0.0095
+    bar.inputs['Depth'].default_value = 0.115
+    tb = node('GeometryNodeTransform')
+    L.new(bar.outputs['Mesh'], tb.inputs['Geometry'])
+    tb.inputs['Rotation'].default_value = (0, 1.5707963, 0)
+    th2 = node('GeometryNodeTransform')
+    L.new(tb.outputs[0], th2.inputs['Geometry'])
+    L.new(oh.outputs['Location'], th2.inputs['Translation'])
+    L.new(oh.outputs['Rotation'], th2.inputs['Rotation'])
+    sm3 = node('GeometryNodeSetMaterial')
+    L.new(th2.outputs[0], sm3.inputs['Geometry'])
+    L.new(gi.outputs['Head Material'], sm3.inputs['Material'])
     j = node('GeometryNodeJoinGeometry')
-    L.new(sm1.outputs[0], j.inputs[0]); L.new(sm2.outputs[0], j.inputs[0])
+    L.new(sm1.outputs[0], j.inputs[0]); L.new(sm2.outputs[0], j.inputs[0]); L.new(sm3.outputs[0], j.inputs[0])
     ss = node('GeometryNodeSetShadeSmooth')
     L.new(j.outputs[0], ss.inputs['Geometry'])
     L.new(ss.outputs[0], go.inputs['Geometry'])

@@ -114,7 +114,9 @@ def build_buildings(scene, cols, specs, lidx):
             continue
         me = BD.build_near(s, lidx, roof)
         s['name'] = me.name
-        ob = new_object(me.name, me, cols['hero'] if s['style'] == 'twin' else cols['near'])
+        tcol = cols['hero'] if s['style'] == 'twin' else cols['near']
+        ob = new_object(me.name, me, tcol)
+        s['_rooms'].build(me.name + "_rooms", tcol, KIT)
         stats['near'] += 1
     log("near buildings", stats['near'], f"{time.time() - t0:.1f}s")
     # mid ring merged per 300 m tile, far ring per 700 m tile
@@ -258,6 +260,9 @@ def main():
     lidx = BD.LotIndex(specs)
     log("lots", len(specs))
     roof = []
+    global KIT
+    import interiors as INT
+    KIT = INT.build_kit(cols['protos'])
     tower_spec = TW.build_tower(cols, lidx, roof)
     tower_spec['name'] = 'THE_TOWER'
     tower_spec['tiers'] = TW.TIERS
@@ -295,6 +300,8 @@ def main():
     cam.data.sensor_width = 36
     cam.data.clip_end = 20000
     scene.camera = cam
+    nrooms = sum(len(o.data.vertices) for o in bpy.data.objects if o.name.endswith('_rooms'))
+    log("room/AC instances", nrooms)
     counts = dict(objects=len(bpy.data.objects), meshes=len(bpy.data.meshes), materials=len(bpy.data.materials),
                   buildings=stats, instances=SL.counts(),
                   polygons=sum(len(m.polygons) for m in bpy.data.meshes))

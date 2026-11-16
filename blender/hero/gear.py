@@ -201,7 +201,7 @@ def torus_mesh(name, R, r, nu=48, nv=16, squash=(1, 1, 1)):
     return me
 
 
-def shoe_shell(bvh_obj, heel, toe, nt=44, nphi=56, ncap=10, offset=0.0032, z_collar=0.105, up=(0, 0, 1), ankle=None, welt=0.0042):
+def shoe_shell(bvh_obj, heel, toe, nt=44, nphi=56, ncap=10, offset=0.0032, z_collar=0.105, up=(0, 0, 1), ankle=None, welt=0.0042, close=3):
     """Capsule-parameterised envelope of the foot (closing + blur), offset outward.
     Returns verts (rows x cols), a per-vertex 'keep' mask (below the ankle collar) and
     the grid shape.  Toes are swallowed by the envelope -> a clean shoe."""
@@ -243,8 +243,12 @@ def shoe_shell(bvh_obj, heel, toe, nt=44, nphi=56, ncap=10, offset=0.0032, z_col
                     np.concatenate([np.repeat(sh[:1], -dv, 0), sh[:dv]], 0) if dv < 0 else sh)
                 out = np.maximum(out, s2)
         return out
-    Rc = -mx(-mx(R, 3), 3)
-    for it in range(8):
+    Rc = -mx(-mx(R, close), close)
+    # toe box: one smooth cap over the front third (no individual toes)
+    front = np.zeros(NR); front[int(NR * 0.55):] = 1.0
+    Rt = mx(Rc, close + 2)
+    Rc = Rc * (1 - front[:, None]) + Rt * front[:, None]
+    for it in range(8 + 2 * close):
         P_ = np.pad(Rc, ((1, 1), (0, 0)), mode='edge')
         P_ = np.pad(P_, ((0, 0), (1, 1)), mode='wrap')
         Rc = 0.4 * Rc + 0.15 * (P_[:-2, 1:-1] + P_[2:, 1:-1] + P_[1:-1, :-2] + P_[1:-1, 2:])
@@ -318,3 +322,56 @@ def ribbon(surf, ctrl, width=0.032, H=0.0028, base=0.0016, closed=False, step=0.
             ring = [i * m + k for k in range(m)]
             F.append(tuple(ring[::-1] if rev else ring))
     return np.array(V), F, np.array(UVa)
+
+
+def tube_along(pts, normals, radius, lift=0.0, nsides=10, caps=True):
+    """round tube following a polyline, raised along per-point normals by lift+radius*0.6"""
+    pts = np.asarray(pts, float); normals = np.asarray(normals, float)
+    t = np.gradient(pts, axis=0)
+    t /= np.maximum(np.linalg.norm(t, axis=1, keepdims=True), 1e-9)
+    V, F = [], []
+    n = len(pts)
+    for i in range(n):
+        nr = normals[i] - t[i] * normals[i].dot(t[i]); nr /= max(np.linalg.norm(nr), 1e-9)
+        bn = np.cross(t[i], nr)
+        c = pts[i] + nr * (lift + radius * 0.6)
+        for k in range(nsides):
+            a = 2 * math.pi * k / nsides
+            V.append(c + radius * (nr * math.cos(a) + bn * math.sin(a)))
+    for i in range(n - 1):
+        for k in range(nsides):
+            a = i * nsides + k; b = i * nsides + (k + 1) % nsides
+            F.append((a, b, b + nsides, a + nsides))
+    if caps:
+        F.append(tuple(range(nsides))[::-1])
+        F.append(tuple(range((n - 1) * nsides, n * nsides)))
+    return np.array(V), F
+
+
+def surf_line(surf, ctrl, step=0.003):
+    """densified surface polyline + smoothed surface normals"""
+    import suit_fields as SF
+    pts = surf.densify(ctrl, step=step)
+    t, nrm, side, s = SF.line_frame(surf, pts)
+    return pts, nrm
+
+
+def star_mesh(name, r=0.0065, h=0.004):
+    """small faceted stud: an 8-point star cushion (two-level pyramid)"""
+    V = [(0, 0, h)]
+    for k in range(16):
+        a = 2 * math.pi * k / 16
+        rr = r if k % 2 == 0 else r * 0.55
+        V.append((rr * math.cos(a), rr * math.sin(a), h * 0.35))
+    for k in range(16):
+        a = 2 * math.pi * k / 16
+        rr = (r if k % 2 == 0 else r * 0.55) * 1.05
+        V.append((rr * math.cos(a), rr * math.sin(a), -0.001))
+    F = [(0, 1 + k, 1 + (k + 1) % 16) for k in range(16)]
+    for k in range(16):
+        F.append((1 + k, 17 + k, 17 + (k + 1) % 16, 1 + (k + 1) % 16))
+    me = bpy.data.meshes.new(name)
+    me.from_pydata(V, [], F); me.update()
+    for p in me.polygons:
+        p.use_smooth = False
+    return me

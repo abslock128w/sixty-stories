@@ -99,12 +99,15 @@ elif mode == 'close':
     if REAR:
         LD.world_gradient(sc, strength=0.5, glow_az=-15)
         LD.rim_rig(sc, key_az=-18, key_el=7, key_energy=30.0, fill=0.25)
-        bpy.data.objects['LD_kick'].data.energy = 60
+        bpy.data.objects['LD_kick'].data.energy = 140
+        bpy.data.objects['LD_fill'].data.energy = 160
     else:
         LD.world_gradient(sc, strength=0.45, glow_az=110)
         LD.rim_rig(sc, key_az=165, key_el=9, key_energy=30.0, fill=0.25)
     bpy.data.materials["LD_ground_mat"].node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.03, 0.028, 0.026, 1)
-    cam = orbit_cam(tgt, 2.5, 148 if REAR else -48, 6 if REAR else 3, 135, dof=2.8)
+    if REAR:
+        tgt = tgt + Vector((0, 0.04, -0.11))
+    cam = orbit_cam(tgt, 2.9 if REAR else 2.5, 132 if REAR else -48, 10 if REAR else 3, 135, dof=2.8)
     LD.backdrop(sc, cam, tgt, dist=6.0)
     cam.data.dof.focus_distance = (cam.location - (head * 0.5 + hz * 0.5 + Vector((0, -0.08, 0)))).length
     t = time.time()

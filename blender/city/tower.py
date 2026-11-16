@@ -52,7 +52,8 @@ def tower_params():
     P = BD.style_params('deco', rng, 240.0)
     P.update(sh=4.0, gh=8.0, bay=2.05, pw=0.62, cw=3.2, dp=PIER_DP, ds=0.24, sill=0.85, head=3.15,
              wall='tower_stone', trim='trim', spandrel='tower_spandrel', cornice=0.45, major_every=3,
-             frames_z=8.0, blind_p=0.35, cool_p=0.25, sills=True, lintels=False, pairs=False)
+             frames_z=8.0, blind_p=0.35, cool_p=0.25, sills=True, lintels=False, pairs=False,
+             rooms=True, use='office', room_face_ok=lambda f: f.n[0] > 0.9, rooms_zmax=1e9)
     return P
 
 
@@ -65,6 +66,8 @@ def build_tower(cols, lidx, protos_out):
     me = BD.build_near(spec, lidx, protos_out, P=P, tiers=tiers, crown=None, bcol=bcol)
     me.name = "TOWER_body"
     ob = new_object("TOWER_body", me, cols['hero'])
+    import interiors as INT
+    spec['_rooms'].build("TOWER_body_rooms", cols['hero'], bpy.data.collections[INT.KIT_COLLECTION])
     crown_top = build_crown(cols['hero'])
     import ornament
     ornament.build(cols['hero'], GARG_BASE_X, GARG_Y, PERCH_Z)

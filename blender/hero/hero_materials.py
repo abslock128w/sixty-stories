@@ -510,25 +510,23 @@ def webbing_material():
 
 
 def web_material():
-    """pale high-tensile braided line"""
+    """the line: taut pale gold-bronze cable, tight twisted strands with glints"""
     m = _new('HERO_web')
     b = NB(m); bs, out = b.bsdf()
-    a_u = b.attr('web_u').outputs['Fac']        # metres along the line
-    a_t = b.attr('web_t').outputs['Fac']        # 0..1 around the line
-    # braid: two counter-rotating helices (pitch 6 mm)
-    p1 = b.math('SINE', b.math('MULTIPLY', b.math('ADD', b.math('DIVIDE', a_u, 0.006), a_t), 6.2831853 * 2))
-    p2 = b.math('SINE', b.math('MULTIPLY', b.math('SUBTRACT', b.math('DIVIDE', a_u, 0.006), a_t), 6.2831853 * 2))
-    br = b.math('MULTIPLY', b.math('ADD', b.math('MAXIMUM', p1, p2), 1.0), 0.5)
-    b.set(bs, 'Base Color', b.mix(br, (0.68, 0.67, 0.63), (0.94, 0.93, 0.89), 'RGBA'))
-    b.set(bs, 'Roughness', b.maprange(br, 0, 1, 0.5, 0.3))
-    b.set(bs, 'Sheen Weight', 0.6)
-    b.set(bs, 'Coat Weight', 0.3)
-    b.set(bs, 'Coat Roughness', 0.2)
+    a_u = b.attr('web_u').outputs['Fac']
+    a_t = b.attr('web_t').outputs['Fac']
+    tw = b.math('SINE', b.math('MULTIPLY', b.math('ADD', b.math('DIVIDE', a_u, 0.009), a_t), 6.2831853 * 3))
+    tw = b.math('MULTIPLY', b.math('ADD', tw, 1.0), 0.5)
+    b.set(bs, 'Base Color', b.mix(tw, (0.62, 0.50, 0.32), (0.86, 0.74, 0.52), 'RGBA'))
+    b.set(bs, 'Metallic', 0.9)
+    b.set(bs, 'Roughness', b.maprange(tw, 0, 1, 0.32, 0.18))
+    b.set(bs, 'Anisotropic', 0.6)
+    b.set(bs, 'Emission Color', (0.9, 0.78, 0.55))
+    b.set(bs, 'Emission Strength', 0.06)
     bump = b.n('ShaderNodeBump'); bump.inputs['Distance'].default_value = 1.0
-    b.link(b.math('MULTIPLY', br, 0.0006), bump.inputs['Height'])
+    b.link(b.math('MULTIPLY', tw, 0.0005), bump.inputs['Height'])
     b.set(bs, 'Normal', bump.outputs['Normal'])
     return m
-
 
 def inlay_material():
     m = _new('HERO_amber_inlay')
@@ -637,8 +635,9 @@ def gaiter_material():
 # =====================================================================================
 # VESPER v2 (cobalt / bone white / gold)
 
-BLUE = (0.012, 0.034, 0.235)
-WHITE = (0.66, 0.64, 0.585)
+BLUE = (0.012, 0.060, 0.40)
+INK = (0.0055, 0.011, 0.075)
+WHITE = (0.82, 0.76, 0.64)
 GOLD = (0.95, 0.68, 0.30)
 
 
@@ -650,84 +649,89 @@ def _rgb_node(b, name, col):
 
 
 def fabric_material(name, rest_attr='rest', has_white=True, mask=False):
-    """Matte-satin stretch suit. Body: cobalt + bone-white panels (attribute white_sd,
-    > 0 on white), gold piping along every blue/white border, engraved streamline thread
-    on the white panels.  Mask: cobalt hood with a stitched centre seam and a gold edge.
-    Colours are exposed as RGB nodes named BLUE_COLOR / WHITE_COLOR / GOLD_COLOR."""
+    """Matte-satin stretch suit, three values: electric cobalt (BLUE_COLOR), ink indigo
+    (INK_COLOR, slightly glossier, faint carbon weave) and warm bone white (WHITE_COLOR).
+    Body: white where attribute white_sd > 0, ink where ink_f > 0.5 and in a 11 mm trim
+    band outside every white shape; gold piping cord (GOLD_COLOR) on every white border
+    with two cream topstitch rows.  Mask: cobalt face, ink under the jaw, neck and back of
+    the head (from the 'hp' attribute), seam along the jaw.  MICRO_GAIN scales all
+    micro bump (set it to 0 for wide shots)."""
     m = _new(name)
     b = NB(m)
     bs, out = b.bsdf()
     rest = b.attr(rest_attr).outputs['Vector']
     p_mm = b.vmath('SCALE', rest, scale=1000.0)
     blue = _rgb_node(b, 'BLUE_COLOR', BLUE)
+    ink_c = _rgb_node(b, 'INK_COLOR', INK)
     white = _rgb_node(b, 'WHITE_COLOR', WHITE)
     gold = _rgb_node(b, 'GOLD_COLOR', GOLD)
-    # --- micro-texture: printed hex cells ~1 mm + fine knit noise
-    vor = b.n('ShaderNodeTexVoronoi'); vor.feature = 'DISTANCE_TO_EDGE'
-    vor.inputs['Scale'].default_value = 1.0
-    b.link(p_mm, vor.inputs['Vector'])
-    cell = b.smooth(0.0, 0.16, vor.outputs['Distance'])          # 0 in the grooves
-    knit = b.n('ShaderNodeTexNoise'); knit.inputs['Scale'].default_value = 2.2
-    knit.inputs['Detail'].default_value = 0.0
-    b.link(p_mm, knit.inputs['Vector'])
-    # --- wrinkles at joints (body only)
+    gain = b.n('ShaderNodeValue'); gain.name = 'MICRO_GAIN'; gain.label = 'MICRO_GAIN'
+    gain.outputs[0].default_value = 1.0
+    sep = b.n('ShaderNodeSeparateXYZ'); b.link(p_mm, sep.inputs[0])
+    # knit rib: 2.4 mm along the limb (mostly z), 1.2 mm across
+    r1 = b.math('SINE', b.math('MULTIPLY', b.math('ADD', sep.outputs[2], b.math('MULTIPLY', sep.outputs[0], 0.35)), 6.2831853 / 2.4))
+    r2 = b.math('SINE', b.math('MULTIPLY', b.math('ADD', sep.outputs[0], b.math('MULTIPLY', sep.outputs[1], 0.8)), 6.2831853 / 1.2))
+    cell = b.math('MULTIPLY', b.math('ADD', b.math('MULTIPLY', r1, r2), 1.0), 0.5)          # 0..1
+    # macro breakup (about 10 / m)
+    mac = b.n('ShaderNodeTexNoise'); mac.inputs['Scale'].default_value = 10.0
+    mac.inputs['Detail'].default_value = 1.0
+    b.link(rest, mac.inputs['Vector'])
+    macro = b.math('SUBTRACT', mac.outputs['Fac'], 0.5)
+    # carbon twill for the ink panels
+    tw = b.math('ABSOLUTE', b.math('SINE', b.math('MULTIPLY', b.math('ADD', sep.outputs[0], sep.outputs[2]), 6.2831853 / 1.6)))
+    hval = b.math('MULTIPLY', cell, 0.0001)
     if not mask:
         wrk = b.attr('wrk').outputs['Fac']; wrk_t = b.attr('wrk_t').outputs['Fac']
-        nz = b.n('ShaderNodeTexNoise'); nz.inputs['Scale'].default_value = 22.0
-        nz.inputs['Detail'].default_value = 1.0
+        nz = b.n('ShaderNodeTexNoise'); nz.inputs['Scale'].default_value = 9.0
+        nz.inputs['Detail'].default_value = 0.0
         b.link(rest, nz.inputs['Vector'])
-        ph = b.math('ADD', b.math('MULTIPLY', wrk_t, 6.2831853 / 0.016), b.math('MULTIPLY', nz.outputs['Fac'], 7.0))
-        folds = b.math('POWER', b.math('ABSOLUTE', b.math('SINE', ph)), 2.5)
-        fold_h = b.math('MULTIPLY', folds, b.math('MULTIPLY', wrk, -0.0009))
+        ph = b.math('MULTIPLY', wrk_t, 6.2831853 / 0.035)
+        fold = b.math('SUBTRACT', 0.5, b.math('MULTIPLY', b.math('COSINE', ph), 0.5))
+        fold = b.math('MULTIPLY', fold, b.smooth(0.45, 0.60, nz.outputs['Fac']))
+        fold_h = b.math('MULTIPLY', fold, b.math('MULTIPLY', wrk, -0.0004))
     else:
         fold_h = b.val(0.0)
-    hval = b.math('ADD', b.math('MULTIPLY', cell, 0.00007), b.math('MULTIPLY', knit.outputs['Fac'], 0.00003))
-    hval = b.math('ADD', hval, fold_h)
+    hfold = fold_h
     if has_white:
         wsd = b.attr('white_sd').outputs['Fac']
-        wf = b.smooth(-0.00022, 0.00022, wsd)
+        inkf = b.attr('ink_f').outputs['Fac']
+        wf = b.smooth(-0.0002, 0.0002, wsd)
         aw = b.math('ABSOLUTE', wsd)
-        # gold piping cord along the border + a small shadow groove each side
-        W = 0.0011
+        W = 0.0020
         cord = b.math('SQRT', b.math('MAXIMUM', b.math('SUBTRACT', 1.0, b.math('POWER', b.math('DIVIDE', aw, W), 2.0)), 0.0))
-        cmask = b.smooth(W + 0.0001, W - 0.00025, aw)
-        groove = b.math('MULTIPLY', b.smooth(W + 0.0007, W + 0.0001, aw), b.math('SUBTRACT', 1.0, cmask))
-        # streamlines: offset contours of the panel border, gently warped, white only
-        wn = b.n('ShaderNodeTexNoise'); wn.inputs['Scale'].default_value = 18.0
-        wn.inputs['Detail'].default_value = 0.0
-        b.link(rest, wn.inputs['Vector'])
-        ws = b.math('ADD', wsd, b.math('MULTIPLY', b.math('SUBTRACT', wn.outputs['Fac'], 0.5), 0.006))
-        phs = b.math('DIVIDE', ws, 0.0045)
-        dd = b.math('MULTIPLY', b.math('ABSOLUTE', b.math('SUBTRACT', phs, b.math('ROUND', phs))), 4.5)
-        sline = b.math('MULTIPLY', b.smooth(0.34, 0.14, dd),
-                       b.math('MULTIPLY', b.smooth(0.0032, 0.0048, wsd), b.smooth(0.075, 0.065, wsd)))
-        col = b.mix(wf, blue, white, 'RGBA')
-        col = b.mix(b.math('MULTIPLY', sline, 0.75), col, (0.40, 0.39, 0.36), 'RGBA')
-        hval = b.math('ADD', hval, b.math('MULTIPLY', sline, 0.00009))
-        hval = b.math('ADD', hval, b.math('MULTIPLY', cord, 0.0009))
-        hval = b.math('ADD', hval, b.math('MULTIPLY', groove, -0.0003))
+        cmask = b.smooth(W + 0.0001, W - 0.0003, aw)
+        groove = b.math('MULTIPLY', b.smooth(W + 0.0008, W + 0.0001, aw), b.math('SUBTRACT', 1.0, cmask))
+        # two cream topstitch rows on the white beside the piping
+        def row(off):
+            return b.smooth(0.00035, 0.00012, b.math('ABSOLUTE', b.math('SUBTRACT', wsd, off)))
+        st = b.math('MAXIMUM', row(0.0035), row(0.0060))
+        # trim band of ink just outside each white shape, plus the ink panels
+        trim = b.math('MULTIPLY', b.smooth(-0.0125, -0.0115, wsd), b.smooth(-0.0002, -0.0006, wsd))
+        inkm = b.math('MAXIMUM', b.smooth(0.45, 0.55, inkf), trim)
+        inkm = b.math('MULTIPLY', inkm, b.math('SUBTRACT', 1.0, wf))
+        col = b.mix(inkm, blue, ink_c, 'RGBA')
+        col = b.mix(wf, col, white, 'RGBA')
+        col = b.mix(b.math('MULTIPLY', st, 0.5), col, (0.70, 0.65, 0.55), 'RGBA')
+        hval = b.mix(inkm, hval, b.math('MULTIPLY', tw, 0.00006))
+        hval = b.math('ADD', hval, b.math('MULTIPLY', st, 0.00005))
+        hcord = b.math('ADD', b.math('MULTIPLY', cord, 0.0014), b.math('MULTIPLY', groove, -0.0003))
     else:
         wf = b.val(0.0)
+        hp = b.attr('hp').outputs['Vector']
+        sp = b.n('ShaderNodeSeparateXYZ'); b.link(hp, sp.inputs[0])
+        au = b.math('ABSOLUTE', sp.outputs[0])
+        # ink: below the jaw seam (z channel = neck rows < 0) and the back of the head
+        jaw = sp.outputs[2]                     # 0..1 over the neck loft, > 1 on the head
+        under = b.smooth(1.02, 0.98, jaw)
+        back = b.math('MULTIPLY', b.smooth(112.0, 122.0, au), b.smooth(-5.0, -15.0, sp.outputs[1]))
+        inkm = b.math('MAXIMUM', under, back)
+        seam = b.smooth(0.012, 0.0, b.math('ABSOLUTE', b.math('SUBTRACT', jaw, 1.0)))
+        col = b.mix(inkm, blue, ink_c, 'RGBA')
         cmask = b.val(0.0)
-        col = blue
-        if mask:
-            hp = b.attr('hp').outputs['Vector']
-            sp = b.n('ShaderNodeSeparateXYZ'); b.link(hp, sp.inputs[0])
-            au = b.math('ABSOLUTE', sp.outputs[0])
-            seamd = b.math('MINIMUM', au, b.math('SUBTRACT', 180.0, au))
-            seam = b.math('MULTIPLY', b.smooth(0.55, 0.15, seamd), b.smooth(-25.0, -15.0, sp.outputs[1]))
-            st_row = b.math('MAXIMUM', b.smooth(0.25, 0.1, b.math('ABSOLUTE', b.math('SUBTRACT', seamd, 1.25))), b.val(0.0))
-            dash = b.smooth(0.3, 0.7, b.math('ABSOLUTE', b.math('SINE', b.math('MULTIPLY', sp.outputs[1], 3.14159 / 1.6))))
-            stitch = b.math('MULTIPLY', b.math('MULTIPLY', st_row, dash), b.smooth(-25.0, -15.0, sp.outputs[1]))
-            edge = b.smooth(0.02, 0.008, sp.outputs[2])
-            cmask = edge
-            col = b.mix(b.math('MULTIPLY', stitch, 0.7), col, (0.05, 0.07, 0.25), 'RGBA')
-            hval = b.math('ADD', hval, b.math('MULTIPLY', seam, -0.0004))
-            hval = b.math('ADD', hval, b.math('MULTIPLY', stitch, 0.0001))
-            hval = b.math('ADD', hval, b.math('MULTIPLY', edge, 0.0007))
-    # darker in the weave valleys (blue more than white), slight colour drift
-    shade = b.maprange(cell, 0, 1, 0.72, 1.0)
-    shade = b.mix(wf, shade, b.maprange(cell, 0, 1, 0.9, 1.0))
+        hcord = b.math('MULTIPLY', seam, -0.0005)
+    # colour: darker in the rib valleys (blue more than white), macro value drift
+    shade = b.mix(wf, b.maprange(cell, 0, 1, 0.92, 1.0), b.maprange(cell, 0, 1, 0.96, 1.0))
+    shade = b.math('ADD', shade, b.math('MULTIPLY', macro, 0.08))
     colm = b.n('ShaderNodeMix', dtype='RGBA', blend='MULTIPLY')
     colm.inputs[0].default_value = 1.0
     b.link(col, colm.inputs[6])
@@ -737,94 +741,155 @@ def fabric_material(name, rest_attr='rest', has_white=True, mask=False):
     b.link(shc.outputs[0], colm.inputs[7])
     col = colm.outputs[2]
     col = b.mix(cmask, col, gold, 'RGBA')
-    rough = b.mix(wf, b.maprange(cell, 0, 1, 0.74, 0.58), b.maprange(cell, 0, 1, 0.62, 0.5))
-    rough = b.mix(cmask, rough, 0.32)
+    rough = b.mix(wf, b.maprange(cell, 0, 1, 0.66, 0.56), b.maprange(cell, 0, 1, 0.70, 0.60))
+    rough = b.mix(inkm, rough, 0.50)
+    rough = b.math('ADD', rough, b.math('MULTIPLY', macro, 0.12))
+    rough = b.mix(cmask, rough, 0.34)
     b.set(bs, 'Base Color', col)
     b.set(bs, 'Roughness', rough)
-    b.set(bs, 'Metallic', cmask)
-    b.set(bs, 'Sheen Weight', b.mix(cmask, 0.85, 0.0))
-    b.set(bs, 'Sheen Roughness', 0.32)
-    b.set(bs, 'Sheen Tint', (0.75, 0.75, 0.78))
+    b.set(bs, 'Metallic', b.math('MULTIPLY', cmask, 0.85))
+    b.set(bs, 'Sheen Weight', b.mix(cmask, b.mix(wf, 0.25, 0.30), 0.0))
+    b.set(bs, 'Sheen Roughness', 0.5)
+    b.set(bs, 'Sheen Tint', b.mix(wf, (0.20, 0.38, 1.0), (1.0, 0.92, 0.80), 'RGBA'))
     b.set(bs, 'Specular IOR Level', 0.42)
+    b.set(bs, 'Emission Color', gold)
+    b.set(bs, 'Emission Strength', b.math('MULTIPLY', cmask, 0.05))
+    hmic = b.math('MULTIPLY', hval, gain.outputs[0])
+    htot = b.math('ADD', b.math('ADD', hmic, hfold), hcord)
     bump = b.n('ShaderNodeBump'); bump.inputs['Distance'].default_value = 1.0
-    b.link(hval, bump.inputs['Height'])
+    b.link(htot, bump.inputs['Height'])
     b.set(bs, 'Normal', bump.outputs['Normal'])
     return m
 
 
 def gold_material(name='HERO_gold'):
+    """gold piping / emblems: metal with a little diffuse (stays gold in shade)"""
     m = _new(name)
     b = NB(m); bs, out = b.bsdf()
     tc = b.n('ShaderNodeTexCoord')
-    nz = b.n('ShaderNodeTexNoise'); nz.inputs['Scale'].default_value = 400.0
-    b.link(tc.outputs['Object'], nz.inputs['Vector'])
-    b.set(bs, 'Base Color', _rgb_node(b, 'GOLD_COLOR', GOLD))
-    b.set(bs, 'Metallic', 1.0)
-    b.set(bs, 'Roughness', b.maprange(nz.outputs['Fac'], 0.3, 0.7, 0.22, 0.34))
+    nz = b.n('ShaderNodeTexNoise'); nz.inputs['Scale'].default_value = 60.0
+    b.link(tc.outputs['Generated'], nz.inputs['Vector'])
+    g = _rgb_node(b, 'GOLD_COLOR', GOLD)
+    b.set(bs, 'Base Color', g)
+    b.set(bs, 'Metallic', 0.85)
+    b.set(bs, 'Roughness', b.maprange(nz.outputs['Fac'], 0.3, 0.7, 0.34, 0.44))
+    b.set(bs, 'Emission Color', g)
+    b.set(bs, 'Emission Strength', 0.05)
     return m
 
 
 def lens_frame_material():
+    """raised dark-bronze metal bezel"""
     m = _new('HERO_lens_frame')
     b = NB(m); bs, out = b.bsdf()
-    b.set(bs, 'Base Color', (0.011, 0.011, 0.012))
-    b.set(bs, 'Roughness', 0.32)
-    b.set(bs, 'Coat Weight', 0.5)
-    b.set(bs, 'Coat Roughness', 0.15)
+    b.set(bs, 'Base Color', (0.10, 0.07, 0.035))
+    b.set(bs, 'Metallic', 1.0)
+    b.set(bs, 'Roughness', 0.3)
     return m
 
 
 def lens_glass_material():
-    """mirrored gold lens: metal-coated glass under a clear coat, thin-film shimmer,
-    faint hex micro-mesh in the coating"""
+    """opaque mirrored champagne gold, clear coat, a small emission floor"""
     m = _new('HERO_lens_glass')
     b = NB(m); bs, out = b.bsdf()
-    tc = b.n('ShaderNodeTexCoord')
-    vor = b.n('ShaderNodeTexVoronoi'); vor.feature = 'DISTANCE_TO_EDGE'
-    vor.inputs['Scale'].default_value = 900.0
-    b.link(tc.outputs['Object'], vor.inputs['Vector'])
-    mesh = b.smooth(0.0, 0.06, vor.outputs['Distance'])
     lw = b.n('ShaderNodeLayerWeight'); lw.inputs['Blend'].default_value = 0.3
-    col = b.mix(lw.outputs['Facing'], (1.0, 0.74, 0.32), (1.0, 0.86, 0.55), 'RGBA')
-    col = b.mix(b.math('MULTIPLY', b.math('SUBTRACT', 1.0, mesh), 0.6), col, (0.45, 0.30, 0.10), 'RGBA')
+    col = b.mix(lw.outputs['Facing'], (0.98, 0.80, 0.50), (1.0, 0.90, 0.70), 'RGBA')
     b.set(bs, 'Base Color', col)
     b.set(bs, 'Metallic', 1.0)
-    b.set(bs, 'Roughness', 0.11)
-    b.set(bs, 'Emission Color', (1.0, 0.7, 0.3))
-    b.set(bs, 'Emission Strength', 0.06)
+    b.set(bs, 'Roughness', 0.07)
     b.set(bs, 'Coat Weight', 1.0)
     b.set(bs, 'Coat Roughness', 0.0)
-    try:
-        b.set(bs, 'Thin Film Thickness', 260.0)
-        b.set(bs, 'Thin Film IOR', 1.4)
-    except Exception:
-        pass
+    b.set(bs, 'Emission Color', (1.0, 0.82, 0.55))
+    b.set(bs, 'Emission Strength', 0.25)
     return m
 
 
 def shoe_material_v2():
-    """suit-covered foot: white weave over a thin dark sole with a gold edge line"""
+    """boot upper: ink indigo toe box and heel, cobalt shaft, an ankle seam"""
     m = _new('HERO_shoe')
     b = NB(m); bs, out = b.bsdf()
     pos = b.attr('prest').outputs['Vector']
     sep = b.n('ShaderNodeSeparateXYZ'); b.link(pos, sep.inputs[0])
     p_mm = b.vmath('SCALE', pos, scale=1000.0)
-    vor = b.n('ShaderNodeTexVoronoi'); vor.feature = 'DISTANCE_TO_EDGE'
-    vor.inputs['Scale'].default_value = 1.0
-    b.link(p_mm, vor.inputs['Vector'])
-    cell = b.smooth(0.0, 0.16, vor.outputs['Distance'])
-    sole = b.smooth(0.0085, 0.0075, sep.outputs[2])
-    line = b.math('MULTIPLY', b.smooth(0.0105, 0.0098, sep.outputs[2]), b.smooth(0.0085, 0.0092, sep.outputs[2]))
-    white = _rgb_node(b, 'WHITE_COLOR', WHITE)
-    col = b.mix(b.math('MULTIPLY', b.math('SUBTRACT', 1.0, cell), 0.12), white, (0.3, 0.29, 0.27), 'RGBA')
-    col = b.mix(sole, col, (0.03, 0.03, 0.032), 'RGBA')
-    col = b.mix(line, col, GOLD, 'RGBA')
+    s2 = b.n('ShaderNodeSeparateXYZ'); b.link(p_mm, s2.inputs[0])
+    rib = b.math('ABSOLUTE', b.math('SINE', b.math('MULTIPLY', b.math('ADD', s2.outputs[0], s2.outputs[1]), 6.2831853 / 1.4)))
+    low = b.smooth(0.052, 0.046, sep.outputs[2])
+    seam = b.smooth(0.0012, 0.0002, b.math('ABSOLUTE', b.math('SUBTRACT', sep.outputs[2], 0.049)))
+    col = b.mix(low, _rgb_node(b, 'BLUE_COLOR', BLUE), _rgb_node(b, 'INK_COLOR', INK), 'RGBA')
     b.set(bs, 'Base Color', col)
-    b.set(bs, 'Metallic', line)
-    b.set(bs, 'Roughness', b.mix(sole, b.maprange(cell, 0, 1, 0.6, 0.5), 0.8))
-    b.set(bs, 'Sheen Weight', b.mix(sole, 0.8, 0.1))
-    b.set(bs, 'Sheen Roughness', 0.32)
+    b.set(bs, 'Roughness', b.mix(low, 0.6, 0.36))
+    b.set(bs, 'Coat Weight', b.mix(low, 0.0, 0.35))
+    b.set(bs, 'Sheen Weight', 0.25)
+    b.set(bs, 'Sheen Tint', (0.2, 0.38, 1.0))
     bump = b.n('ShaderNodeBump'); bump.inputs['Distance'].default_value = 1.0
-    b.link(b.math('ADD', b.math('MULTIPLY', cell, 0.00007), b.math('MULTIPLY', line, 0.0005)), bump.inputs['Height'])
+    b.link(b.math('ADD', b.math('MULTIPLY', rib, 0.00006), b.math('MULTIPLY', seam, -0.0005)), bump.inputs['Height'])
+    b.set(bs, 'Normal', bump.outputs['Normal'])
+    return m
+
+
+def chrome_material():
+    """black chrome launcher housing"""
+    m = _new('HERO_chrome')
+    b = NB(m); bs, out = b.bsdf()
+    pos = b.attr('prest').outputs['Vector']
+    nz = b.n('ShaderNodeTexNoise'); nz.inputs['Scale'].default_value = 300.0
+    b.link(pos, nz.inputs['Vector'])
+    b.set(bs, 'Base Color', (0.035, 0.036, 0.04))
+    b.set(bs, 'Metallic', 1.0)
+    b.set(bs, 'Roughness', b.maprange(nz.outputs['Fac'], 0.3, 0.7, 0.14, 0.24))
+    b.set(bs, 'Coat Weight', 0.6)
+    b.set(bs, 'Coat Roughness', 0.05)
+    return m
+
+
+def star_material():
+    """the evening star: faceted cool-white stud (also the launcher charge strips)"""
+    m = _new('HERO_star')
+    b = NB(m); bs, out = b.bsdf()
+    b.set(bs, 'Base Color', (0.85, 0.92, 1.0))
+    b.set(bs, 'Roughness', 0.08)
+    b.set(bs, 'Coat Weight', 1.0)
+    n = b.n('ShaderNodeValue'); n.name = 'STAR_STRENGTH'; n.label = 'STAR_STRENGTH'
+    n.outputs[0].default_value = 6.0
+    b.set(bs, 'Emission Color', _rgb_node(b, 'STAR_COLOR', (0.78, 0.88, 1.0)))
+    b.set(bs, 'Emission Strength', n.outputs[0])
+    return m
+
+
+def ink_material():
+    """ink indigo fabric for the collar band"""
+    m = _new('HERO_ink')
+    b = NB(m); bs, out = b.bsdf()
+    pos = b.attr('prest').outputs['Vector']
+    p_mm = b.vmath('SCALE', pos, scale=1000.0)
+    sep = b.n('ShaderNodeSeparateXYZ'); b.link(p_mm, sep.inputs[0])
+    rib = b.math('ABSOLUTE', b.math('SINE', b.math('MULTIPLY', b.math('ADD', sep.outputs[0], sep.outputs[1]), 6.2831853 / 1.4)))
+    b.set(bs, 'Base Color', _rgb_node(b, 'INK_COLOR', INK))
+    b.set(bs, 'Roughness', 0.42)
+    b.set(bs, 'Sheen Weight', 0.25)
+    b.set(bs, 'Sheen Tint', (0.2, 0.38, 1.0))
+    bump = b.n('ShaderNodeBump'); bump.inputs['Distance'].default_value = 1.0
+    b.link(b.math('MULTIPLY', rib, 0.0002), bump.inputs['Height'])
+    b.set(bs, 'Normal', bump.outputs['Normal'])
+    return m
+
+
+def sole_material_v2():
+    """split rubber sole: tread underneath, gold welt along the top edge"""
+    m = _new('HERO_sole')
+    b = NB(m); bs, out = b.bsdf()
+    pos = b.attr('prest').outputs['Vector']
+    sep = b.n('ShaderNodeSeparateXYZ'); b.link(pos, sep.inputs[0])
+    p_mm = b.vmath('SCALE', pos, scale=1000.0)
+    sp2 = b.n('ShaderNodeSeparateXYZ'); b.link(p_mm, sp2.inputs[0])
+    lug = b.smooth(0.2, 0.6, b.math('ABSOLUTE', b.math('SINE', b.math('MULTIPLY', b.math('ADD', sp2.outputs[1], b.math('MULTIPLY', sp2.outputs[0], 0.6)), 6.2831853 / 7.0))))
+    under = b.smooth(0.004, 0.002, sep.outputs[2])
+    welt = b.smooth(0.0085, 0.0105, sep.outputs[2])
+    col = b.mix(welt, (0.012, 0.012, 0.013), _rgb_node(b, 'GOLD_COLOR', GOLD), 'RGBA')
+    b.set(bs, 'Base Color', col)
+    b.set(bs, 'Metallic', b.math('MULTIPLY', welt, 0.85))
+    b.set(bs, 'Roughness', b.mix(welt, 0.78, 0.36))
+    bump = b.n('ShaderNodeBump'); bump.inputs['Distance'].default_value = 1.0
+    b.link(b.math('MULTIPLY', b.math('MULTIPLY', lug, under), 0.0015), bump.inputs['Height'])
     b.set(bs, 'Normal', bump.outputs['Normal'])
     return m

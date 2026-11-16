@@ -65,7 +65,12 @@ def build(body_verts, body_faces):
     # ears: strong local smoothing (no ear shapes under the fabric)
     ear = smoothstep(62, 76, AU) * (1 - smoothstep(110, 124, AU)) * smoothstep(-50, -36, VV) * (1 - smoothstep(0, 12, VV))
     Gs = Gs * (1 - ear) + _blur_wrap(Gs, 12 * cpd, 12) * ear
-    Gs = Gs + OFFSET
+    # low centre crest from the brow over the crown to the nape
+    ang = np.minimum(AU, 180 - AU)
+    crest = 0.0024 * np.exp(-0.5 * (ang / 2.6) ** 2) * smoothstep(0, 14, VV) * (AU < 90) \
+        + 0.0024 * np.exp(-0.5 * (ang / 2.6) ** 2) * smoothstep(-30, -10, VV) * (AU >= 90)
+    Gs = Gs + OFFSET + crest
+    Gref = _blur_wrap(Gs, 20 * cpd, 20)
     # head part: from the jaw line up to the crown
     au = np.abs(u)
     vjaw = -42 + 12 * smoothstep(0, 95, au) - 14 * smoothstep(110, 180, au)
@@ -101,7 +106,7 @@ def build(body_verts, body_faces):
         h00 = 2 * t ** 3 - 3 * t ** 2 + 1; h10 = t ** 3 - 2 * t ** 2 + t
         h01 = -2 * t ** 3 + 3 * t ** 2; h11 = t ** 3 - t ** 2
         m0 = np.array([0, 0, 1.0])[None] * span * 0.3        # leave the neck vertically
-        m1 = -tj * span * 0.5                                 # arrive along the head surface
+        m1 = -tj * span * 0.25                                # arrive along the head surface (keeps a jaw undercut)
         neck.append(h00 * ring + h10 * m0 + h01 * jaw + h11 * m1)
     Pg = np.concatenate([np.array(neck), Ph], 0)
     V = np.concatenate([np.full((NVN, NU), -80.0) + np.arange(NVN)[:, None] * 0.0, Vh], 0)
@@ -124,9 +129,9 @@ def build(body_verts, body_faces):
         faces.append(((NR - 1) * NU + j, (NR - 1) * NU + (j + 1) % NU, itop))
     Vfull = np.concatenate([V[:1] - 0.5, V], 0)
     hp = np.stack([np.broadcast_to(u[None], Vfull.shape), Vfull, np.zeros_like(Vfull)], -1).reshape(-1, 3)
-    hp[:, 2] = np.repeat(np.arange(NR), NU) / (NR - 1)
+    hp[:, 2] = np.repeat(np.arange(NR), NU) / float(NVN + 1)      # 0..1 neck loft, > 1 on the head
     hp = np.concatenate([hp, [[0, 90, 1]]], 0)
-    return dict(verts=np.array(verts), faces=faces, hp=hp, C=C, u=u, vg=vg, Gs=Gs, n_neck=NVN + 1, NU=NU, ring_r=rn, ring_c=Cn)
+    return dict(verts=np.array(verts), faces=faces, hp=hp, C=C, u=u, vg=vg, Gs=Gs, n_neck=NVN + 1, NU=NU, ring_r=rn, ring_c=Cn, Gref=Gref)
 
 
 def surface_point(md, uu, vv, extra=0.0):
@@ -140,51 +145,87 @@ def surface_point(md, uu, vv, extra=0.0):
     return md['C'] + d * (r + extra)
 
 
-def lens(md, side=1, na=48, ns=26):
-    """One swept-blade lens: returns verts, faces, material index per face (0 frame, 1 glass).
-    Frame: raised 2.4 mm with a rounded outer bevel and an inner bevel down to the glass,
-    which sits 1.1 mm proud of the fabric and bulges slightly."""
-    u0, u1 = LENS_U
-    L_deg = u1 - u0
-    def outline(a):
-        uu = u0 + L_deg * a
-        vc = LENS_VC[0] + (LENS_VC[1] - LENS_VC[0]) * a ** 1.3
-        h = LENS_H * (1 - a) ** 0.85
-        h *= 0.62 + 0.38 * math.sqrt(min(1.0, a / 0.12))      # blunt rounded inner end
-        vc -= 3.0 * (1 - min(1.0, a / 0.25))                  # inner end dips toward the nose
-        h = max(h, 0.25)
-        return uu, vc, h
-    As = np.concatenate([[0.0, 0.004, 0.012, 0.025, 0.045], np.linspace(0.07, 0.93, na), [0.955, 0.975, 0.988, 0.996, 1.0]])
-    Ss = np.concatenate([[-1.0, -0.985, -0.95, -0.9, -0.84, -0.78, -0.72], np.linspace(-0.62, 0.62, ns), [0.72, 0.78, 0.84, 0.9, 0.95, 0.985, 1.0]])
-    r_mm = 0.105 * math.pi / 180.0 * 1000.0          # mm per degree on the head
-    V, mats_v = [], []
-    for a in As:
-        uu, vc, h = outline(a)
-        for s in Ss:
-            # lower edge straighter than the upper (blade)
-            vv = vc + h * (s if s > 0 else 0.72 * s)
-            d_edge = min((1 - abs(s)) * h * r_mm * (1.0 if s > 0 else 0.72), a * L_deg * r_mm * 0.9,
-                         (1 - a) * L_deg * r_mm * 0.9)
-            # height profile (mm): bevel up to frame top, frame, inner bevel down to glass
-            if d_edge < 0.9:
-                z = 0.2 + 2.2 * math.sin(min(1.0, d_edge / 0.9) * math.pi / 2)
-            elif d_edge < 2.6:
-                z = 2.4
-            elif d_edge < 3.4:
-                z = 2.4 - 1.5 * smoothstep(2.6, 3.4, d_edge)
+def _env_point(md, uu, vv, extra):
+    u = md['u']; vg = md['vg']
+    j = (uu + 180.0) / (360.0 / len(u)) - 0.5
+    j0 = int(math.floor(j)) % len(u); j1 = (j0 + 1) % len(u); fj = j - math.floor(j)
+    def rad(G):
+        return (1 - fj) * np.interp(vv, vg, G[:, j0]) + fj * np.interp(vv, vg, G[:, j1])
+    r = max(rad(md['Gref']), rad(md['Gs']) + 0.0003)
+    ur, vr = math.radians(uu), math.radians(vv)
+    d = np.array([math.sin(ur) * math.cos(vr), -math.cos(ur) * math.cos(vr), math.sin(vr)])
+    return md['C'] + d * (r + extra)
+
+
+# lens: sideways irregular kite (degrees on the head sphere, u from the midline)
+#        inner tip   top corner   tail (up and back past the temple)   bottom corner
+KITE = [(7.4, -15.0), (20.0, -5.0), (93.0, 4.0), (28.0, -20.0)]
+
+
+def _kite_outline(n=160):
+    """closed smooth outline of the lens (corners slightly rounded)"""
+    pts = np.array(KITE + [KITE[0]], float)
+    seg = np.linalg.norm(np.diff(pts, axis=0), axis=1)
+    s = np.concatenate([[0], np.cumsum(seg)])
+    t = np.linspace(0, s[-1], n, endpoint=False)
+    P = np.stack([np.interp(t, s, pts[:, 0]), np.interp(t, s, pts[:, 1])], 1)
+    for it in range(4):
+        P = 0.5 * P + 0.25 * (np.roll(P, 1, 0) + np.roll(P, -1, 0))
+    return P
+
+
+def lens(md, side=1, nring=None):
+    """One lens: rings inset from the outline by distance (mm): outer bevel rising to a
+    3.5 mm dark-bronze bezel, inner bevel, then an opaque domed mirror.  Built on the
+    smoothed envelope Gref (no socket/eyeball relief).  Returns verts, faces, mat index
+    (0 bezel, 1 glass)."""
+    O = _kite_outline()
+    c = O.mean(0)
+    r_mm = 0.105 * math.pi / 180.0 * 1000.0
+    # (inset mm, height mm, material)
+    # inset: mm from the outline, or (negative) a fraction of the way to the centre
+    prof = [(-1.2, -1.2, 0), (0.0, 0.3, 0), (0.6, 1.6, 0), (1.5, 2.3, 0), (3.0, 2.3, 0), (3.5, 1.7, 0),
+            (3.9, 1.1, 1), (-0.42, 1.55, 1), (-0.62, 1.85, 1), (-0.80, 2.05, 1), (-0.92, 2.15, 1)]
+    V, rings = [], []
+    n = len(O)
+    for inset, h, m in prof:
+        ring = []
+        for k in range(n):
+            p = O[k]
+            d = c - p
+            L = np.linalg.norm(d) * r_mm
+            if inset < 0:
+                f = max(-inset, min(3.9 / max(L, 1e-6), 0.35) + 0.02)
             else:
-                z = 0.9 + 0.5 * min(1.0, (d_edge - 3.4) / 6.0)
-            V.append(surface_point(md, uu * side, vv, z / 1000.0 - 0.0006))
-            mats_v.append(1 if d_edge > 3.0 else 0)
-    na_, ns_ = len(As), len(Ss)
+                f = min(inset / max(L, 1e-6), 0.33)
+            q = p + d * f
+            ring.append(len(V))
+            V.append(_env_point(md, q[0] * side, q[1], h / 1000.0))
+        rings.append(ring)
+    V.append(_env_point(md, c[0] * side, c[1], 2.25 / 1000.0)); ic = len(V) - 1
     F, M = [], []
-    for i in range(na_ - 1):
-        for k in range(ns_ - 1):
-            a = i * ns_ + k
-            f = (a, a + ns_, a + ns_ + 1, a + 1) if side > 0 else (a, a + 1, a + ns_ + 1, a + ns_)
-            F.append(f)
-            M.append(1 if min(mats_v[a], mats_v[a + 1], mats_v[a + ns_], mats_v[a + ns_ + 1]) == 1 else 0)
+    for r in range(len(prof) - 1):
+        for k in range(n):
+            a, b = rings[r][k], rings[r][(k + 1) % n]
+            c2, d2 = rings[r + 1][(k + 1) % n], rings[r + 1][k]
+            F.append((a, b, c2, d2) if side > 0 else (a, d2, c2, b))
+            M.append(prof[r + 1][2] if prof[r][2] == prof[r + 1][2] else 0)
+    for k in range(n):
+        a, b = rings[-1][k], rings[-1][(k + 1) % n]
+        F.append((a, b, ic) if side > 0 else (a, ic, b)); M.append(1)
     return np.array(V), F, M
+
+
+def bridle_path(md, side=1, n=60):
+    """from the lens tail around the skull to the nape (degrees), for the gold bridle line"""
+    u0, v0 = KITE[2]
+    pts = []
+    for k in range(n + 1):
+        t = k / n
+        uu = u0 + (176.0 - u0) * t
+        vv = v0 + (-30.0 - v0) * (t ** 1.4)
+        pts.append(_env_point(md, uu * side, vv, 0.0))
+    return np.array(pts)
 
 
 def tuck_body(P, md, head_w, margin=0.005):
@@ -204,11 +245,18 @@ def tuck_body(P, md, head_w, margin=0.005):
         a = math.degrees(math.atan2(dx, -dy))
         lim = np.interp(a, u, rn, period=360.0) + OFFSET - margin
         w = min(1.0, (z - (Z_BOTTOM - 0.004)) / 0.01)
+        # trapezius rising above the collar: slope it down to meet under the collar band
+        zmax = Z_BOTTOM + 0.003 + max(0.0, r - lim) * 0.55
+        if z > zmax and r < lim + 0.05 and r > lim + 0.012 and z < Z_BOTTOM + 0.06:
+            P[k, 2] = zmax
+            z = zmax
         if r > lim:
             rr = r + (lim - r) * w
             P[k, 0] = Cn[0] + dx / r * rr; P[k, 1] = Cn[1] + dy / r * rr
         if z > Z_BOTTOM + 0.035 and head_w[k] > 0.2:
             kill[k] = True
         if z > Z_BOTTOM + 0.022 and dy > 0.0:          # nape: always under the hood
+            kill[k] = True
+        if z > Z_BOTTOM + 0.006 and r < lim + margin + 0.004:   # neck under hood + collar
             kill[k] = True
     return P, kill

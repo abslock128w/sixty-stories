@@ -34,6 +34,13 @@ VIEWS = {
     'g': dict(loc=(-250, -900, 380), at=(0, 300, 250), lens=30, dusk=1.0, preset='dusk_wide'),
     'h': dict(loc=(-4, 300, 30), at=(2, -200, 60), lens=24),
     's': dict(loc=(0, -200, 2), at=(20, 300, 330), lens=16),
+    'r_close': dict(loc=(-3.0, 98.0, 15.0), at=(-16.0, 111.0, 17.0), lens=35, exp=0.8),
+    'r_dusk': dict(loc=(-9.0, 95.0, 14.0), at=(-17.0, 125.0, 17.0), lens=30, dusk=1.0, exp=0.3),
+    'r_west': dict(loc=(-2.0, 140.0, 24.0), at=(-16.0, 150.0, 26.0), lens=35, exp=0.6),
+    'r_in': dict(loc=(-11.0, 106.5, 11.6), at=(-17.0, 110.0, 11.0), lens=28, exp=0.8),
+    'r_close2': dict(loc=(-10.8, -63.1, 10.5), at=(-17.0, -63.1, 10.2), lens=28, exp=1.8),
+    'r_office': dict(loc=(-8.0, 100.0, 25.0), at=(19.0, 118.0, 25.0), lens=28, exp=0.8),
+    'dbg': dict(loc=(-14.2, 112.74, 7.6), at=(-20.0, 112.74, 7.4), lens=24, exp=0.8),
     'k': dict(loc=(150, 700, 420), at=(-40, -250, 80), lens=30),
     'i': dict(loc=(30, 300, 74), at=(0, 381, 73), lens=35),
 }
@@ -88,7 +95,7 @@ def main():
     log = []
     print(f"[preview] loaded in {time.time() - t0:.1f}s", flush=True)
     for name in views:
-        v = VIEWS[name[0]]
+        v = VIEWS[name] if name in VIEWS else VIEWS[name[0]]
         dusk = float(opt['dusk']) if opt['dusk'] is not None else v.get('dusk', 0.0)
         lighting.apply_preset(scene, v.get('preset', 'canyon' if name[0] in 'bh' else 'none'), dusk)
         ctrl = bpy.data.objects['LIGHT_CTRL']

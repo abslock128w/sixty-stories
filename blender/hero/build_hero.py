@@ -456,88 +456,146 @@ def set_nozzles(rig, nozzles):
 
 
 def build_gear_v2(d, rig, mats):
-    """slim launcher bracelets, suit-covered feet, emblems, hood and lenses"""
+    """round 2: kite launchers, boots, open-kite signature with the evening-star studs,
+    flying line, bridle + spine lines, collar band, hood and lenses"""
+    import suit_fields as SF
     J = d['joints']
     P, F = d['P_final'], d['F_final']
     sh = gear.Shaper(P, F, J)
+    surf = SF.Surf(P, F, J)
     objs, nozzles = [], {}
+    W_ = d['W_final']
+    def skin(o):
+        return copy_weights(o, rig, P, W_)
+    # ---------------- launchers: kite-shaped housing on the outer forearm
     for s in 'LR':
-        dn = build_body._dorsal(J, s)
-        def chamfer(h0, h1, c=0.3, e=0.14):
-            return lambda tt: (h0 + (h1 - h0) * tt) * (1 - c * max(0.0, 1 - min(tt, 1 - tt) / e))
-        Vh, Fh = sh.plate(f'lowerarm01.{s}', f'wrist.{s}', 0.66, 0.86, dn, chamfer(0.44, 0.40, 0.3, 0.25),
-                          H=0.0045, R=0.0022, base=0.0012)
-        Vc, Fcf = sh.plate(f'lowerarm01.{s}', f'wrist.{s}', 0.855, 0.895, dn, None, H=0.0018,
-                           R=0.0008, base=0.0009, wrap=True, nt=6, na=72)
-        Vi, Fi = sh.plate(f'lowerarm01.{s}', f'wrist.{s}', 0.71, 0.81, dn, lambda tt: 0.05, H=0.0006,
-                          R=0.0003, base=0.0012 + 0.0045 - 0.0002, nt=8, na=6)
+        big = s == 'L'
         A = np.array(J[f'lowerarm01.{s}____head']); B = np.array(J[f'wrist.{s}____head'])
-        ax = (B - A) / np.linalg.norm(B - A)
-        c = A + (B - A) * 0.82
-        dv = -np.array(dn); dv -= ax * dv.dot(ax); dv /= np.linalg.norm(dv)
-        bc = sh.cast(c, dv) + dv * 0.0052
-        barrel = gear.bevel_cyl('barrel', 0.0042, 0.034, bevel=0.0009)
-        tip = gear.bevel_cyl('tip', 0.003, 0.01, bevel=0.0005, r2=0.0026)
-        bore = gear.bevel_cyl('bore', 0.0016, 0.003, bevel=0.0002)
+        ax = (B - A) / np.linalg.norm(B - A); La = np.linalg.norm(B - A)
+        outv = np.array([1.0 if s == 'L' else -1.0, 0.0, 0.25]); outv -= ax * outv.dot(ax); outv /= np.linalg.norm(outv)
+        t0, t1 = (0.30, 0.93) if big else (0.45, 0.93)
+        wid = 0.62 if big else 0.48
+        kite = lambda tt, w=wid: w * float(np.interp(tt, [0.0, 0.07, 0.32, 0.92, 1.0], [0.08, 0.35, 1.0, 0.45, 0.2]))
+        Vh, Fh = sh.plate(f'lowerarm01.{s}', f'wrist.{s}', t0, t1, outv, kite, H=0.0085 if big else 0.0065,
+                          R=0.0035, base=-0.0015, sink=0.004, nt=40, na=28)
+        oh = gear.mesh_object(f'HERO_launcher.{s}', Vh, Fh, [mats['chrome']])
+        objs.append(rigid(oh, rig, f'lowerarm02.{s}'))
+        # gold ribs across the housing
+        for k, tr in enumerate((0.42, 0.55, 0.68) if big else (0.6, 0.72)):
+            Vr, Fr = sh.plate(f'lowerarm01.{s}', f'wrist.{s}', tr, tr + 0.018, outv, lambda tt, tr=tr: kite((tr - t0) / (t1 - t0)) * 0.85,
+                              H=0.0011, R=0.0005, base=(0.0085 if big else 0.0065) - 0.0016, nt=6, na=20)
+            objs.append(rigid(gear.mesh_object(f'HERO_launcher_rib{k}.{s}', Vr, Fr, [mats['gold']]), rig, f'lowerarm02.{s}'))
+        # charge strip (cool white)
+        Vc, Fc = sh.plate(f'lowerarm01.{s}', f'wrist.{s}', t0 + 0.08, t1 - 0.12, outv, lambda tt: 0.045, H=0.0006,
+                          R=0.0003, base=(0.0085 if big else 0.0065) - 0.0003, nt=10, na=5)
+        objs.append(rigid(gear.mesh_object(f'HERO_launcher_strip.{s}', Vc, Fc, [mats['star']]), rig, f'lowerarm02.{s}'))
+        # nozzle at the wrist end + reel drum near the elbow end
+        top = sh.cast(A + (B - A) * (t1 - 0.04), outv)
+        bc = top + outv * ((0.0085 if big else 0.0065) + 0.002)
+        barrel = gear.bevel_cyl('barrel', 0.0048 if big else 0.0038, 0.03, bevel=0.0009)
+        bore = gear.bevel_cyl('bore', 0.0019, 0.003, bevel=0.0002)
         Mb = Matrix.Translation(Vector(bc)) @ Vector((0, 0, 1)).rotation_difference(Vector(ax)).to_matrix().to_4x4()
-        hard = gear.merge_meshes('launcher_hard', [(barrel, Mb, 0), (tip, Mb @ Matrix.Translation((0, 0, 0.021)), 0),
-                                                   (bore, Mb @ Matrix.Translation((0, 0, 0.0255)), 1)])
-        for me_ in (barrel, tip, bore):
+        parts = [(barrel, Mb, 0), (bore, Mb @ Matrix.Translation((0, 0, 0.0155)), 1)]
+        if big:
+            drum = gear.bevel_cyl('drum', 0.012, 0.014, bevel=0.0015, verts=40)
+            ring = gear.torus_mesh('drumring', 0.0105, 0.0011, nu=40, nv=8)
+            pd = sh.cast(A + (B - A) * 0.36, outv) + outv * 0.012
+            side_ax = np.cross(ax, outv)
+            Md = Matrix.Translation(Vector(pd)) @ Vector((0, 0, 1)).rotation_difference(Vector(side_ax)).to_matrix().to_4x4()
+            parts += [(drum, Md, 0), (ring, Md @ Matrix.Translation((0, 0, 0.0072)), 2), (ring, Md @ Matrix.Translation((0, 0, -0.0072)), 2)]
+        hard = gear.merge_meshes('launcher_hard', parts)
+        for me_ in {id(p[0]): p[0] for p in parts}.values():
             bpy.data.meshes.remove(me_)
-        hard.materials.append(mats['gunmetal']); hard.materials.append(mats['rubber'])
-        for nm, (V_, F_, mt) in {f'HERO_launcher.{s}': (Vh, Fh, mats['gunmetal']),
-                                 f'HERO_launcher_cuff.{s}': (Vc, Fcf, mats['gold']),
-                                 f'HERO_launcher_light.{s}': (Vi, Fi, mats['amber'])}.items():
-            objs.append(rigid(gear.mesh_object(nm, V_, F_, [mt]), rig, f'lowerarm02.{s}'))
+        hard.materials.append(mats['chrome']); hard.materials.append(mats['rubber']); hard.materials.append(mats['gold'])
         objs.append(rigid(bpy.data.objects.new(f'HERO_launcher_barrel.{s}', hard), rig, f'lowerarm02.{s}'))
-        nozzles[s] = (bc + ax * 0.0275, ax)
-    # suit-covered feet with a thin integrated sole
+        nozzles[s] = (bc + ax * 0.016, ax)
+    # ---------------- boots: smooth toe box + separate rubber sole with a gold welt
     for s in 'LR':
         ank = np.array(J[f'foot.{s}____head'])
         tips = np.array([J[f'toe{k}-{3 if k > 1 else 2}.{s}____tail'] for k in range(1, 6)]).mean(0)
         heel = ank + np.array([0, 0.045, -0.035]); toe = tips + np.array([0, 0.02, 0.008])
-        zc = ank[2] + 0.04
-        Vs, NR, NP = gear.shoe_shell(sh.bvh, heel, toe, z_collar=zc, ankle=ank, offset=0.0016, welt=0.0)
+        zc = ank[2] + 0.05
+        Vs, NR, NP = gear.shoe_shell(sh.bvh, heel, toe, z_collar=zc, ankle=ank, offset=0.0028, welt=0.0, close=6)
         V2, F2 = gear.shoe_mesh(Vs, NR, NP, 9.0)
+        V2 = V2 + np.array([0, 0, 0.0055])           # stand on the sole
         o = gear.mesh_object(f'HERO_shoe.{s}', V2, F2, [mats['shoe']])
-        objs.append(copy_weights(o, rig, P, d['W_final']))
-    # kite emblems: gold, raised with a bevelled rim and a recessed centre
-    def kite_pts(cx, top, mid, bot, hw, n=24):
-        corners = [(cx, top), (cx + hw, mid), (cx, bot), (cx - hw, mid), (cx, top)]
+        objs.append(skin(o))
+        sb = gear.Shaper(V2, F2, J)
+        Vso, Fso = sb.plate(heel + np.array([0, 0.012, 0.0]), toe + np.array([0, -0.012, 0.004]), -0.04, 1.04, (0, 0, -1),
+                            lambda tt: 1.5, H=0.0065, R=0.0012, base=-0.0012, sink=0.004, nt=44, na=30, smooth_iters=4)
+        o2 = gear.mesh_object(f'HERO_sole.{s}', Vso, Fso, [mats['sole']])
+        objs.append(skin(o2))
+    # ---------------- signature: open kites, evening-star studs, flying line
+    def kite_corners(cx, cz, height, width, tilt_deg):
+        # irregular quadrilateral: short top third, long tail
+        loc = [(0.0, 0.33), (width * 0.5, 0.0), (0.0, -0.67), (-width * 0.5, 0.0)]
+        a = math.radians(tilt_deg)
         out = []
-        for (x0, z0), (x1, z1) in zip(corners[:-1], corners[1:]):
-            for k in range(n):
-                t = k / n
-                out.append((x0 + (x1 - x0) * t, z0 + (z1 - z0) * t))
+        for x_, z_ in loc:
+            zz = z_ * height
+            out.append((cx + x_ * math.cos(a) - zz * math.sin(a), cz + x_ * math.sin(a) + zz * math.cos(a)))
         return out
-    def emblem(name, top, mid, bot, hw, back=False):
-        y0, dy = (0.45, -1) if back else (-0.45, 1)
-        def proj(xz, off):
-            p = sh.cast((xz[0], y0, xz[1]), (0, dy, 0))
-            return p + np.array([0, -dy, 0]) * off
-        o_ = kite_pts(0, top, mid, bot, hw)
-        sc_ = 0.80
-        i_ = kite_pts(0, mid + (top - mid) * sc_, mid, mid + (bot - mid) * sc_, hw * sc_)
-        c_ = kite_pts(0, mid + (top - mid) * 0.45, mid, mid + (bot - mid) * 0.45, hw * 0.45)
-        Vr, Fr = [], []
-        prof = [(o_, -0.0015), (o_, 0.0010), (o_, 0.0016), (i_, 0.0016), (i_, 0.0009), (c_, 0.0013)]
-        n = len(o_)
-        for ring_pts, off in prof:
-            for xz in ring_pts:
-                Vr.append(proj(xz, off))
-        for r in range(len(prof) - 1):
-            for k in range(n):
-                a = r * n + k; b_ = r * n + (k + 1) % n
-                Fr.append((a, b_, b_ + n, a + n) if not back else (a, a + n, b_ + n, b_))
-        cen = proj((0, mid), 0.0013)
-        Vr.append(cen); ic = len(Vr) - 1
-        base = (len(prof) - 1) * n
-        for k in range(n):
-            Fr.append((base + k, base + (k + 1) % n, ic) if not back else (base + k, ic, base + (k + 1) % n))
-        o = gear.mesh_object(name, np.array(Vr), Fr, [mats['gold']])
-        return copy_weights(o, rig, P, d['W_final'])
-    objs.append(emblem('HERO_kite', 1.338, 1.300, 1.246, 0.024))
-    objs.append(emblem('HERO_kite_back', 1.300, 1.248, 1.170, 0.034, back=True))
+    def body_pt(x_, z_, back=False):
+        return surf.cast((x_, 0.45 if back else -0.45, z_), (0, -1 if back else 1, 0))
+    def gold_line(name, ctrl, radius=0.0019, lift=0.0006):
+        pts, nrm = gear.surf_line(surf, ctrl, step=0.002)
+        V_, F_ = gear.tube_along(pts, nrm, radius, lift=lift)
+        return skin(gear.mesh_object(name, V_, F_, [mats['gold']]))
+    def kite_emblem(tag, cx, cz, h, w, tilt, back=False):
+        c4 = kite_corners(cx, cz, h, w, tilt)
+        pts = [body_pt(x_, z_, back) for x_, z_ in c4]
+        out = [gold_line(f'HERO_kite_{tag}_frame', pts + [pts[0]], radius=0.0022 if not back else 0.0028)]
+        out.append(gold_line(f'HERO_kite_{tag}_spine', [pts[0], pts[2]]))
+        out.append(gold_line(f'HERO_kite_{tag}_spar', [pts[1], pts[3]]))
+        # star at the crossing of spine and spar (cz level)
+        cr = body_pt(cx - (0.0) , cz, back)
+        _, nrm = surf.nearest(cr)
+        nrm = np.array(nrm)
+        st = gear.star_mesh(f'star_{tag}', r=0.007 if not back else 0.009)
+        M = Matrix.Translation(Vector(cr + nrm * 0.0015)) @ Vector((0, 0, 1)).rotation_difference(Vector(nrm)).to_matrix().to_4x4()
+        st.transform(M)
+        st.materials.append(mats['star'])
+        so = bpy.data.objects.new(f'HERO_star_{tag}', st)
+        co = np.zeros(len(st.vertices) * 3); st.vertices.foreach_get('co', co)
+        at = st.attributes.new('prest', 'FLOAT_VECTOR', 'POINT'); at.data.foreach_set('vector', co)
+        out.append(skin(so))
+        return out, pts
+    ko, kpts = kite_emblem('chest', -0.088, 1.335, 0.13, 0.072, 20.0)
+    objs += ko
+    kb, bpts = kite_emblem('back', 0.0, 1.30, 0.32, 0.17, 0.0, back=True)
+    objs += kb
+    # flying line: chest kite tail -> right hip -> around the hip -> up to the back kite tail
+    hipF = surf.torso(0.965, 318)
+    hipS = surf.torso(0.955, 270)
+    hipB = surf.torso(0.965, 215)
+    objs.append(gold_line('HERO_flying_line', [kpts[2], hipF, hipS, hipB, bpts[2]], radius=0.0018))
+    # spine line: from the hood rim at the nape down to the top of the back kite
+    nape = surf.cast((0.0, 0.25, 1.505), (0, -1, 0))
+    objs.append(gold_line('HERO_spine_line', [nape, bpts[0]], radius=0.0018))
+    # gold bead on the sail edge near the collar / shoulder (close-shot borders)
+    # collar band: low standing indigo band + gold bead on top, at the hood rim
+    md = d['mask']
+    Cn = md['ring_c']; rn = md['ring_r']; u = md['u']; ur = np.radians(u)
+    ringv, ringf = [], []
+    NU_ = len(u)
+    for i, (dz, dr) in enumerate([(-0.012, -0.003), (-0.010, 0.0018), (0.004, 0.0024), (0.008, 0.0005), (0.009, -0.003)]):
+        for j in range(NU_):
+            dh = np.array([math.sin(ur[j]), -math.cos(ur[j]), 0.0])
+            ringv.append(Cn + dh * (rn[j] + mask.OFFSET + dr) + np.array([0, 0, dz]))
+    for i in range(4):
+        for j in range(NU_):
+            a_ = i * NU_ + j; b_ = i * NU_ + (j + 1) % NU_
+            ringf.append((a_, b_, b_ + NU_, a_ + NU_))
+    oc = gear.mesh_object('HERO_collar', np.array(ringv), ringf, [mats['ink']])
+    objs.append(skin(oc))
+    bead = []
+    for j in range(NU_ + 1):
+        jj = j % NU_
+        dh = np.array([math.sin(ur[jj]), -math.cos(ur[jj]), 0.0])
+        bead.append(Cn + dh * (rn[jj] + mask.OFFSET + 0.0015) + np.array([0, 0, 0.0095]))
+    bead = np.array(bead)
+    Vb, Fb = gear.tube_along(bead, np.tile([0, 0, 1.0], (len(bead), 1)), 0.0017, lift=-0.001, caps=False)
+    objs.append(skin(gear.mesh_object('HERO_collar_bead', Vb, Fb, [mats['gold']])))
     # hood: weights blend head -> neck by height so it moves like fabric on the neck
     md = d['mask']
     ob = gear.mesh_object('HERO_mask', md['verts'], md['faces'], [mats['mask']])
@@ -584,11 +642,15 @@ def build_gear_v2(d, rig, mats):
             grp('neck03').add([i], tn * 0.6, 'REPLACE'); grp('neck02').add([i], tn * 0.4, 'REPLACE')
     mm_ = ob.modifiers.new('Armature', 'ARMATURE'); mm_.object = rig
     objs.append(ob)
-    # lenses (rigid on the head)
+    # lenses + bridle lines (rigid on the head)
     for side, s in ((1, 'L'), (-1, 'R')):
         V_, F_, M_ = mask.lens(md, side)
         o = gear.mesh_object(f'HERO_lens.{s}', V_, F_, [mats['lens_frame'], mats['lens_glass']], mat_idx=M_)
         objs.append(rigid(o, rig, 'head'))
+        bp = mask.bridle_path(md, side)
+        nr = bp - md['C']; nr /= np.linalg.norm(nr, axis=1, keepdims=True)
+        Vb_, Fb_ = gear.tube_along(bp, nr, 0.0018, lift=-0.0002)
+        objs.append(rigid(gear.mesh_object(f'HERO_bridle.{s}', Vb_, Fb_, [mats['gold']]), rig, 'head'))
     return objs, nozzles
 
 
@@ -602,7 +664,9 @@ def build():
                 gold=HM.gold_material(), gunmetal=HM.gunmetal_material(),
                 amber=HM.amber_light_material(), rubber=HM.black_rubber_material(),
                 web=HM.web_material(), shoe=HM.shoe_material_v2(),
-                lens_frame=HM.lens_frame_material(), lens_glass=HM.lens_glass_material())
+                lens_frame=HM.lens_frame_material(), lens_glass=HM.lens_glass_material(),
+                chrome=HM.chrome_material(), star=HM.star_material(), sole=HM.sole_material_v2(),
+                ink=HM.ink_material())
     body.data.materials.append(mats['suit'])
     gobjs, nozzles = build_gear_v2(d, rig, mats)
     # drop the bare-foot faces now hidden inside the feet covers
