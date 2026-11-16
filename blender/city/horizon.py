@@ -39,13 +39,26 @@ def build_horizon(cols, seed=91):
                     px = rng.uniform(bx + 5, bx + bw - 5 - w)
                     py = rng.uniform(by + 5, by + bd - 5 - d)
                     h = rng.uniform(6, 30) * math.exp(rng.gauss(0, 0.35))
-                    if rng.random() < tall:
-                        h = rng.uniform(60, 190)
+                    if rng.random() < tall * 2.5:
+                        h = rng.uniform(50, 190)
                     spec = dict(style=rng.choice(['prewar', 'prewar', 'slab', 'glass' if h > 50 else 'slab']),
                                 seed=rng.randrange(1 << 30))
                     bcol, bprm = BD.far_attrs(spec, random.Random(spec['seed']))
                     A = {'bcol': bcol, 'bprm': bprm}
                     mb.prism(BD.rect(px, px + w, py, py + d), 0.3, 0.4 + h, 1, top=True, attrs=A, side_mat=0)
+                    if h > 35:   # setback tiers / crowns so far towers have silhouettes
+                        zc, ww, dd = 0.4 + h, w, d
+                        for t in range(rng.randint(1, 3)):
+                            ww *= rng.uniform(0.55, 0.8)
+                            dd *= rng.uniform(0.55, 0.8)
+                            th = h * rng.uniform(0.08, 0.25)
+                            cx, cy = px + w / 2, py + d / 2
+                            mb.prism(BD.rect(cx - ww / 2, cx + ww / 2, cy - dd / 2, cy + dd / 2), zc, zc + th, 1, top=True,
+                                     attrs=A, side_mat=0)
+                            zc += th
+                        if rng.random() < 0.3:
+                            cx, cy = px + w / 2, py + d / 2
+                            mb.prism(BD.rect(cx - 0.6, cx + 0.6, cy - 0.6, cy + 0.6), zc, zc + h * 0.3, 1, top=True, attrs=A, side_mat=1)
                 by += bd
             bx += bw
         new_object(f"HORIZON_{ri}", mb.build(f"HORIZON_{ri}", BD.far_mats()), col)

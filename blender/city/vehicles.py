@@ -72,8 +72,8 @@ def _section(w, zb, zbelt, ztop, tumble=0.78):
 
 def body(mb, kind, L, W, paint_slot=PAINT, cabin=None):
     prof = _profile(kind)
-    n = 34
-    ts = [-1 + 2 * i / (n - 1) for i in range(n)]
+    n = 26
+    ts = [math.sin(math.pi / 2 * (-1 + 2 * i / (n - 1))) for i in range(n)]
     rings = []
     for t in ts:
         zb, zbelt, ztop, pw = _interp(prof, t)
@@ -178,9 +178,42 @@ def details(mb, L, W, prof, front_z, cab=False):
             mb.box(s * (w + 0.002) - 0.004, s * (w + 0.002) + 0.004, yy - 0.006, yy + 0.006, zb + 0.15, zbelt - 0.03, DARK)
 
 
+def _subdivided(mbb, name, mats, levels=1):
+    """Catmull-Clark the welded body shell (curved panels), via a temporary object."""
+    import bpy
+    me = _finish(mbb, name + "_body", mats)
+    ob = bpy.data.objects.new("_tmp_sub", me)
+    bpy.context.scene.collection.objects.link(ob)
+    m = ob.modifiers.new("s", 'SUBSURF')
+    m.levels = levels
+    m.render_levels = levels
+    dg = bpy.context.evaluated_depsgraph_get()
+    me2 = bpy.data.meshes.new_from_object(ob.evaluated_get(dg))
+    bpy.data.objects.remove(ob)
+    bpy.data.meshes.remove(me)
+    for poly in me2.polygons:
+        poly.use_smooth = True
+    return me2
+
+
+def _join(me_a, me_b):
+    import bmesh
+    bm = bmesh.new()
+    bm.from_mesh(me_a)
+    bm.from_mesh(me_b)
+    bm.to_mesh(me_a)
+    bm.free()
+    return me_a
+
+
 def car(name, kind, L, W, paint='car_paint', roof_sign=False):
+    import bpy
+    mats = list(MATS)
+    mats[0] = paint
+    mbb = MB()
+    prof = body(mbb, kind, L, W)
+    me_body = _subdivided(mbb, name, mats, levels=2)
     mb = MB()
-    prof = body(mb, kind, L, W)
     r = 0.34 if kind in ('sedan', 'hatch') else 0.40
     for yy in (-L / 2 + L * 0.19, L / 2 - L * 0.18):
         for s in (-1, 1):
@@ -193,9 +226,10 @@ def car(name, kind, L, W, paint='car_paint', roof_sign=False):
         zt = _interp(prof, 0.0)[2]
         mb.box(-0.3, 0.3, -0.08, 0.08, zt, zt + 0.2, SIGN)
         mb.box(-0.32, 0.32, -0.1, 0.1, zt - 0.005, zt + 0.02, DARK)
-    mats = list(MATS)
-    mats[0] = paint
-    return _finish(mb, name, mats)
+    me_det = _finish(mb, name, mats)
+    _join(me_det, me_body)
+    bpy.data.meshes.remove(me_body)
+    return me_det
 
 
 def _livery_quad(mb, x, y0, y1, z0, z1, side, ad):

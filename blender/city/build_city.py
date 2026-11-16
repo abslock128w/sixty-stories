@@ -31,6 +31,7 @@ import protos as PR  # noqa: E402
 import signage as SG  # noqa: E402
 import extras as EX  # noqa: E402
 import vehicles as VH  # noqa: E402
+import extras2 as X2  # noqa: E402
 from cutil import MB, new_object, get_collection  # noqa: E402
 
 OUT = os.path.join(ROOT, "blender", "out")
@@ -293,6 +294,11 @@ def main():
     EX.build_bridges(cols)
     EX.build_industry(cols)
     log("waterfront people", EX.build_waterfront(cols))
+    X2.register()
+    X2.build_graffiti_atlas(os.path.join(OUT, "city_tex"))
+    log("street detail r7", X2.dress(cols, specs))
+    log("boats", X2.waterfront(cols))
+    X2.skybridge_crowns(cols)
     EX.build_showcase(scene)
     HZ.build_horizon(cols)
     log("horizon", f"{time.time() - t0:.1f}s")

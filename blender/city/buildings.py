@@ -8,7 +8,8 @@ import materials as MAT
 from cutil import MB, hash01
 import layout as LY
 
-SLOTS = ['wall', 'trim', 'window', 'spandrel', 'metal', 'roof', 'shop', 'curtain', 'cw_spandrel', 'blank', 'louvre', 'patina']
+SLOTS = ['wall', 'trim', 'window', 'spandrel', 'metal', 'roof', 'shop', 'curtain', 'cw_spandrel', 'blank', 'louvre', 'patina',
+         'alt_brick', 'alt_stone', 'alt_trim', 'alt_terracotta']
 S = {k: i for i, k in enumerate(SLOTS)}
 
 BRICK_COLS = [(0.225, 0.090, 0.053), (0.270, 0.120, 0.068), (0.315, 0.188, 0.112), (0.180, 0.075, 0.053),
@@ -101,6 +102,10 @@ def mats_for(P):
         'blank': MAT.get('brick') if wall != 'panel' else MAT.get('concrete'),
         'louvre': MAT.get('louvre'),
         'patina': MAT.get('patina'),
+        'alt_brick': MAT.get('brick'),
+        'alt_stone': MAT.get('limestone'),
+        'alt_trim': MAT.get('trim'),
+        'alt_terracotta': MAT.get('terracotta'),
     }
     return [m[k] for k in SLOTS]
 
@@ -172,8 +177,11 @@ def floor_levels(z0, z1, zbase, P, storefront):
 
 def build_facade(mb, face, z0, z1, P, rng, bcol, storefront, ext_end, fl_rand, zfloor0=0.0):
     L = face.L
+    WS = P.get('wall_slot', S['wall'])
+    TS = P.get('trim_slot', S['trim'])
+    SS = P.get('spandrel_slot', S['spandrel'])
     if L < 2.0:
-        face.quad(mb, 0, L, 0, z0, z1, S['wall'], {'bcol': bcol}, uv=False)
+        face.quad(mb, 0, L, 0, z0, z1, WS, {'bcol': bcol}, uv=False)
         return
     A = {'bcol': bcol}
     dp, ds, cw, pw = P['dp'], P['ds'], P['cw'], P['pw']
@@ -184,7 +192,7 @@ def build_facade(mb, face, z0, z1, P, rng, bcol, storefront, ext_end, fl_rand, z
         n = max(1, int((L - 2 * cw) / (pw + 0.9)))
         b = (L - 2 * cw) / n
     ext = dp if ext_end else 0.0
-    wall = S['trim'] if curtain else S['wall']
+    wall = TS if curtain else WS
     # corner piers / mullions
     face.box(mb, 0, cw, 0, dp, z0, z1, wall, A)
     face.box(mb, L - cw, L + ext, 0, dp, z0, z1, wall, A)
@@ -193,18 +201,18 @@ def build_facade(mb, face, z0, z1, P, rng, bcol, storefront, ext_end, fl_rand, z
     if storefront and P.get('base_trim') and not curtain:
         # distinct base (base / middle / top): heavier piers in the base material, plus a string course
         zbt = z0 + P['gh']
-        face.box(mb, 0, cw + 0.05, 0, dp + 0.12, z0, zbt, S['trim'], A)
-        face.box(mb, L - cw - 0.05, L + ext, 0, dp + 0.12, z0, zbt, S['trim'], A)
+        face.box(mb, 0, cw + 0.05, 0, dp + 0.12, z0, zbt, TS, A)
+        face.box(mb, L - cw - 0.05, L + ext, 0, dp + 0.12, z0, zbt, TS, A)
         for k in range(1, n):
             sk = cw + k * b
-            face.box(mb, sk - pw / 2 - 0.1, sk + pw / 2 + 0.1, 0, dp + 0.12, z0, zbt, S['trim'], A)
-        face.box(mb, 0, L + ext, 0, dp + 0.25, zbt, zbt + 0.45, S['trim'], A)
+            face.box(mb, sk - pw / 2 - 0.1, sk + pw / 2 + 0.1, 0, dp + 0.12, z0, zbt, TS, A)
+        face.box(mb, 0, L + ext, 0, dp + 0.25, zbt, zbt + 0.45, TS, A)
     for k in range(1, n):
         s = cw + k * b
         if me_ and k % me_ == 0:
             face.box(mb, s - pw / 2 - 0.2, s + pw / 2 + 0.2, 0, dp + 0.22, z0, z1, wall, A)
         else:
-            face.box(mb, s - pw / 2, s + pw / 2, 0, dp, z0, z1, wall if not P['ribbon'] else S['trim'], A)
+            face.box(mb, s - pw / 2, s + pw / 2, 0, dp, z0, z1, wall if not P['ribbon'] else TS, A)
     rows = floor_levels(z0, z1, zfloor0, P, storefront)
     # storefront zone
     ztop_store = z0
@@ -225,13 +233,13 @@ def build_facade(mb, face, z0, z1, P, rng, bcol, storefront, ext_end, fl_rand, z
                     face.box(mb, (s0 + s1) / 2 - 0.5, (s0 + s1) / 2 + 0.5, 0, 0.1, z0 + 0.45, z0 + 2.55, S['metal'], A)
                 face.quad(mb, s0, s1, 0, z0 + 0.1, ztop_store - 0.6,
                           S['shop'], {'bcol': bcol, 'win': (rng.random() * 0.4, 0.0, 0.0, rng.random()), 'wroom': rf})
-                face.box(mb, s0, s1, 0, 0.12, ztop_store - 0.6, ztop_store, S['trim'], A, caps=False)
+                face.box(mb, s0, s1, 0, 0.12, ztop_store - 0.6, ztop_store, TS, A, caps=False)
             else:
-                face.box(mb, s0, s1, 0, 0.1, z0, z0 + 0.5, S['trim'], A, caps=False)
+                face.box(mb, s0, s1, 0, 0.1, z0, z0 + 0.5, TS, A, caps=False)
                 face.quad(mb, s0, s1, 0, z0 + 0.5, ztop_store - 1.0,
                           S['shop'], {'bcol': bcol, 'win': (rng.random(), 0.0, 0.0, rng.random()), 'wroom': rf})
                 face.box(mb, s0, s1, 0, max(ds, 0.12) + 0.04, ztop_store - 1.0, ztop_store - 0.2, S['metal'], A, caps=False)
-                face.box(mb, s0, s1, 0, max(ds, 0.1), ztop_store - 0.2, ztop_store, S['trim'], A, caps=False)
+                face.box(mb, s0, s1, 0, max(ds, 0.1), ztop_store - 0.2, ztop_store, TS, A, caps=False)
     # window rows + spandrels between
     edges = [ztop_store] + [z for r in rows for z in (r[1], r[2])] + [z1]
     # spandrel bands: (edges[0], sill0), (head0, sill1), ..., (head_last, z1)
@@ -240,15 +248,15 @@ def build_facade(mb, face, z0, z1, P, rng, bcol, storefront, ext_end, fl_rand, z
         if zb - za < 0.01:
             continue
         if P['ribbon']:
-            face.box(mb, 0, L + (ds if ext_end else 0.0), 0, ds, za, zb, S['spandrel'], A, caps=True)
+            face.box(mb, 0, L + (ds if ext_end else 0.0), 0, ds, za, zb, SS, A, caps=True)
             continue
         for k in range(n):
             s0 = cw + k * b + (pw / 2 if k > 0 else 0)
             s1 = cw + (k + 1) * b - (pw / 2 if k < n - 1 else 0)
             if curtain or ds <= 0.001:
-                face.quad(mb, s0, s1, 0.0, za, zb, S['cw_spandrel'] if curtain else S['spandrel'], A, uv=False)
+                face.quad(mb, s0, s1, 0.0, za, zb, S['cw_spandrel'] if curtain else SS, A, uv=False)
             else:
-                face.box(mb, s0, s1, 0, ds, za, zb, S['spandrel'], A, caps=False)
+                face.box(mb, s0, s1, 0, ds, za, zb, SS, A, caps=False)
     # windows
     blind_p = P['blind_p']
     for fi, (fz, sz, hz) in enumerate(rows):
@@ -297,7 +305,7 @@ def build_facade(mb, face, z0, z1, P, rng, bcol, storefront, ext_end, fl_rand, z
                 face.quad(mb, s0, mid - 0.12, 0.0, sz, hz, S['curtain'] if curtain else S['window'], wa)
                 face.quad(mb, mid + 0.12, s1, 0.0, sz, hz, S['curtain'] if curtain else S['window'],
                           {'bcol': bcol, 'win': (rng.random(), lrank, blind, tint), 'wroom': wa.get('wroom')})
-                face.box(mb, mid - 0.12, mid + 0.12, 0, ds, sz, hz, S['wall'], A, caps=False)
+                face.box(mb, mid - 0.12, mid + 0.12, 0, ds, sz, hz, WS, A, caps=False)
             else:
                 face.quad(mb, s0, s1, 0.0, sz, hz, S['curtain'] if curtain else S['window'], wa)
             if P.get('frames_z') is not None and sz >= P['frames_z'] and sz < P.get('frames_zmax', 1e9) and (P.get('arch') is None or RC):
@@ -311,12 +319,65 @@ def build_facade(mb, face, z0, z1, P, rng, bcol, storefront, ext_end, fl_rand, z
                 tz = sz + (hz - sz) * 0.72
                 face.box(mb, s0 + fw, s1 - fw, 0, fd * 0.8, tz - 0.03, tz + 0.03, M, A)
             if P['sills']:
-                face.box(mb, s0 - 0.07, s1 + 0.07, 0, ds + 0.08, sz - 0.07, sz + 0.03, S['trim'], A)
+                face.box(mb, s0 - 0.07, s1 + 0.07, 0, ds + 0.08, sz - 0.07, sz + 0.03, TS, A)
             if P['lintels']:
-                face.box(mb, s0 - 0.14, s1 + 0.14, 0, ds + 0.04, hz - 0.02, hz + 0.24, S['trim'], A)
+                face.box(mb, s0 - 0.14, s1 + 0.14, 0, ds + 0.04, hz - 0.02, hz + 0.24, TS, A)
         if curtain and fi % 1 == 0:
             # horizontal transom fins at slab level
-            face.box(mb, cw, L - cw, 0, dp * 0.6, fz - 0.06, fz + 0.06, S['trim'], A, caps=False)
+            face.box(mb, cw, L - cw, 0, dp * 0.6, fz - 0.06, fz + 0.06, TS, A, caps=False)
+
+
+SUBS = [  # street-wall sub-buildings: (wall slot, trim slot, colour, style)
+    ('alt_brick', 'alt_trim', (0.42, 0.15, 0.08), 'prewar'), ('alt_stone', 'alt_trim', (0.66, 0.62, 0.55), 'prewar'),
+    ('alt_brick', 'alt_stone', (0.55, 0.42, 0.28), 'prewar'), ('alt_terracotta', 'alt_trim', (0.62, 0.40, 0.25), 'deco'),
+    ('alt_stone', 'alt_stone', (0.52, 0.47, 0.38), 'deco'), ('alt_brick', 'alt_trim', (0.22, 0.12, 0.09), 'prewar'),
+    ('curtain', 'metal', (0.10, 0.12, 0.13), 'glass'), ('alt_stone', 'metal', (0.30, 0.30, 0.31), 'slab'),
+]
+
+
+def street_wall(mb, face, z0, z1, P, rng, bcol, fl_rand, spec):
+    """Split the avenue face into separate 'buildings' 12-30 m wide with their own heights, materials,
+    window rhythms and cornices; above each, the main tower facade continues (inside the frozen lot
+    envelope). Separate RNG so the building's own sequence is not disturbed."""
+    r = random.Random(spec['seed'] * 101 + 17)
+    L = face.L
+    cuts = [0.0]
+    while L - cuts[-1] > 30:
+        w = r.uniform(12, 28)
+        if L - cuts[-1] - w < 12:
+            w = (L - cuts[-1]) / 2
+        cuts.append(cuts[-1] + w)
+    cuts.append(L)
+    H = z1 - z0
+    for k, (a, b) in enumerate(zip(cuts[:-1], cuts[1:])):
+        sub = Face(face.pt(a, 0, 0)[:2], face.pt(b, 0, 0)[:2])
+        if r.random() < 0.25 and len(cuts) > 2 or H < 18:
+            hp = H
+            P2, bc2 = P, bcol
+        else:
+            wall_s, trim_s, col, st = r.choice(SUBS)
+            P2 = style_params(st if st != 'glass' else 'glass', random.Random(r.randrange(1 << 30)), H)
+            P2.update(wall_slot=S[wall_s] if wall_s != 'curtain' else S['trim'], trim_slot=S[trim_s],
+                      spandrel_slot=S[wall_s] if st != 'glass' else S['cw_spandrel'], use=P.get('use', 'office'),
+                      rooms=True, frames_z=0.0 if st != 'glass' else None, frames_zmax=60.0, ac_p=0.05,
+                      fire_escape=False, arch='sub', base_trim=r.random() < 0.5)
+            P2['sh'] = r.uniform(3.4, 4.1)
+            j = r.uniform(0.9, 1.1)
+            bc2 = (col[0] * j, col[1] * j, col[2] * j, bcol[3])
+            nst = r.choice([3, 4, 5, 6, 8, 10, 12, 14])
+            hp = min(H, P2['gh'] + nst * P2['sh'] + 1.2)
+        build_facade(mb, sub, z0, z0 + hp, P2, rng if P2 is P else random.Random(r.randrange(1 << 30)), bc2, True,
+                     ext_end=False, fl_rand=fl_rand)
+        if hp < H - 2:
+            # cornice + parapet line of the sub-building, then the tower above set back by its own depth
+            cp = (P2['dp'] + 0.7)
+            sub.box(mb, -0.1, sub.L + 0.1, 0, cp, z0 + hp - 0.6, z0 + hp, P2.get('trim_slot', S['trim']), {'bcol': bc2})
+            sub.box(mb, -0.1, sub.L + 0.1, 0, cp + 0.15, z0 + hp, z0 + hp + 0.25, P2.get('trim_slot', S['trim']), {'bcol': bc2})
+            build_facade(mb, sub, z0 + hp + 0.25, z1, P, rng, bcol, False, ext_end=False, fl_rand=fl_rand)
+        # party-wall joint between sub-buildings
+        if k > 0:
+            face.box(mb, a - 0.18, a + 0.18, -0.25, max(P['dp'], P2['dp']) + 0.35, z0, z0 + min(hp + 1.5, H), S['blank'],
+                     {'bcol': (0.06, 0.06, 0.06, 0.5)})
 
 
 def roof_clutter(spec, tiers, P, out):
@@ -543,8 +604,12 @@ def build_near(spec, lidx, protos_out, P=None, tiers=None, crown=None, bcol=None
                 f.quad(mb, 0, f.L, 0, t['z0'], zb, S['blank'], {'bcol': bcol}, uv=False)
             if zb < t['z1'] - 2.0:
                 storefront = (t['z0'] == 0.0 and zb == 0.0)
-                build_facade(mb, f, zb, t['z1'], P, rng, bcol, storefront, ext_end=(nxt <= zb + 0.5 and nxt < t['z1']),
-                             fl_rand=fl_rand)
+                if storefront and P.get('arch') and abs(f.n[0]) > 0.7 and f.L > 14 and \
+                        abs((f.p0[0] + f.p1[0]) / 2) < LY.HERO_AVE_W / 2 + 0.6:
+                    street_wall(mb, f, zb, t['z1'], P, rng, bcol, fl_rand, spec)
+                else:
+                    build_facade(mb, f, zb, t['z1'], P, rng, bcol, storefront, ext_end=(nxt <= zb + 0.5 and nxt < t['z1']),
+                                 fl_rand=fl_rand)
             elif zb < t['z1']:
                 f.quad(mb, 0, f.L, 0, zb, t['z1'], S['blank'], {'bcol': bcol}, uv=False)
         # roof of tier + parapet coping / cornice
