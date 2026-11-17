@@ -44,6 +44,9 @@ def setup_world(scene, sun_az_deg, sun_el_deg=12.0):
     sky.altitude = 50.0
     sky.air_density = 1.4
     sky.aerosol_density = 2.2
+    ring = bpy.data.objects.get("proof_ring")
+    if ring:
+        ring.rotation_euler = (0, 0, -math.radians(sun_az_deg))
     bg = nt.nodes.new("ShaderNodeBackground")
     bg.inputs["Strength"].default_value = 0.22
     out = nt.nodes.new("ShaderNodeOutputWorld")
@@ -54,13 +57,13 @@ def setup_world(scene, sun_az_deg, sun_el_deg=12.0):
 def mat_asphalt():
     m, nt, b = taxi._new_mat("proof_asphalt")
     tc = taxi._texco(nt)
-    n1 = taxi._n(nt, "ShaderNodeTexNoise", -800, 0, Scale=4.0, Detail=8.0, Roughness=0.6)
+    n1 = taxi._n(nt, "ShaderNodeTexNoise", -800, 0, Scale=1.2, Detail=8.0, Roughness=0.6)
     taxi._l(nt, tc.outputs["Object"], n1.inputs["Vector"])
     v = taxi._n(nt, "ShaderNodeTexVoronoi", -800, -300, Scale=900.0)
     taxi._l(nt, tc.outputs["Object"], v.inputs["Vector"])
     agg = taxi._maprange(nt, v.outputs["Distance"], 0.0, 0.5, 1.0, 0.0)
-    col = taxi._mixc(nt, taxi._maprange(nt, n1.outputs["Fac"], 0.35, 0.65), (0.055, 0.054, 0.052, 1), (0.085, 0.082, 0.078, 1))
-    col = taxi._mixc(nt, taxi._math(nt, "MULTIPLY", agg, 0.35), col, (0.16, 0.155, 0.15, 1))
+    col = taxi._mixc(nt, taxi._maprange(nt, n1.outputs["Fac"], 0.35, 0.65), (0.040, 0.039, 0.038, 1), (0.058, 0.056, 0.054, 1))
+    col = taxi._mixc(nt, taxi._math(nt, "MULTIPLY", agg, 0.25), col, (0.11, 0.105, 0.10, 1))
     taxi._l(nt, col, b.inputs["Base Color"])
     taxi._l(nt, taxi._maprange(nt, n1.outputs["Fac"], 0.3, 0.7, 0.62, 0.9), b.inputs["Roughness"])
     bp = taxi._n(nt, "ShaderNodeBump", 0, -400, Strength=0.35, Distance=0.002)
@@ -117,8 +120,11 @@ def setup_stage(scene):
     # ring of building blocks for reflections
     import random
     rnd = random.Random(7)
-    for i in range(22):
-        a = 2 * math.pi * i / 22 + rnd.uniform(-0.05, 0.05)
+    ring = bpy.data.objects.new("proof_ring", None)
+    coll.objects.link(ring)
+    for i in range(18):
+        # leave a gap around local +Y; setup_world turns the ring so the gap faces the sun
+        a = math.radians(45 + 270 * i / 17) + rnd.uniform(-0.04, 0.04)
         r = rnd.uniform(26, 40)
         bm = bmesh.new()
         bmesh.ops.create_cube(bm, size=1.0)
@@ -130,6 +136,7 @@ def setup_stage(scene):
         o = bpy.data.objects.new("proof_block", me)
         o.location = (r * math.sin(a), r * math.cos(a), 0)
         o.rotation_euler = (0, 0, -a)
+        o.parent = ring
         me.materials.append(mat_block(i))
         coll.objects.link(o)
     return coll
@@ -158,7 +165,7 @@ def setup_render(scene, res, samples, threads, aspect=(16, 9)):
         scene.view_settings.look = "AgX - Medium High Contrast"
     except Exception:
         pass
-    scene.view_settings.exposure = 0.0
+    scene.view_settings.exposure = -1.3
     scene.render.image_settings.file_format = "PNG"
 
 

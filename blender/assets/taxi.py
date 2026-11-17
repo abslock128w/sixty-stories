@@ -50,7 +50,7 @@ ARCH_R = 0.392
 COWL_Y, DECK_Y = 0.80, -1.45      # greenhouse footprint on the body
 
 VARIANTS = {
-    "yellow_cab": dict(paint=(0.86, 0.43, 0.012), metal=0.05, flake=0.10, coat_rough=0.035,
+    "yellow_cab": dict(paint=(0.80, 0.50, 0.004), metal=0.05, flake=0.10, coat_rough=0.035,
                        taxi=True, trim="black", dirt=0.85, plate=("T 482 77C", "TAXI"), rims="silver"),
     "black_sedan": dict(paint=(0.012, 0.012, 0.014), metal=0.55, flake=0.35, coat_rough=0.02,
                         taxi=False, trim="chrome", dirt=0.55, plate=("HC 4471", "LIVERY"), rims="dark"),
@@ -250,7 +250,7 @@ def mesh_from_faces(name, lat, faces, mat_of_face=None, uv_scale=1.0):
 _Zb = pchip([(-2.6, 0.345), (-2.25, 0.32), (-1.85, 0.235), (-1.6, 0.205), (1.65, 0.20),
              (2.0, 0.225), (2.6, 0.265)])
 _Zt = pchip([(-2.6, 0.985), (-2.38, 1.03), (-2.0, 1.048), (-1.45, 1.04), (-0.9, 1.03),
-             (0.0, 1.002), (0.8, 0.978), (1.4, 0.93), (2.0, 0.862), (2.3, 0.82), (2.6, 0.79)])
+             (0.0, 1.002), (0.8, 0.975), (1.4, 0.915), (2.0, 0.835), (2.3, 0.785), (2.6, 0.755)])
 _W0 = pchip([(-2.6, 0.855), (-2.25, 0.895), (-1.8, 0.918), (0.0, 0.925), (1.85, 0.918),
              (2.2, 0.895), (2.6, 0.865)])
 _prof = pchip([(0.0, 0.935), (0.05, 0.962), (0.14, 0.984), (0.42, 1.0), (0.62, 0.997),
@@ -270,7 +270,7 @@ def body_pos(u, v, w):
     else:
         leanR = 0.035 * ((w - 0.40) / 0.60) ** 2
     au = abs(u)
-    sweepF = 0.25 * au ** 2.3
+    sweepF = 0.30 * au ** 3.2
     sweepR = 0.20 * au ** 2.6
     Y = v - tF * (leanF + sweepF) + tR * (leanR + sweepR)
     zb, zt = _Zb(Y), _Zt(Y)
@@ -759,8 +759,8 @@ def mat_tyre(name, tex):
     # brownish road dust on the lower sidewall / tread shoulders, cleaner letters
     dn = _n(nt, "ShaderNodeTexNoise", -600, 300, Scale=30.0, Detail=8.0)
     _l(nt, tc.outputs["Object"], dn.inputs["Vector"])
-    dust = _maprange(nt, dn.outputs["Fac"], 0.35, 0.7, 0.0, 0.55)
-    col = _mixc(nt, dust, (0.022, 0.021, 0.020, 1.0), (0.11, 0.095, 0.08, 1.0))
+    dust = _maprange(nt, dn.outputs["Fac"], 0.4, 0.75, 0.0, 0.3)
+    col = _mixc(nt, dust, (0.020, 0.020, 0.020, 1.0), (0.075, 0.068, 0.06, 1.0))
     col = _mixc(nt, _math(nt, "MULTIPLY", im.outputs["Color"], 0.35), col, (0.05, 0.05, 0.05, 1.0))
     _l(nt, col, b.inputs["Base Color"])
     _l(nt, _mixf(nt, dust, 0.62, 0.9), b.inputs["Roughness"])
@@ -842,7 +842,7 @@ def build_materials(variant, cfg, tex, dirt):
     M["lens_red"] = mat_lens("taxi_lens_red", (0.75, 0.025, 0.02), rough=0.02, pattern=0.08)
     M["lens_amber"] = mat_lens("taxi_lens_amber", (0.95, 0.42, 0.02), rough=0.02)
     M["reflector"] = mat_simple("taxi_reflector", (0.9, 0.9, 0.92), rough=0.08, metal=1.0)
-    M["housing"] = mat_simple("taxi_lamp_housing", (0.03, 0.03, 0.032), rough=0.45)
+    M["housing"] = mat_simple("taxi_lamp_housing", (0.16, 0.16, 0.17), rough=0.22, metal=1.0)
     M["drl"] = mat_simple("taxi_drl", (0.9, 0.95, 1.0), rough=0.3, emission=(0.86, 0.93, 1.0), estrength=14.0)
     M["tail_led"] = mat_simple("taxi_tail_led", (0.6, 0.02, 0.01), rough=0.3, emission=(1.0, 0.03, 0.01), estrength=9.0)
     M["amber_led"] = mat_simple("taxi_amber_led", (0.8, 0.35, 0.0), rough=0.4)
@@ -1035,12 +1035,13 @@ def build_body(coll, M, parent):
     wreq += edge_lines(0.88, 0.009) + edge_lines(0.08, 0.012) + edge_lines(0.30, 0.012)
     wreq += edge_lines(0.60, 0.012) + edge_lines(0.86, 0.010) + edge_lines(0.16, 0.012)
     wreq += [0.0, 0.015, 0.045, 0.985, 0.955, 0.67, 0.69, 0.72, 0.73]
-    vreq += [YF, YF - 0.012, YF - 0.04, YR, YR + 0.012, YR + 0.04, YF - 0.27, YF - 0.27 - 0.012,
+    vreq += [YF, YF - 0.03, YF - 0.08, YR, YR + 0.025, YR + 0.07, YF - 0.27, YF - 0.27 - 0.012,
              YF - 0.27 + 0.012, YR + 0.22, YR + 0.22 - 0.012, YR + 0.22 + 0.012, COWL_Y, COWL_Y + 0.012,
              DECK_Y, DECK_Y - 0.012]
-    U = lines(ureq, -1, 1, 0.07)
-    V = lines(vreq, YR, YF, 0.065)
-    W = lines(wreq, 0, 1, 0.06)
+    U = lines(ureq, -1, 1, 0.11)
+    V = lines(vreq, YR, YF, 0.10)
+    W = lines(wreq, 0, 1, 0.09)
+    print("body lattice", len(U), len(V), len(W))
     lat = Lattice(U, V, W, body_pos)
 
     keep, hl, tl = [], {"R": [], "L": []}, {"R": [], "L": []}
@@ -1106,7 +1107,7 @@ def build_body(coll, M, parent):
     bo.operation = "DIFFERENCE"
     bo.operand_type = "COLLECTION"
     bo.collection = cut_coll
-    bo.solver = "EXACT"
+    bo.solver = "MANIFOLD"
     return body, lat, hl, tl
 
 
@@ -1250,7 +1251,7 @@ def build_lamps(coll, M, parent, blat, hl, tl):
                 objs.append(o)
                 # amber indicator block in the outer, wrapped part
                 p, n = blat.normal(sgn, YF - 0.10, 0.75, "R" if sgn > 0 else "L")
-                o = rounded_box("taxi_indicator", (0.012, 0.11, 0.035), coll, [M["amber_led"]], parent,
+                o = rounded_box("taxi_indicator", (0.006, 0.08, 0.022), coll, [M["amber_led"]], parent,
                                 loc=p - n * 0.03, levels=1)
                 objs.append(o)
             else:
@@ -1528,29 +1529,33 @@ def build_details(coll, M, parent, cfg, body, blat, clat, tex):
 
     # ---- grille + lower intake: recessed mesh panels behind the cut-outs
     def grille_panel(name, u0, u1, w0, w1, inset, cell, mat_frame):
+        # diamond mesh: two families of thin flat bars at +-38 deg, conformed to the fascia
         bm = bmesh.new()
-        # hex-ish mesh as staggered rounded diamonds; built in (u,w) then mapped onto the fascia
-        nu = int((u1 - u0) * 0.9 / cell)
-        nw = int((w1 - w0) * 0.55 / (cell * 0.75))
-        backing = []
-        for i in range(nu + 1):
-            for j in range(nw + 1):
-                uc = u0 + (i + (0.5 if j % 2 else 0)) * (u1 - u0) / nu
-                wc = w0 + j * (w1 - w0) / nw
-                if uc > u1 or uc < u0:
-                    continue
-                p, n = blat.normal(uc, YF, wc, "F")
-                p = p - n * inset
-                sz = cell * 0.36
-                ring_o, ring_i = [], []
-                for k in range(6):
-                    a = math.pi / 6 + k * math.pi / 3
-                    d1 = Vector((math.cos(a) * sz * 1.25, 0, math.sin(a) * sz))
-                    ring_o.append(bm.verts.new(p + d1))
-                    ring_i.append(bm.verts.new(p + d1 * 0.62 - n * 0.008))
-                for k in range(6):
-                    bm.faces.new((ring_o[k], ring_o[(k + 1) % 6], ring_i[(k + 1) % 6], ring_i[k]))
-        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        hu = (u1 - u0) * 0.92          # metres across (approx)
+        hw = (w1 - w0) * 0.55          # metres up (approx)
+        ang = math.radians(38)
+        step = cell
+        for fam in (1, -1):
+            k = -int((hu + hw) / step) - 2
+            while k * step < hu + hw + step:
+                c0 = k * step
+                pts = []
+                for t in np.linspace(-0.2, 1.2, 40):
+                    xm = c0 + t * hw / math.tan(ang) * fam
+                    zm = t * hw
+                    uu = u0 + xm / 0.92
+                    ww = w0 + zm / 0.55
+                    if u0 - 0.01 <= uu <= u1 + 0.01 and w0 - 0.01 <= ww <= w1 + 0.01:
+                        p, n = blat.normal(uu, YF, ww, "F")
+                        pts.append(p - n * (inset + (0.004 if fam > 0 else 0.0)))
+                if len(pts) >= 2:
+                    tb = sweep_tube(pts, 0.006, 4, scale_xy=(0.45, 1.0), up=Vector((0, 1, 0)))
+                    tmp = bpy.data.meshes.new("tmp")
+                    tb.to_mesh(tmp)
+                    tb.free()
+                    bm.from_mesh(tmp)
+                    bpy.data.meshes.remove(tmp)
+                k += 1
         o = bm_to_obj(name, bm, coll, [mat_frame], parent, smooth=False)
         objs.append(o)
         # dark backing surface
@@ -1600,19 +1605,14 @@ def build_details(coll, M, parent, cfg, body, blat, clat, tex):
             for lp in f.loops:
                 lp[uvl].uv = (lp.vert.co.x / 0.305 + 0.5, lp.vert.co.y / 0.152 + 0.5)
         o = bm_to_obj("taxi_plate_" + ("front" if front else "rear"), bm, coll, [M["plate"]], parent)
-        o.location = p + n * 0.006
-        o.rotation_euler = (Vector((0, 0, 1)).rotation_difference(n) @ Matrix.Rotation(0, 3, "Z").to_quaternion()).to_euler()
-        if not front:
-            o.rotation_euler = Matrix.Rotation(math.radians(90), 4, "X").to_euler()
-            o.rotation_euler.z = math.pi
-            o.rotation_euler = (math.radians(90) + math.atan2(n.z, -n.y), 0, math.pi)
-        else:
-            o.rotation_euler = (math.radians(90) - math.atan2(n.z, n.y), 0, 0)
+        o.location = p + n * 0.0085
+        tilt = math.atan2(n.z, abs(n.y))
+        # plane normal (+Z) -> outward fascia normal, image upright for a viewer facing it
+        o.rotation_euler = (math.radians(90) - tilt, 0, math.pi if front else 0.0)
         objs.append(o)
-        fr = rounded_box("taxi_plate_frame", (0.325, 0.012, 0.172), coll, [M["black_tex"]], parent,
-                         loc=p + n * 0.001, levels=1, sup=0.08)
-        fr.rotation_euler = o.rotation_euler.copy()
-        fr.rotation_euler.x -= math.radians(90)
+        fr = rounded_box("taxi_plate_frame", (0.325, 0.008, 0.172), coll, [M["black_tex"]], parent,
+                         loc=p + n * 0.003, levels=1, sup=0.08)
+        fr.rotation_euler = ((tilt if front else -tilt), 0, 0)
         objs.append(fr)
 
     # ---- mirrors
@@ -1707,11 +1707,11 @@ def build_details(coll, M, parent, cfg, body, blat, clat, tex):
             uvl = bm.loops.layers.uv.new("UVMap")
             for f in bm.faces:
                 for lp in f.loops:
-                    lp[uvl].uv = (lp.vert.co.x / 0.52 * sy + 0.5, lp.vert.co.y / 0.155 + 0.5)
+                    lp[uvl].uv = (lp.vert.co.x / 0.52 + 0.5, lp.vert.co.y / 0.155 + 0.5)
             o = bm_to_obj("taxi_roof_sign_face", bm, coll, [M["roofsign"]], parent)
             tilt = math.atan2(0.045, 0.20)
             o.location = (0, -0.42 + sy * (0.12 - 0.022 + 0.0035), zr + 0.12)
-            o.rotation_euler = (sy * (math.radians(90) - tilt), 0, 0 if sy > 0 else math.pi)
+            o.rotation_euler = (math.radians(90) - tilt, 0, math.pi if sy > 0 else 0.0)
             objs.append(o)
         for sx in (1, -1):
             o = rounded_box("taxi_sign_rail", (0.03, 0.40, 0.025), coll, [M["black_tex"]], parent,
