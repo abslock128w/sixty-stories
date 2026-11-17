@@ -68,8 +68,8 @@ def setup_world(scene, az, el, dusk=False):
     # sun lamp
     ld = bpy.data.lights.new("PROOF_sun", 'SUN')
     if not dusk:
-        ld.energy = 3.2
-        ld.color = (1.0, 0.70, 0.46)
+        ld.energy = 4.5
+        ld.color = (1.0, 0.66, 0.40)
     else:
         ld.energy = 0.0
     ld.angle = math.radians(0.6)
@@ -156,7 +156,7 @@ def setup_env(scene, F):
         ((0, -58, 0), (W + 3, -32, 9), (170, 160, 146)), ((W + 17, -60, 0), (W + 40, -32, 30), (110, 80, 66)),
         ((-90, -140, 0), (-40, -100, 30), (140, 130, 120)), ((-30, -120, 0), (10, -90, 28), (120, 110, 100)),
         ((W + 22, -25, 0), (W + 45, 10, 34), (160, 150, 130)), ((W + 22, 10, 0), (W + 45, 40, 60), (120, 116, 112)),
-        ((-30, 0.4, 0), (-0.02, 25, 19.6), (126, 92, 70)), ((W + 0.02, 3.0, 0), (W + 0.8, 25, 0.1), (100, 100, 100)),
+        ((W + 0.02, 3.0, 0), (W + 0.8, 25, 0.1), (100, 100, 100)),
         ((-40, 25, 0), (W + 4, 45, 70), (150, 146, 140)),
     ]
     for i, (mn, mx, c) in enumerate(blds):
@@ -171,17 +171,16 @@ def setup_env(scene, F):
     mb.box((W - 0.3, R, 0), (W + 0.035, 20, F.GH), 'm')
     facade.finalize(mb, col, {'m': F.materials['stone']})
     # the neighbour's front wall (painted brick, lower) to the left
-    nb = env_material("env_neighbour", facade.srgb((150, 138, 120)), 'windows')
-    box(col, "neighbour", (-14, 0.25, 0), (-0.01, 20, 17.4), nb)
     return col
 
 
 CAMS = {
     # name: (location, target, lens, res (w,h) ratio, sun az, sun el, dusk)
-    'full': ((19.0, -27.5, 1.65), (6.6, 0.0, 10.6), 35, (1920, 1440), 228, 12, False),
-    'shopfront': ((9.2, -4.3, 1.62), (4.8, 0.0, 2.25), 30, (1920, 1080), 228, 12, False),
-    'window': ((5.0, -2.9, 9.4), (4.4, 0.0, 9.1), 40, (1920, 1280), 228, 12, False),
+    'full': ((19.0, -27.5, 1.65), (6.6, 0.0, 10.6), 35, (1920, 1440), 226, 11, False),
+    'shopfront': ((9.2, -4.3, 1.62), (4.8, 0.0, 2.25), 30, (1920, 1080), 215, 18, False),
+    'window': ((5.2, -3.4, 10.0), (4.45, 0.0, 9.9), 32, (1920, 1280), 226, 11, False),
     'fire': ((2.3, -2.6, 1.7), (1.35, 0.4, 14.0), 22, (1280, 1920), 25, 14, False),
+    'wall': ((6.4, -5.5, 6.9), (5.6, 0.0, 7.6), 35, (1920, 1280), 226, 11, False),
     'dusk': ((19.0, -27.5, 1.65), (6.6, 0.0, 10.6), 35, (1920, 1440), 260, -3.5, True),
 }
 
@@ -258,11 +257,17 @@ def main():
     print(f"[facade] built in {time.time() - t0:.1f}s", flush=True)
     nf = sum(len(o.data.polygons) for o in col.all_objects if o.type == 'MESH')
     print(f"[facade] base faces (pre-modifier): {nf}", flush=True)
+    nb = facade.Facade(dict(name='ASSET_facade_nb', bays=4, storeys=4, brick='buff', trim='cream', shop='deli', number='210', seed=23,
+                            fire_escape_bay=2, balcony=None, ac=(1, 2), corner=False, interiors_lit=0.3))
+    ncol = nb.build()
+    scene.collection.children.link(ncol)
+    for ob in ncol.all_objects:
+        ob.location.x -= nb.W
     setup_env(scene, F)
     os.makedirs(OUT_PREV, exist_ok=True)
     if opt['save']:
         os.makedirs(os.path.dirname(OUT_BLEND), exist_ok=True)
-        setup_world(scene, 228, 12)
+        setup_world(scene, 226, 11)
         make_cam(scene, *CAMS['full'][:3])
         bpy.ops.wm.save_as_mainfile(filepath=OUT_BLEND, compress=True)
         print("[facade] saved", OUT_BLEND, flush=True)
@@ -275,8 +280,8 @@ def main():
         w = int(opt['w'])
         h = int(round(w * res[1] / res[0]))
         setup_render(scene, w, h, int(opt['samples']), int(opt['threads']))
-        facade.set_lights(col, day=not dusk, interior_mult=(1.0 if dusk else 0.35), shop_mult=(1.0 if dusk else 0.6))
-        scene.view_settings.exposure = 1.6 if dusk else 0.0
+        facade.set_lights(col, day=not dusk, interior_mult=(1.0 if dusk else 0.6), shop_mult=(1.0 if dusk else 0.6))
+        scene.view_settings.exposure = 2.4 if dusk else 0.0
         fn = os.path.join(OUT_PREV, f"facade_{s if s != 'fire' else 'fire_escape'}" + (s == 'window' and '_close' or '') + (f"_{opt['tag']}" if opt['tag'] else '') + ".png")
         if s == 'full':
             fn = fn.replace('facade_full', 'facade_full')

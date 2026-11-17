@@ -46,7 +46,7 @@ MORT = 0.005         # half mortar joint
 BRICK_PROUD = 0.010  # brick face in front of mortar plane
 
 PALETTES = {  # sRGB 0..255; several bricks per palette, the last one is a rare clinker
-    'red':   [(146, 62, 44), (128, 52, 38), (160, 74, 52), (138, 66, 50), (118, 48, 36), (152, 82, 60), (88, 40, 32)],
+    'red':   [(120, 54, 40), (106, 48, 36), (132, 62, 46), (114, 60, 46), (98, 44, 34), (128, 72, 54), (110, 52, 42), (72, 38, 32)],
     'brown': [(112, 62, 44), (98, 54, 40), (126, 72, 52), (106, 66, 50), (90, 48, 36), (134, 84, 62), (64, 40, 32)],
     'buff':  [(190, 160, 120), (176, 146, 108), (198, 172, 134), (168, 140, 106), (184, 150, 112), (204, 182, 146), (130, 104, 80)],
     'dark':  [(84, 52, 46), (72, 46, 42), (96, 60, 52), (80, 56, 50), (66, 42, 38), (104, 70, 60), (46, 34, 32)],
@@ -55,13 +55,15 @@ TRIMS = {  # window/shopfront paint, sRGB
     'black': (26, 27, 26), 'green': (28, 52, 40), 'oxblood': (78, 24, 22), 'cream': (214, 204, 182),
 }
 SHOPS = {
-    'bakery':   dict(name="HALVERSEN BROS. BAKERY", sub="BREAD  -  PASTRY  -  SINCE 1921", sign_col=(30, 52, 44), letter='gold',
+    'bakery':   dict(name="HALVERSEN BROS. BAKERY", sub="BREAD  -  PASTRY  -  SINCE 1921", sign_col=(28, 40, 34), letter='gold',
                      awning=(122, 30, 28), blade="BAKERY"),
     'hardware': dict(name="KOVAC HARDWARE & PAINT", sub="KEYS CUT  -  TOOLS  -  SUPPLY", sign_col=(24, 30, 52), letter='cream',
                      awning=(30, 64, 46), blade="HARDWARE"),
     'deli':     dict(name="ORLOWSKI DELICATESSEN", sub="SANDWICHES  -  COFFEE  -  GROCERY", sign_col=(70, 20, 22), letter='gold',
                      awning=(26, 40, 70), blade="DELI"),
 }
+GOODS = [(0.32, 0.20, 0.10), (0.75, 0.72, 0.66), (0.45, 0.06, 0.05), (0.05, 0.08, 0.18), (0.62, 0.52, 0.34), (0.20, 0.24, 0.12),
+         (0.55, 0.40, 0.08), (0.04, 0.04, 0.04), (0.40, 0.30, 0.22), (0.70, 0.62, 0.48), (0.10, 0.22, 0.20), (0.58, 0.20, 0.08)]
 FONT_SERIF = "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf"
 FONT_SANS = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
 
@@ -494,7 +496,8 @@ def _vnoise(rng, shape, cells, octaves=4, persistence=0.55):
         tot += amp
         amp *= persistence
     acc /= tot
-    return np.clip((acc - acc.min()) / max(1e-6, acc.max() - acc.min()), 0, 1)
+    acc = np.nan_to_num(acc)
+    return np.clip((acc - acc.min()) / max(1e-6, float(acc.max() - acc.min())), 0, 1)
 
 
 class Weather:
@@ -569,6 +572,7 @@ class Weather:
             self.ch[c] *= (0.55 + 0.9 * brk)
         self.ch[2] *= np.clip(brk * 1.6 - 0.2, 0, 1)
         from scipy.ndimage import gaussian_filter
+        self.ch = np.nan_to_num(self.ch, nan=0.0)
         for c in range(4):
             self.ch[c] = gaussian_filter(self.ch[c], 0.8)
         img = bpy.data.images.new(name, self.nx, self.ny, alpha=True, float_buffer=False)
@@ -584,7 +588,7 @@ class Facade:
     def __init__(self, variant):
         v = dict(bays=4, bay_w=3.0, storeys=5, brick='red', trim='black', shop='bakery', shop_name=None,
                  number="214", seed=11, fire_escape_bay=0, balcony=(2, 2), ac=(3, 3), ret=3.0,
-                 interiors_lit=0.45, name="ASSET_facade")
+                 interiors_lit=0.45, name="ASSET_facade", corner=True)
         v.update(variant or {})
         self.vt = v
         self.seed = v['seed']
@@ -593,7 +597,8 @@ class Facade:
         self.bw = float(v['bay_w'])
         self.S = int(v['storeys'])
         self.W = self.bays * self.bw
-        self.RET = float(v['ret'])
+        self.corner = bool(v['corner'])
+        self.RET = float(v['ret']) if self.corner else 0.0
         self.GH = 62 * CH                       # ground floor height 4.65
         self.SH = 44 * CH                       # storey height 3.30
         self.TOPW = self.GH + self.S * self.SH  # top of last storey
@@ -609,6 +614,8 @@ class Facade:
         self.geo_cells = set()
         self.lights = []
         self.U_TOT = self.W + self.RET
+        self.path = [(0, 0), (self.W, 0), (self.W, self.RET)] if self.corner else [(0, 0), (self.W, 0)]
+        self.walls = (('F', self.W), ('R', self.RET)) if self.corner else (('F', self.W),)
 
     # ---------------------------------------------------------------- wall frames
     def wp(self, wall, u, v, d):
@@ -637,7 +644,8 @@ class Facade:
         for k in range(1, self.S + 1):
             for b in range(self.bays):
                 slots.append(('F', (b + 0.5) * self.bw, 1.05, k))
-            slots.append(('R', self.RET * 0.55, 0.80, k))
+            if self.corner:
+                slots.append(('R', self.RET * 0.55, 0.80, k))
         return slots
 
     def floor_base(self, k):
@@ -691,7 +699,7 @@ class Facade:
             self.excl.append((wall, [(-1, self.GEO_TOP - ex), (self.U_TOT + 1, self.GEO_TOP - ex), (self.U_TOT + 1, self.GEO_TOP + 3 * CH + ex), (-1, self.GEO_TOP + 3 * CH + ex)]))
         z = self.GH
         i = 0
-        while z < self.ZC - 0.31:
+        while self.corner and z < self.ZC - 0.31:
             long_ = (i % 2 == 0)
             lf = 0.46 if long_ else 0.30
             lr = 0.30 if long_ else 0.46
@@ -722,7 +730,7 @@ class Facade:
         # belt course at the change of brick technique, profiled, wraps the corner
         z0 = self.GEO_TOP
         prof = [(0.0, z0), (0.07, z0), (0.07, z0 + 0.03), (0.05, z0 + 0.05), (0.05, z0 + 0.19), (0.075, z0 + 0.20), (0.075, z0 + 3 * CH - 0.02), (0.06, z0 + 3 * CH), (0.0, z0 + 3 * CH)]
-        mb.sweep(prof, [(0, 0), (W, 0), (W, R)], 'stone')
+        mb.sweep(prof, self.path, 'stone')
         # window sills and lintels
         for op in self.openings:
             wall, u0, u1, v0, v1 = op['wall'], op['u0'], op['u1'], op['v0'], op['v1']
@@ -739,7 +747,7 @@ class Facade:
                 mb.box(*self._wbox(wall, u0 - e - 0.02, u1 + e + 0.02, v1 + 4 * CH - 0.06, v1 + 4 * CH - 0.008, -0.08, 0.035), 'stone')
         # parapet coping
         mb.sweep([(-0.40, self.ZTOP), (0.05, self.ZTOP), (0.05, self.ZTOP + 0.09), (0.0, self.ZTOP + 0.11), (-0.40, self.ZTOP + 0.11)],
-                 [(0, 0), (W, 0), (W, R)], 'stone')
+                 self.path, 'stone')
         # parapet back face (hidden from the street but closes the silhouette)
         self.M('brickback').box((0, 0.30, self.ZP), (W - 0.3, 0.36, self.ZTOP), 'mortar')
 
@@ -783,6 +791,14 @@ class Facade:
         wb(u0, u0 + fw, v0, v1, -0.22, D0)
         wb(u1 - fw, u1, v0, v1, -0.22, D0)
         wb(u0, u1, v1 - fw, v1, -0.22, D0)
+        # brick mould: a moulded casing strip at the outer edge of the frame, seen in the reveal
+        bm = 0.035
+        wb(u0, u0 + bm, v0, v1, D0 - 0.02, D0 + 0.012)
+        wb(u1 - bm, u1, v0, v1, D0 - 0.02, D0 + 0.012)
+        wb(u0, u1, v1 - bm, v1, D0 - 0.02, D0 + 0.012)
+        wb(u0 + bm, u0 + bm + 0.012, v0, v1 - bm, D0 - 0.02, D0 + 0.004)
+        wb(u1 - bm - 0.012, u1 - bm, v0, v1 - bm, D0 - 0.02, D0 + 0.004)
+        wb(u0 + bm, u1 - bm, v1 - bm - 0.012, v1 - bm, D0 - 0.02, D0 + 0.004)
         # wooden sub-sill sloping (simple)
         wb(u0, u1, v0, v0 + 0.035, -0.22, D0 + 0.03)
         # parting bead
@@ -816,6 +832,10 @@ class Facade:
         b(u0 + st, u1 - st, v1 - rail_tt, v1)
         gu0, gu1, gv0, gv1 = u0 + st, u1 - st, v0 + rail_b, v1 - rail_tt
         dg = (d0 + d1) / 2
+        # stepped sticking on the outside face of the sash (reads as a moulded profile)
+        so = 0.010
+        for (a, bb, c, dd) in ((gu0 - so, gu0, gv0 - so, gv1 + so), (gu1, gu1 + so, gv0 - so, gv1 + so), (gu0, gu1, gv0 - so, gv0), (gu0, gu1, gv1, gv1 + so)):
+            fr.box(*self._wbox(wall, a, bb, c, dd, d0 - 0.002, d0 + 0.006), 'paint')
         cols = [(gu0, gu1)]
         if panes == 2:
             m = (gu0 + gu1) / 2
@@ -941,7 +961,8 @@ class Facade:
         self.ni = int(math.ceil(self.U_TOT / CL)) + 3
         self.nj = int(math.ceil((self.ZTOP + 0.2) / CH)) + 1
         mask = np.zeros((self.nj, self.ni), np.float32)
-        for wall, ua, ub in (('F', 0.0, self.W), ('R', 0.0, self.RET)):
+        for wall, ub in self.walls:
+            ua = 0.0
             off = self.uoff(wall)
             excl = [e[1] for e in self.excl if e[0] == wall]
             ops = [o for o in upper_ops if o['wall'] == wall]
@@ -1032,7 +1053,7 @@ class Facade:
     def build_wall_planes(self):
         mb = self.M('wall')
         mb.closed = False
-        for wall, ulen in (('F', self.W), ('R', self.RET)):
+        for wall, ulen in self.walls:
             holes = [(o['u0'], o['u1'], o['v0'] - 0.005, o['v1']) for o in self.openings if o['wall'] == wall]
             if wall == 'F':
                 wv = self.vent
@@ -1054,7 +1075,7 @@ class Facade:
         gl = self.M('glass')
         W, GH, bw = self.W, self.GH, self.bw
         F = 'F'
-        g = 0.006
+        g = 0.011
         # --- rusticated stone piers (left pier and the corner pier wrapping the return)
         def rust_pier(wall, u0, u1, z0, z1, d=0.08):
             z = z0
@@ -1065,18 +1086,16 @@ class Facade:
                 # chamfered joint reveals: slightly smaller inner block behind
                 z += h
                 i += 1
-            st.box(*self._wbox(wall, u0, u1, z0, z1, -0.06, d - 0.012), 'mortar')
+            st.box(*self._wbox(wall, u0, u1, z0, z1, -0.06, d - 0.028), 'mortar')
         rust_pier(F, 0.0, 0.45, 0.0, 3.75)
         rust_pier(F, W - 0.55, W, 0.0, 3.75)
-        rust_pier('R', 0.0, 0.55, 0.0, 3.75)
-        # stone base course along the return and plain ashlar on return ground floor
-        st.box(*self._wbox('R', 0.55, self.RET, 0.0, 0.45, -0.05, 0.05), 'stone')
-        st.box(*self._wbox('R', 0.55, self.RET, 0.45, 3.75, -0.05, 0.035), 'stone')
-        for zz in np.arange(0.75, 3.75, 0.45):
-            st.box(*self._wbox('R', 0.55, self.RET, zz - 0.004, zz + 0.004, -0.05, 0.036), 'mortar')
+        if self.corner:
+            self.return_ground(st, rust_pier)
         # --- bay 0: residential entrance in a stone surround
-        st.box(*self._wbox(F, 0.45, bw - 0.16, 0.0, 3.75, -0.05, 0.04), 'stone')
         du0, du1 = 1.05, 2.15
+        rust_pier(F, 0.45, du0 - 0.22, 0.0, 3.75, d=0.05)
+        rust_pier(F, du1 + 0.22, bw - 0.16, 0.0, 3.75, d=0.05)
+        rust_pier(F, du0 - 0.22, du1 + 0.22, 3.50, 3.75, d=0.05)
         self.res_door(du0, du1)
         # --- cast iron pilasters at bay lines
         for b in range(1, self.bays):
@@ -1085,10 +1104,23 @@ class Facade:
         # --- shop bays
         u_start, u_end = bw + 0.16, W - 0.55
         self.shop_bays(u_start, u_end, R)
+        self.shop_upper(u_start, u_end)
+
+    def return_ground(self, st, rust_pier):
+        rust_pier('R', 0.0, 0.55, 0.0, 3.75)
+        st.box(*self._wbox('R', 0.55, self.RET, 0.0, 0.45, -0.05, 0.05), 'stone')
+        st.box(*self._wbox('R', 0.55, self.RET, 0.45, 3.75, -0.05, 0.035), 'stone')
+        for zz in np.arange(0.75, 3.75, 0.45):
+            st.box(*self._wbox('R', 0.55, self.RET, zz - 0.004, zz + 0.004, -0.05, 0.036), 'mortar')
+
+    def shop_upper(self, u_start, u_end):
+        F = 'F'
+        W, bw = self.W, self.bw
+        ci = self.M('shop_paint')
         # --- shop cornice (whole width) and sign fascia
         prof = [(0.0, 3.75), (0.10, 3.75), (0.10, 3.80), (0.14, 3.84), (0.14, 4.30), (0.20, 4.33), (0.20, 4.38), (0.30, 4.44),
                 (0.34, 4.52), (0.34, 4.58), (0.30, 4.60), (0.30, 4.63), (0.0, 4.66)]
-        ci.sweep(prof, [(0, 0), (W, 0), (W, 0.55)], 'shop_paint')
+        ci.sweep(prof, [(0, 0), (W, 0), (W, 0.55)] if self.corner else [(0, 0), (W, 0)], 'shop_paint')
         # sign board recessed panel with mouldings
         fu0, fu1 = u_start + 0.05, u_end - 0.05
         ci.box(*self._wbox(F, fu0, fu1, 3.84, 4.26, -0.02, 0.152), 'sign_board')
@@ -1364,7 +1396,7 @@ class Facade:
              (0.13, z + 0.22), (0.15, z + 0.22), (0.15, z + 0.30), (0.56, z + 0.30), (0.58, z + 0.32), (0.58, z + 0.50),
              (0.61, z + 0.52), (0.61, z + 0.55), (0.64, z + 0.58), (0.67, z + 0.63), (0.68, z + 0.68), (0.66, z + 0.71),
              (0.66, z + 0.75), (0.0, z + 0.75)]
-        cm.sweep(P, [(0, 0), (W, 0), (W, R)], 'cornice')
+        cm.sweep(P, self.path, 'cornice')
         # frieze panels with raised mouldings between brackets
         brk_u = [0.18] + [0.18 + k * (W - 0.36) / max(1, round((W - 0.36) / 0.95)) for k in range(1, int(round((W - 0.36) / 0.95)) + 1)]
         for uu in brk_u:
@@ -1586,8 +1618,8 @@ class Facade:
         W = self.W
         sv = self.M('services')
         # --- downpipe at the far end of the return, with hopper head and brackets
-        RW = 'R'
-        pu = self.RET - 0.18
+        RW = 'R' if self.corner else 'F'
+        pu = self.RET - 0.18 if self.corner else W - 0.15
         pd = 0.09
         r = 0.05
         top = self.ZC - 0.35
@@ -1602,7 +1634,7 @@ class Facade:
             sv.rod(self.wp(RW, pu - 0.065, zz + 0.105, 0.0), self.wp(RW, pu + 0.065, zz + 0.105, 0.0), 0.01, 'downpipe', seg=6)
             fu = self.U_TOT - 0.18
             self.weather.drip(3, fu - 0.03, fu + 0.03, zz + 0.08, 0.6, 0.6, density=0.6)
-            self.weather.blob(2, fu, zz, 0.18, 0.35, 0.7)
+            self.weather.drip(2, fu - 0.08, fu + 0.08, zz + 0.1, 0.8, 0.5, density=1.5, width=(0.01, 0.03))
             zz += 1.8
         # hopper head (tapered box) under the cornice
         hz = top
@@ -1772,11 +1804,17 @@ class Facade:
                 it.box((x0 - 0.06 if b > 0 else x0 - 0.02, WT, z0), (x0, DEEP, zc), wall_col)
                 it.box((x1, WT, z0), (x1 + 0.06 if b < self.bays - 1 else x1 + 0.02, DEEP, zc), wall_col)
                 # front inner wall (between windows) visible obliquely
-                it.box((x0, WT, z0), (x1, WT + 0.01, zc), wall_col)
+                wu0 = (b + 0.5) * self.bw - 0.525 - 0.10
+                wu1 = (b + 0.5) * self.bw + 0.525 + 0.10
+                wv0 = z0 + 11 * CH - 0.03
+                wv1 = z0 + 37 * CH
+                for (aa, bb, cc, dd) in ((x0, wu0, z0, zc), (wu1, x1, z0, zc), (wu0, wu1, z0, wv0), (wu0, wu1, wv1, zc)):
+                    if bb > aa and dd > cc:
+                        it.box((aa, WT, cc), (bb, WT + 0.01, dd), wall_col)
                 self.furnish(it, R, x0, x1, z0, zc, DEEP, k, b)
                 lit = R.random() < lit_frac
                 self.lights.append(dict(kind='area', loc=Vector(((x0 + x1) / 2, DEEP * 0.55, zc - 0.05)), size=0.5,
-                                        energy=(60 if lit else 0), color=R.choice([(1.0, 0.80, 0.58), (1.0, 0.86, 0.68), (0.95, 0.92, 0.85)]),
+                                        energy=(260 if lit else 0), color=R.choice([(1.0, 0.80, 0.58), (1.0, 0.86, 0.68), (0.95, 0.92, 0.85)]),
                                         group='interior', lit=lit))
                 self.M('bulbs').box(((x0 + x1) / 2 - 0.18, DEEP * 0.55 - 0.18, zc - 0.03), ((x0 + x1) / 2 + 0.18, DEEP * 0.55 + 0.18, zc), 'bulb' if lit else 'fixture_off')
             # window treatments for this floor
@@ -1915,7 +1953,7 @@ class Facade:
             while x < x1 - 0.25:
                 w = R.uniform(0.07, 0.18)
                 h = R.uniform(0.12, 0.38)
-                col = (R.random(), R.random(), R.random())
+                col = R.choice(GOODS)
                 if R.random() < 0.5:
                     it.box((x, D - 0.40, z), (x + w, D - 0.12, z + h), 'goods', cell=col)
                 else:
@@ -1928,19 +1966,38 @@ class Facade:
         it.box((cx0 + 0.6, 3.3, 0.99), (cx0 + 0.95, 3.6, 1.2), 'steel')
         # display window goods: tiered stands with produce
         for (a, c) in getattr(self, 'displays', []):
-            it.box((a + 0.05, 0.0, 0.0), (c - 0.05, 0.85, 0.62), 'wood_mid')
-            for tier, (y0, h) in enumerate(((0.15, 0.62), (0.45, 0.9))):
+            it.box((a + 0.05, 0.16, 0.0), (c - 0.05, 0.95, 0.62), 'wood_mid')
+            for tier, (y0, h) in enumerate(((0.22, 0.62), (0.55, 0.9))):
                 it.box((a + 0.15, y0, h - 0.03), (c - 0.15, y0 + 0.35, h), 'wood_light')
                 x = a + 0.22
                 while x < c - 0.3:
-                    col = (R.random(), R.random(), R.random())
+                    col = R.choice(GOODS)
                     kind = self.vt['shop']
                     if kind == 'bakery':
                         # loaves: squashed spheres approximated by bevelled boxes; cakes as cylinders
-                        if R.random() < 0.6:
-                            l = R.uniform(0.18, 0.32)
-                            it.box((x, y0 + 0.08, h), (x + l, y0 + 0.2, h + 0.09), 'bread', cell=(R.random(), 0, 0))
-                            x += l + 0.05
+                        rr = R.random()
+                        if rr < 0.35:
+                            # basket of long loaves
+                            it.rod((x + 0.15, y0 + 0.17, h), (x + 0.15, y0 + 0.17, h + 0.12), 0.15, 'wicker', seg=16, r1=0.17)
+                            for q in range(R.randint(3, 6)):
+                                a0 = R.uniform(-0.5, 0.5)
+                                c0 = Vector((x + 0.15, y0 + 0.17, h + 0.12))
+                                d0 = Vector((math.cos(a0) * 0.18, math.sin(a0) * 0.10, R.uniform(0.15, 0.3)))
+                                it.rod(c0 - d0 * 0.6, c0 + d0, R.uniform(0.028, 0.04), 'bread', seg=10)
+                            x += 0.38
+                        elif rr < 0.7:
+                            for q in range(R.randint(2, 4)):
+                                rr2 = R.uniform(0.065, 0.09)
+                                yy = y0 + R.uniform(0.1, 0.25)
+                                it.rod((x + rr2, yy, h), (x + rr2, yy, h + 0.04), rr2, 'bread', seg=14, r1=rr2 * 0.95)
+                                it.rod((x + rr2, yy, h + 0.04), (x + rr2, yy, h + 0.085), rr2 * 0.95, 'bread', seg=14, r1=rr2 * 0.45)
+                                x += 2 * rr2 + 0.02
+                            x += 0.04
+                        elif rr < 0.8:
+                            l = R.uniform(0.22, 0.32)
+                            for q in range(3):
+                                it.rod((x, y0 + 0.08 + q * 0.09, h + 0.04), (x + l, y0 + 0.08 + q * 0.09, h + 0.04), 0.04, 'bread', seg=10)
+                            x += l + 0.06
                         else:
                             r = R.uniform(0.09, 0.14)
                             it.rod((x + r, y0 + 0.17, h), (x + r, y0 + 0.17, h + 0.015), r + 0.03, 'pot_white', seg=16)
@@ -1951,12 +2008,13 @@ class Facade:
                         hh = R.uniform(0.1, 0.3)
                         it.box((x, y0 + 0.08, h), (x + w, y0 + 0.25, h + hh), 'goods', cell=col)
                         x += w + 0.04
+        self.lights.append(dict(kind='area', loc=Vector(((x0 + x1) / 2, 3.2, 3.5)), size=4.0, energy=160, color=(1.0, 0.86, 0.68), group='shop', lit=True))
         # pendant lights
         for xx in np.linspace(x0 + 0.9, x1 - 0.9, 4):
             it.rod((xx, 2.2, 3.55), (xx, 2.2, 2.75), 0.004, 'iron', seg=4)
             it.rod((xx, 2.2, 2.75), (xx, 2.2, 2.55), 0.04, 'shade', seg=16, r1=0.22, caps=False)
             self.M('bulbs').rod((xx, 2.2, 2.63), (xx, 2.2, 2.56), 0.05, 'bulb', seg=10)
-            self.lights.append(dict(kind='point', loc=Vector((xx, 2.2, 2.6)), energy=60, color=(1.0, 0.78, 0.5), radius=0.05, group='shop', lit=True))
+            self.lights.append(dict(kind='point', loc=Vector((xx, 2.2, 2.6)), energy=90, color=(1.0, 0.78, 0.5), radius=0.05, group='shop', lit=True))
 
     # ---------------------------------------------------------------- text
     def text(self, s, font, size, wall, u, v, d, depth, mat, key, width_max=None):
@@ -2032,15 +2090,18 @@ class Facade:
             v0 = op['v0'] - 0.10
             # streak curtain under the sill, heavier at the sill ends
             Wm.drip(1, fu0 - 0.05, fu1 + 0.05, v0, rng.uniform(0.8, 1.9), 0.65, density=1.6)
+            Wm.drip(1, fu0 + 0.02, fu1 - 0.02, v0, rng.uniform(1.0, 2.2), 0.35, density=0.35, width=(0.05, 0.14))
             for e in (fu0 - 0.07, fu1 + 0.07):
                 Wm.drip(1, e - 0.04, e + 0.04, v0, rng.uniform(1.5, 2.6), 0.9, density=1.5, width=(0.01, 0.025))
             # soot above window heads (sheltered under the lintel/arch is less, above is dirty)
             Wm.blob(0, (fu0 + fu1) / 2, op['v1'] + 0.45, (fu1 - fu0) * 0.6, 0.25, 0.35)
             if rng.random() < 0.4:
-                Wm.blob(2, rng.uniform(fu0, fu1), v0 - rng.uniform(0.3, 0.9), 0.25, 0.3, 0.6)
+                e = rng.uniform(fu0, fu1)
+                Wm.drip(2, e - 0.15, e + 0.15, v0 - 0.05, rng.uniform(0.5, 1.2), 0.45, density=1.0, width=(0.01, 0.03))
         # efflorescence near the shop cornice (splash zone) and under the parapet
         for _ in range(7):
-            Wm.blob(2, rng.uniform(0, self.U_TOT), self.GH + rng.uniform(0.1, 0.6), rng.uniform(0.2, 0.6), rng.uniform(0.1, 0.3), 0.8)
+            e = rng.uniform(0, self.U_TOT)
+            Wm.drip(2, e - rng.uniform(0.1, 0.4), e + rng.uniform(0.1, 0.4), self.GH + rng.uniform(0.6, 1.4), rng.uniform(0.5, 1.2), 0.5, density=1.2, width=(0.01, 0.04))
         for _ in range(5):
             Wm.blob(2, rng.uniform(0, self.U_TOT), self.ZTOP - rng.uniform(0.1, 0.5), rng.uniform(0.3, 0.8), 0.2, 0.6)
         # dirt from the belt course
@@ -2068,8 +2129,8 @@ class Facade:
         Mt['brick'] = self.mat_brick_geo(bc, wg, tag)
         Mt['brickfield'] = self.mat_brick_field(bc, wg, tag, use_mask=True)
         Mt['reveal'] = self.mat_brick_field(bc, wg, tag + "_rev", use_mask=False)
-        Mt['mortar'] = self.mat_simple(tag + "_mortar", srgb((150, 140, 128)), 0.9, wg=wg, noise=0.25)
-        Mt['stone'] = self.mat_stone(tag + "_stone", srgb((178, 166, 146)), wg)
+        Mt['mortar'] = self.mat_simple(tag + "_mortar", srgb((132, 124, 112)), 0.9, wg=wg, noise=0.25)
+        Mt['stone'] = self.mat_stone(tag + "_stone", srgb((150, 138, 118)), wg)
         Mt['granite'] = self.mat_stone(tag + "_granite", srgb((96, 94, 92)), wg, rough=0.55, speck=True)
         Mt['paint'] = self.mat_paint(tag + "_winpaint", trim, wg, chip=0.35)
         Mt['putty'] = self.mat_simple(tag + "_putty", srgb((122, 116, 100)), 0.8)
@@ -2125,6 +2186,7 @@ class Facade:
         Mt['art_b'] = self.mat_simple(tag + "_art_b", srgb((70, 110, 140)), 0.6, noise=1.0)
         Mt['goods'] = self.mat_attr(tag + "_goods", 0.45)
         Mt['bread'] = self.mat_bread(tag + "_bread")
+        Mt['wicker'] = self.mat_simple(tag + "_wicker", srgb((140, 100, 56)), 0.8, noise=0.6)
         Mt['cake'] = self.mat_attr(tag + "_cake", 0.5, pastel=True)
         self.materials = Mt
 
@@ -2150,8 +2212,8 @@ class Facade:
             acc += w
         col = T.ramp(wn.outputs['Value'], stops, interp='CONSTANT')
         sep = T.xyz(wn.outputs['Color'])
-        bright = T.remap(sep[0], 0, 1, 0.82, 1.12)
-        hue = T.n('ShaderNodeHueSaturation', {'Hue': T.remap(sep[1], 0, 1, 0.485, 0.515), 'Saturation': T.remap(sep[2], 0, 1, 0.85, 1.12),
+        bright = T.remap(sep[0], 0, 1, 0.72, 1.12)
+        hue = T.n('ShaderNodeHueSaturation', {'Hue': T.remap(sep[1], 0, 1, 0.492, 0.508), 'Saturation': T.remap(sep[2], 0, 1, 0.78, 1.0),
                                                'Value': bright, 'Color': col})
         # face texture: sandy mottling, pits, fire flashing toward one end
         pos = gi.outputs['Pos']
@@ -2192,14 +2254,14 @@ class Facade:
         alpha = im.outputs['Alpha']
         nz = T.noise(tc.outputs['Object'], 9.0, 4, 0.6)
         nzf = T.remap(nz.outputs['Factor'], 0.3, 0.7, 0.55, 1.35)
-        S = gi.outputs['Strength']
+        S = T.math('MULTIPLY', gi.outputs['Strength'], 2.2)
         soot = T.math('MULTIPLY', T.math('MULTIPLY', sep.outputs[0], nzf), S, clamp=True)
         streak = T.math('MULTIPLY', T.math('MULTIPLY', sep.outputs[1], nzf), S, clamp=True)
         effl = T.math('MULTIPLY', T.math('MULTIPLY', sep.outputs[2], nzf), S, clamp=True)
         rust = T.math('MULTIPLY', T.math('MULTIPLY', alpha, nzf), S, clamp=True)
         c = gi.outputs['Color']
-        c = T.mix(T.math('MULTIPLY', soot, 0.75), c, T.mul_col(c, (0.18, 0.16, 0.15, 1)))
-        c = T.mix(T.math('MULTIPLY', streak, 0.7), c, T.mul_col(c, (0.42, 0.40, 0.38, 1)))
+        c = T.mix(T.math('MULTIPLY', soot, 0.85), c, T.mul_col(c, (0.16, 0.15, 0.14, 1)))
+        c = T.mix(T.math('MINIMUM', T.math('MULTIPLY', streak, 1.3), 1.0), c, T.mul_col(c, (0.36, 0.34, 0.32, 1)))
         c = T.mix(T.math('MULTIPLY', effl, 0.75), c, (0.62, 0.60, 0.55, 1))
         c = T.mix(T.math('MULTIPLY', rust, 0.8), c, srgb((92, 46, 22)))
         T.L.new(c, go.inputs['Color'])
@@ -2251,7 +2313,7 @@ class Facade:
         cell = T.comb(i, j, 0.0)
         b = self._group(T, bc, {'Cell': cell, 'Pos': tc.outputs['Object']})
         mort_n = T.noise(tc.outputs['Object'], 60.0, 4, 0.6)
-        mort = T.mul_col(srgb((150, 140, 126)), T.comb(*([T.remap(mort_n.outputs['Factor'], 0.3, 0.7, 0.75, 1.1)] * 3)))
+        mort = T.mul_col(srgb((136, 128, 116)), T.comb(*([T.remap(mort_n.outputs['Factor'], 0.3, 0.7, 0.75, 1.1)] * 3)))
         col = T.mix(brick, mort, b.outputs['Color'])
         rough = T.mixf(brick, 0.95, b.outputs['Rough'])
         w = self._group(T, wg, {'Color': col, 'Rough': rough, 'Strength': 1.0})
@@ -2289,8 +2351,13 @@ class Facade:
         p = tc.outputs['Object']
         n1 = T.noise(p, 3.0, 6, 0.6)
         n2 = T.noise(p, 45.0, 6, 0.7)
-        f = T.math('MULTIPLY', T.remap(n1.outputs['Factor'], 0.3, 0.7, 0.86, 1.1), T.remap(n2.outputs['Factor'], 0.2, 0.8, 0.9, 1.08))
+        f = T.math('MULTIPLY', T.remap(n1.outputs['Factor'], 0.3, 0.7, 0.78, 1.12), T.remap(n2.outputs['Factor'], 0.2, 0.8, 0.86, 1.1))
         c = T.mul_col(col, T.comb(f, f, f))
+        n3 = T.noise(p, 0.8, 3, 0.5)
+        c = T.mix(T.smooth(n3.outputs['Factor'], 0.45, 0.65), c, T.mul_col(c, (0.86, 0.84, 0.8, 1)))
+        pores = T.n('ShaderNodeTexVoronoi', {'Vector': p, 'Scale': 400.0})
+        pore = T.smooth(pores.outputs['Distance'], 0.08, 0.0)
+        c = T.mix(T.math('MULTIPLY', pore, 0.5), c, T.mul_col(c, (0.5, 0.5, 0.5, 1)))
         if speck:
             vs = T.n('ShaderNodeTexVoronoi', {'Vector': p, 'Scale': 180.0})
             sp = T.smooth(vs.outputs['Distance'], 0.05, 0.25)
@@ -2308,7 +2375,7 @@ class Facade:
         drop = T.math('MULTIPLY', T.math('MULTIPLY', T.smooth(dv.outputs['Distance'], 0.10, 0.03), T.smooth(up, 0.6, 0.9)), T.smooth(dn.outputs['Factor'], 0.5, 0.62))
         c = T.mix(drop, c, (0.75, 0.74, 0.70, 1))
         w = self._group(T, wg, {'Color': c, 'Rough': rough, 'Strength': 1.0})
-        nrm = T.bump(T.math('ADD', n2.outputs['Factor'], T.math('MULTIPLY', drop, 0.5)), 0.25, 0.002)
+        nrm = T.bump(T.math('ADD', T.math('ADD', n2.outputs['Factor'], T.math('MULTIPLY', pore, -0.6)), T.math('MULTIPLY', drop, 0.5)), 0.35, 0.002)
         principled(T, out, w.outputs['Color'], w.outputs['Rough'], normal=nrm)
         return m
 
@@ -2362,14 +2429,14 @@ class Facade:
         n1 = T.noise(mp.outputs[0], 2.0, 2, 0.4)
         nrm = T.bump(n1.outputs['Factor'], 0.06 if not prism else 0.5, 0.01)
         dirt = T.noise(p, 3.0, 5, 0.6)
-        rough = T.remap(dirt.outputs['Factor'], 0.4, 0.75, 0.0, 0.10)
+        rough = T.remap(dirt.outputs['Factor'], 0.45, 0.8, 0.0, 0.035)
         if prism:
-            rough = 0.25
+            rough = 0.4
         pr = principled(T, None, (0.94, 0.95, 0.93, 1), rough, normal=nrm, Transmission_Weight=1.0, IOR=1.52)
         pr.inputs['Thin Wall'].default_value = True
         # a little grime film reduces transmission
-        dif = T.n('ShaderNodeBsdfDiffuse', {'Color': srgb((110, 104, 96))})
-        ms = T.n('ShaderNodeMixShader', {'Fac': T.remap(dirt.outputs['Factor'], 0.5, 0.8, 0.02, 0.10)})
+        dif = T.n('ShaderNodeBsdfDiffuse', {'Color': srgb((150, 132, 100)) if prism else srgb((110, 104, 96))})
+        ms = T.n('ShaderNodeMixShader', {'Fac': 0.55 if prism else T.remap(dirt.outputs['Factor'], 0.5, 0.85, 0.0, 0.05)})
         T.L.new(pr.outputs[0], ms.inputs[1])
         T.L.new(dif.outputs[0], ms.inputs[2])
         T.L.new(ms.outputs[0], out.inputs['Surface'])
@@ -2442,8 +2509,8 @@ class Facade:
     def mat_attr(self, name, rough, pastel=False):
         m, T, out = new_mat(name)
         at = T.n('ShaderNodeAttribute', attribute_name='cell')
-        hsv = T.n('ShaderNodeHueSaturation', {'Color': at.outputs['Color'], 'Saturation': 0.6 if pastel else 0.8, 'Value': 1.0})
-        c = T.mix(0.5 if pastel else 0.25, hsv.outputs[0], (0.9, 0.85, 0.75, 1))
+        hsv = T.n('ShaderNodeHueSaturation', {'Color': at.outputs['Color'], 'Saturation': 0.6 if pastel else 1.0, 'Value': 1.0})
+        c = T.mix(0.5 if pastel else 0.0, hsv.outputs[0], (0.9, 0.85, 0.75, 1))
         principled(T, out, c, rough)
         return m
 

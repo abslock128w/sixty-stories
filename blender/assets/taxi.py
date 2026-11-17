@@ -43,11 +43,13 @@ FONT_D = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 # ---------------------------------------------------------------- key dimensions (m)
 YF, YR = 2.425, -2.425           # bumper extremes (length 4.85)
 AXF, AXR = 1.45, -1.35           # axles (wheelbase 2.80)
-WHEEL_R = 0.34                   # 225/55 R17 -> 0.68 m tyre
-WHEEL_Z = 0.335                  # slightly loaded
+WHEEL_R = 0.34                   # tyre modelled at 0.68 m, instanced at WHEEL_SCALE
+WHEEL_SCALE = 1.045              # -> 0.71 m (225/55 R18)
+WHEEL_Z = 0.352                  # slightly loaded
 TRACK_X = 0.795                  # wheel centre plane
-ARCH_R = 0.392
-COWL_Y, DECK_Y = 0.80, -1.45      # greenhouse footprint on the body
+ARCH_R = 0.405
+STEER_DEG = -7.0                 # front wheels turned slightly (reads as a parked / turning car)
+COWL_Y, DECK_Y = 0.88, -1.62      # greenhouse footprint on the body
 
 VARIANTS = {
     "yellow_cab": dict(paint=(0.80, 0.50, 0.004), metal=0.05, flake=0.10, coat_rough=0.035,
@@ -293,11 +295,11 @@ def body_pos(u, v, w):
 
 
 # ------------------------------------------------------------------ cabin shape
-_cabB = [(-1.0, DECK_Y), (-0.5, -0.90), (0.0, -0.24), (0.14, -0.10), (0.88, 0.70), (1.0, COWL_Y)]
-_cabT = [(-1.0, -0.96), (-0.5, -0.78), (0.0, -0.40), (0.14, -0.28), (0.88, 0.0), (1.0, 0.05)]
+_cabB = [(-1.0, DECK_Y), (-0.5, -0.94), (0.0, -0.24), (0.14, -0.10), (0.88, 0.78), (1.0, COWL_Y)]
+_cabT = [(-1.0, -0.90), (-0.5, -0.74), (0.0, -0.38), (0.14, -0.26), (0.88, 0.05), (1.0, 0.10)]
 _Yb = plin(_cabB)
 _Yt = plin(_cabT)
-_Zroof = pchip([(-1.05, 1.418), (-0.6, 1.458), (-0.3, 1.466), (0.0, 1.455), (0.12, 1.44)])
+_Zroof = pchip([(-1.0, 1.405), (-0.6, 1.452), (-0.25, 1.468), (0.05, 1.452), (0.15, 1.438)])
 
 
 def cabin_pos(u, s, w):
@@ -605,13 +607,12 @@ def mat_paint(name, cfg, textures, dirt):
     _l(nt, fl.outputs["Distance"], flb.inputs["Height"])
 
     # ---- grime: graded up from the sills, broken up by noise, heavier behind wheels
-    gz = _maprange(nt, Z, 0.16, 0.62, 1.0, 0.0, interp="SMOOTHSTEP")
+    gz = _maprange(nt, Z, 0.18, 0.50, 1.0, 0.0, interp="SMOOTHSTEP")
     gn = _n(nt, "ShaderNodeTexNoise", -800, 600, Scale=7.0, Detail=10.0, Roughness=0.62)
     _l(nt, obj, gn.inputs["Vector"])
     gn2 = _n(nt, "ShaderNodeTexNoise", -800, 800, Scale=55.0, Detail=6.0, Roughness=0.7)
     _l(nt, obj, gn2.inputs["Vector"])
-    gnn = _math(nt, "MULTIPLY", gn.outputs["Fac"], gn2.outputs["Fac"])
-    gnn = _maprange(nt, gnn, 0.12, 0.42, 0.25, 1.0)
+    gnn = _maprange(nt, gn.outputs["Fac"], 0.35, 0.68, 0.35, 1.0)
     # splash ring behind each wheel (toward the rear of the arch)
     splash = None
     for ax in (AXF, AXR):
@@ -715,7 +716,7 @@ def mat_glass(name, tint=(0.86, 0.93, 0.90), dirt=0.5, wiper=False, frit=False):
         clean = None
         for px_, rr in ((-0.42, 0.58), (0.18, 0.62)):
             # pivots sit at the cowl; sweep radius rr measured in the glass plane (approx XY+Z)
-            cc = _n(nt, "ShaderNodeCombineXYZ", -900, 1000, X=px_, Y=0.80, Z=0.985)
+            cc = _n(nt, "ShaderNodeCombineXYZ", -900, 1000, X=px_, Y=0.88, Z=0.975)
             dd = nt.nodes.new("ShaderNodeVectorMath")
             dd.operation = "DISTANCE"
             _l(nt, obj, dd.inputs[0])
@@ -729,13 +730,13 @@ def mat_glass(name, tint=(0.86, 0.93, 0.90), dirt=0.5, wiper=False, frit=False):
     b.inputs["Base Color"].default_value = tint + (1.0,)
     b.inputs["Transmission Weight"].default_value = 1.0
     b.inputs["IOR"].default_value = 1.52
-    rough = _mixf(nt, dust, 0.0, 0.35)
+    rough = _mixf(nt, dust, 0.0, 0.12)
     _l(nt, rough, b.inputs["Roughness"])
     # dust is a thin diffuse layer on top: use coat tint-less, plus sheen-like whitening via mix shader
     diff = _n(nt, "ShaderNodeBsdfDiffuse", 300, -300)
     diff.inputs["Color"].default_value = (0.42, 0.40, 0.36, 1.0)
     mix = _n(nt, "ShaderNodeMixShader", 760, 0)
-    _l(nt, _math(nt, "MULTIPLY", dust, 0.22), mix.inputs[0])
+    _l(nt, _math(nt, "MULTIPLY", dust, 0.07), mix.inputs[0])
     _l(nt, b.outputs[0], mix.inputs[1])
     _l(nt, diff.outputs[0], mix.inputs[2])
     out = [n for n in nt.nodes if n.type == "OUTPUT_MATERIAL"][0]
@@ -836,7 +837,7 @@ def build_materials(variant, cfg, tex, dirt):
     M["satin"] = mat_simple("taxi_satin_alu", (0.6, 0.6, 0.62), rough=0.28, metal=1.0)
     M["trim"] = M["chrome"] if cfg["trim"] == "chrome" else M["black_gloss"]
     M["glass_ws"] = mat_glass("taxi_glass_ws" + sfx, dirt=dirt, wiper=True)
-    M["glass"] = mat_glass("taxi_glass" + sfx, tint=(0.70, 0.78, 0.76), dirt=dirt * 0.8)
+    M["glass"] = mat_glass("taxi_glass" + sfx, tint=(0.80, 0.86, 0.84), dirt=dirt * 0.6)
     M["mirror"] = mat_simple("taxi_mirror", (0.85, 0.87, 0.88), rough=0.02, metal=1.0)
     M["lens_clear"] = mat_lens("taxi_lens_clear", (0.96, 0.97, 0.97), rough=0.01)
     M["lens_red"] = mat_lens("taxi_lens_red", (0.75, 0.025, 0.02), rough=0.02, pattern=0.08)
@@ -848,7 +849,7 @@ def build_materials(variant, cfg, tex, dirt):
     M["amber_led"] = mat_simple("taxi_amber_led", (0.8, 0.35, 0.0), rough=0.4)
     M["tyre"] = mat_tyre("taxi_tyre", tex)
     M["rim"] = mat_rim("taxi_rim_" + cfg["rims"], cfg["rims"])
-    M["disc"] = mat_simple("taxi_brake_disc", (0.32, 0.30, 0.29), rough=0.38, metal=0.9, bump=0.15, bump_scale=600.0)
+    M["disc"] = mat_simple("taxi_brake_disc", (0.16, 0.15, 0.145), rough=0.32, metal=0.85, bump=0.15, bump_scale=600.0)
     M["caliper"] = mat_simple("taxi_caliper", (0.10, 0.10, 0.105), rough=0.45, metal=0.3)
     M["liner"] = mat_simple("taxi_liner", (0.03, 0.03, 0.03), rough=0.85, bump=0.4, bump_scale=200.0)
     M["under"] = mat_simple("taxi_underbody", (0.02, 0.02, 0.02), rough=0.9)
@@ -987,19 +988,19 @@ SU, SW, SY = 0.012, 0.014, 0.011        # support loop distance
 def body_rules():
     S_SIDE = "RL"
     strips = [
-        (S_SIDE, "v", 0.84, GY, {"w": (0.10, 1.0)}),       # front door / fender
+        (S_SIDE, "v", 0.87, GY, {"w": (0.10, 1.0)}),       # front door / fender
         (S_SIDE, "v", -0.17, GY, {"w": (0.10, 1.0)}),      # B seam
         (S_SIDE, "v", -0.95, GY, {"w": (0.10, 1.0)}),      # rear door / quarter
-        (S_SIDE, "w", 0.10, GW, {"v": (-0.95, 0.84)}),     # door bottoms
-        ("T", "u", 0.86, GU, {"v": (0.86, 9)}),            # bonnet sides
-        ("T", "u", -0.86, GU, {"v": (0.86, 9)}),
-        ("T", "v", 0.86, GY, {"u": (-0.86, 0.86)}),        # bonnet rear
+        (S_SIDE, "w", 0.10, GW, {"v": (-0.95, 0.87)}),     # door bottoms
+        ("T", "u", 0.86, GU, {"v": (0.94, 9)}),            # bonnet sides
+        ("T", "u", -0.86, GU, {"v": (0.94, 9)}),
+        ("T", "v", 0.94, GY, {"u": (-0.86, 0.86)}),        # bonnet rear
         ("F", "u", 0.86, GU, {"w": (0.90, 1.0)}),
         ("F", "u", -0.86, GU, {"w": (0.90, 1.0)}),
         ("F", "w", 0.90, GW, {"u": (-0.86, 0.86)}),        # bonnet front edge
-        ("T", "u", 0.80, GU, {"v": (-9, -1.50)}),          # boot lid
-        ("T", "u", -0.80, GU, {"v": (-9, -1.50)}),
-        ("T", "v", -1.50, GY, {"u": (-0.80, 0.80)}),
+        ("T", "u", 0.80, GU, {"v": (-9, -1.66)}),          # boot lid
+        ("T", "u", -0.80, GU, {"v": (-9, -1.66)}),
+        ("T", "v", -1.66, GY, {"u": (-0.80, 0.80)}),
         ("K", "u", 0.80, GU, {"w": (0.88, 1.0)}),
         ("K", "u", -0.80, GU, {"w": (0.88, 1.0)}),
         ("K", "u", 0.50, GU, {"w": (0.60, 0.68)}),
@@ -1073,7 +1074,7 @@ def build_body(coll, M, parent):
         side, r = f[1], f[2]
         if side == "B":
             return 2
-        if side == "T" and _mid(r["v"]) > COWL_Y and _mid(r["v"]) < 0.86 and abs(_mid(r["u"])) < 0.86:
+        if side == "T" and _mid(r["v"]) > COWL_Y and _mid(r["v"]) < 0.94 and abs(_mid(r["u"])) < 0.86:
             return 1
         if side == "F" and _mid(r["w"]) < 0.08:
             return 1
@@ -1220,8 +1221,14 @@ def build_lamps(coll, M, parent, blat, hl, tl):
                     p, n = blat.normal(u, YR, w, "K")
                 return p - n * inset, n
             if kind == "head":
-                for (u, r, proj) in ((0.62, 0.042, True), (0.80, 0.036, False)):
-                    p, n = P(sgn * u, 0.785, 0.055)
+                for (u, r, proj) in ((0.63, 0.047, True), (0.81, 0.040, False)):
+                    p, n = P(sgn * u, 0.785, 0.058)
+                    # chrome bezel ring around each module
+                    rg = lathe([(0.0, r + 0.002), (0.004, r + 0.002), (0.004, r + 0.010), (-0.01, r + 0.016)], 40, axis="Z")
+                    ob_ = bm_to_obj("taxi_hl_ring", rg, coll, [M["chrome"]], parent)
+                    ob_.location = p + n * 0.002
+                    ob_.rotation_euler = Vector((0, 0, 1)).rotation_difference(n).to_euler()
+                    objs.append(ob_)
                     bowl = lathe([(-0.035, 0.002), (-0.03, r * 0.45), (-0.018, r * 0.8), (0.0, r)], 32, axis="Z")
                     o = bm_to_obj("taxi_hl_bowl", bowl, coll, [M["reflector"]], parent)
                     o.location = p
@@ -1249,6 +1256,13 @@ def build_lamps(coll, M, parent, blat, hl, tl):
                     pts.append(p - n * 0.014)
                 o = bm_to_obj("taxi_drl", sweep_tube(pts, 0.0045, 8, scale_xy=(1.0, 0.6)), coll, [M["drl"]], parent)
                 objs.append(o)
+                # LED high-beam / cornering cubes between the modules
+                for k in range(3):
+                    p, n = P(sgn * (0.70 + 0.0 * k), 0.745 + 0.0 * k, 0.04)
+                    p = p + Vector((sgn * (k - 1) * 0.02, 0, 0))
+                    o = rounded_box("taxi_hl_led", (0.012, 0.012, 0.010), coll, [M["drl"]], parent,
+                                    loc=p, sup=0.3, levels=1)
+                    objs.append(o)
                 # amber indicator block in the outer, wrapped part
                 p, n = blat.normal(sgn, YF - 0.10, 0.75, "R" if sgn > 0 else "L")
                 o = rounded_box("taxi_indicator", (0.006, 0.08, 0.022), coll, [M["amber_led"]], parent,
@@ -1268,10 +1282,19 @@ def build_lamps(coll, M, parent, blat, hl, tl):
                     pts.append(p - n * 0.012)
                 o = bm_to_obj("taxi_tail_guide", sweep_tube(pts, 0.005, 8), coll, [M["tail_led"]], parent)
                 objs.append(o)
-                for (u, w, mt, nm) in ((0.62, 0.78, M["reflector"], "taxi_tail_reverse"),
-                                       (0.86, 0.78, M["tail_led"], "taxi_tail_brake")):
+                # stacked light blades inside the C
+                for wb in (0.745, 0.78, 0.815):
+                    pts = []
+                    for t in np.linspace(0.66, 0.95, 8):
+                        p, n = blat.normal(sgn * t, YR, wb, "K")
+                        pts.append(p - n * 0.018)
+                    o = bm_to_obj("taxi_tail_blade", sweep_tube(pts, 0.0032, 6, scale_xy=(1.0, 0.5)), coll,
+                                  [M["tail_led"]], parent)
+                    objs.append(o)
+                for (u, w, mt, nm) in ((0.58, 0.78, M["reflector"], "taxi_tail_reverse"),
+                                       ):
                     p, n = blat.normal(sgn * u, YR, w, "K")
-                    o = rounded_box(nm, (0.11, 0.012, 0.07), coll, [mt], parent, loc=p - n * 0.03, levels=1)
+                    o = rounded_box(nm, (0.07, 0.012, 0.09), coll, [mt], parent, loc=p - n * 0.03, levels=1)
                     o.rotation_euler = Vector((0, -1, 0)).rotation_difference(-n).to_euler()
                     objs.append(o)
     return objs
@@ -1359,14 +1382,14 @@ def rim_parts(coll, M, parent, spokes=10):
     nr, ns = 9, 8
     for sp in range(spokes):
         base = (sp // 2) * (2 * math.pi / (spokes // 2))
-        off = math.radians(7.5) * (1 if sp % 2 else -1)
+        off = math.radians(6.5) * (1 if sp % 2 else -1)
         rings = []
         for i in range(nr):
             t = i / (nr - 1)
             r = 0.058 + t * (0.200 - 0.058)
             th = base + off * (0.35 + 0.65 * t)
-            wdt = 0.030 - 0.010 * t
-            dep = 0.020 - 0.006 * t
+            wdt = 0.042 - 0.012 * t
+            dep = 0.026 - 0.008 * t
             xf = 0.078 + 0.020 * t ** 1.4 + 0.004 * math.sin(math.pi * t)  # face position (dish)
             ring = []
             for s in range(ns):
@@ -1433,7 +1456,6 @@ def rim_parts(coll, M, parent, spokes=10):
     cal.faces.new(rings[0][::-1])
     cal.faces.new(rings[-1])
     bmesh.ops.recalc_face_normals(cal, faces=cal.faces)
-    bmesh.ops.rotate(cal, verts=cal.verts, cent=(0, 0, 0), matrix=Matrix.Rotation(math.radians(-118), 3, "X"))
     o = bm_to_obj("taxi_caliper", cal, coll, [M["caliper"]], parent)
     add_subsurf(o, 1, 2)
     parts.append(o)
@@ -1448,19 +1470,20 @@ def build_wheels(coll, M, parent):
     objs = []
     for (ax, sx) in ((AXF, 1), (AXF, -1), (AXR, 1), (AXR, -1)):
         tag = ("F" if ax > 0 else "R") + ("R" if sx > 0 else "L")
-        steer = math.radians(0.0)
+        steer = math.radians(STEER_DEG) if ax > 0 else 0.0
         empty = bpy.data.objects.new("taxi_wheel_" + tag, None)
         coll.objects.link(empty)
         empty.parent = parent
         empty.location = (sx * TRACK_X, ax, WHEEL_Z)
         empty.rotation_euler = (0, 0, (0 if sx > 0 else math.pi) + steer)
         empty.empty_display_size = 0.35
+        empty.scale = (WHEEL_SCALE,) * 3
         for p in parts:
             if p.name.startswith("taxi_caliper"):
                 d = p.copy()
                 # calipers sit toward the rear of the disc on every corner
-                if sx < 0:
-                    d.matrix_basis = Matrix.Rotation(math.radians(-118) * 0 + math.radians(56), 4, "X")
+                # (wheel empties on the left are turned 180 deg, so mirror the angle)
+                d.rotation_euler = (math.radians(32 if sx > 0 else -32), 0, 0)
             else:
                 d = p.copy()
                 # spin each wheel differently so the 4 corners don't match exactly
@@ -1617,7 +1640,7 @@ def build_details(coll, M, parent, cfg, body, blat, clat, tex):
 
     # ---- mirrors
     for sx in (1, -1):
-        h = on_side(sx, 0.64, 1.0)
+        h = on_side(sx, 0.72, 1.0)
         base = h[0] if h[0] else Vector((sx * 0.9, 0.64, 1.0))
 
         def mshape(u, v, w):
@@ -1749,7 +1772,7 @@ def build_interior(coll, M, parent, cfg):
     seat("taxi_seat_pas", 0.37, 0.08, 0.50, 0.50, 0.50, 0.62, 18)
     seat("taxi_bench", 0.0, -0.86, 0.50, 1.36, 0.52, 0.56, 24, bench=True)
     # dashboard: rounded slab under the windscreen base + instrument binnacle
-    dash = rounded_box("taxi_dash", (1.62, 0.46, 0.22), coll, [M["dash"]], parent, loc=(0, 0.66, 0.86),
+    dash = rounded_box("taxi_dash", (1.62, 0.46, 0.22), coll, [M["dash"]], parent, loc=(0, 0.74, 0.86),
                        sup=0.3, levels=2, shape=lambda u, v, w: (0, -0.08 * w * (1 - u * u) * 0.3, 0.03 * v))
     objs.append(dash)
     bin_ = rounded_box("taxi_binnacle", (0.38, 0.16, 0.10), coll, [M["dash"]], parent, loc=(-0.37, 0.50, 0.99),

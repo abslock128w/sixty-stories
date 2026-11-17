@@ -21,8 +21,8 @@ OUT = os.path.join(taxi.ROOT, "blender", "out", "preview", "assets")
 SHOTS = {
     "front34": dict(cam=(4.9, 6.4, 1.62), at=(0.0, 0.35, 0.72), lens=50, sun_az=60.0),
     "rear34": dict(cam=(-4.6, -6.6, 1.62), at=(0.0, -0.3, 0.72), lens=50, sun_az=20.0),   # backlit
-    "side": dict(cam=(8.6, 0.05, 1.05), at=(0.0, 0.05, 0.72), lens=50, sun_az=120.0),
-    "wheel_close": dict(cam=(2.15, 2.75, 0.62), at=(0.82, 1.45, 0.36), lens=85, sun_az=70.0),
+    "side": dict(cam=(8.6, 0.05, 1.05), at=(0.0, 0.05, 0.72), lens=50, sun_az=155.0),
+    "wheel_close": dict(cam=(2.15, 2.75, 0.62), at=(0.82, 1.45, 0.37), lens=85, sun_az=70.0),
     "lamp_close": dict(cam=(1.85, 4.05, 1.10), at=(0.62, 2.28, 0.76), lens=85, sun_az=60.0),
     "interior": dict(cam=(1.75, -0.95, 1.30), at=(-0.25, 0.25, 0.90), lens=30, sun_az=150.0),
 }
@@ -62,7 +62,7 @@ def mat_asphalt():
     v = taxi._n(nt, "ShaderNodeTexVoronoi", -800, -300, Scale=900.0)
     taxi._l(nt, tc.outputs["Object"], v.inputs["Vector"])
     agg = taxi._maprange(nt, v.outputs["Distance"], 0.0, 0.5, 1.0, 0.0)
-    col = taxi._mixc(nt, taxi._maprange(nt, n1.outputs["Fac"], 0.35, 0.65), (0.040, 0.039, 0.038, 1), (0.058, 0.056, 0.054, 1))
+    col = taxi._mixc(nt, taxi._maprange(nt, n1.outputs["Fac"], 0.35, 0.65), (0.045, 0.045, 0.045, 1), (0.052, 0.051, 0.050, 1))
     col = taxi._mixc(nt, taxi._math(nt, "MULTIPLY", agg, 0.25), col, (0.11, 0.105, 0.10, 1))
     taxi._l(nt, col, b.inputs["Base Color"])
     taxi._l(nt, taxi._maprange(nt, n1.outputs["Fac"], 0.3, 0.7, 0.62, 0.9), b.inputs["Roughness"])
@@ -165,7 +165,7 @@ def setup_render(scene, res, samples, threads, aspect=(16, 9)):
         scene.view_settings.look = "AgX - Medium High Contrast"
     except Exception:
         pass
-    scene.view_settings.exposure = -1.3
+    scene.view_settings.exposure = -1.6
     scene.render.image_settings.file_format = "PNG"
 
 
