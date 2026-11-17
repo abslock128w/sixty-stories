@@ -1470,10 +1470,10 @@ def rim_parts(coll, M, parent, spokes=10):
     return parts
 
 
-def build_wheels(coll, M, parent):
+def build_wheels(coll, M, parent, tyre_segs=360):
     """One wheel built from shared meshes, instanced at the 4 corners as linked duplicates."""
     proto = bpy.data.collections.new(coll.name + "_wheel_proto")
-    tyre = bm_to_obj("taxi_tyre", tyre_bmesh(), proto, [M["tyre"]])
+    tyre = bm_to_obj("taxi_tyre", tyre_bmesh(tyre_segs), proto, [M["tyre"]])
     parts = [tyre] + rim_parts(proto, M, None)
     objs = []
     for (ax, sx) in ((AXF, 1), (AXF, -1), (AXR, 1), (AXR, -1)):
@@ -1868,7 +1868,9 @@ def build_interior(coll, M, parent, cfg):
 
 
 # ================================================================== assembly
-def build(variant="yellow_cab", name=None, seed=None, dirt=None, parent_coll=None):
+def build(variant="yellow_cab", name=None, seed=None, dirt=None, parent_coll=None, lod=0):
+    """lod 0 = hero (close-ups, ~1.25 M render faces); lod 1 = city (~0.35 M, render subdiv 1,
+    252-segment tyres); lod 2 = background traffic (no interior, subdiv 1 viewport+render)."""
     cfg = dict(VARIANTS[variant])
     name = name or ("ASSET_taxi" if variant == "yellow_cab" else "ASSET_taxi_" + variant)
     dirt = cfg["dirt"] if dirt is None else dirt
@@ -1892,9 +1894,24 @@ def build(variant="yellow_cab", name=None, seed=None, dirt=None, parent_coll=Non
     body, blat, hl, tl = build_body(coll, M, root)
     cab, clat, glass = build_cabin(coll, M, root)
     build_lamps(coll, M, root, blat, hl, tl)
-    build_wheels(coll, M, root)
+    build_wheels(coll, M, root, 360 if lod == 0 else 252)
     build_details(coll, M, root, cfg, body, blat, clat, tex)
-    build_interior(coll, M, root, cfg)
+    if lod < 2:
+        build_interior(coll, M, root, cfg)
+    if lod >= 1:
+        for ob in coll.all_objects:
+            for md in ob.modifiers:
+                if md.type == "SUBSURF":
+                    md.render_levels = min(md.render_levels, 1)
+                    md.levels = min(md.levels, 1)
+    # per-instance variation: front wheel steer, dirt is in the paint, seed spins the wheels
+    if seed is not None:
+        import random
+        rnd = random.Random(seed)
+        for ob in coll.objects:
+            if ob.name.startswith("taxi_wheel_F"):
+                ob.rotation_euler.z += math.radians(rnd.uniform(-12, 12)) - math.radians(STEER_DEG)
+    root["lod"] = lod
     return coll
 
 
