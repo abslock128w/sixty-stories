@@ -182,7 +182,7 @@ def setup_render(scene, res, samples, threads, aspect=(16, 9)):
         scene.view_settings.look = "AgX - Medium High Contrast"
     except Exception:
         pass
-    scene.view_settings.exposure = -1.6
+    scene.view_settings.exposure = -2.0
     scene.render.image_settings.file_format = "PNG"
 
 

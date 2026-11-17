@@ -52,7 +52,7 @@ STEER_DEG = -7.0                 # front wheels turned slightly (reads as a park
 COWL_Y, DECK_Y = 0.88, -1.62      # greenhouse footprint on the body
 
 VARIANTS = {
-    "yellow_cab": dict(paint=(0.80, 0.50, 0.004), metal=0.05, flake=0.10, coat_rough=0.035,
+    "yellow_cab": dict(paint=(0.76, 0.44, 0.003), metal=0.05, flake=0.10, coat_rough=0.035,
                        taxi=True, trim="black", dirt=0.85, plate=("T 482 77C", "TAXI"), rims="silver"),
     "black_sedan": dict(paint=(0.012, 0.012, 0.014), metal=0.55, flake=0.35, coat_rough=0.02,
                         taxi=False, trim="chrome", dirt=0.55, plate=("HC 4471", "LIVERY"), rims="dark"),
@@ -448,7 +448,7 @@ def make_textures(variant, cfg):
             d.line((0, y, W, y), fill=c)
         d.rounded_rectangle((6, 6, W - 6, H - 6), radius=28, outline=(30, 50, 120), width=10)
         d.text((W // 2, 62), "HARBOR  STATE", font=ImageFont.truetype(FONT_B, 54), fill=(25, 45, 120), anchor="mm")
-        d.text((W // 2, 272), num, font=ImageFont.truetype(FONT_D, 210), fill=(28, 28, 34), anchor="mm")
+        d.text((W // 2, 272), num, font=ImageFont.truetype(FONT_D, 172), fill=(28, 28, 34), anchor="mm")
         d.text((W // 2, 452), foot, font=ImageFont.truetype(FONT_B, 50),
                fill=(160, 30, 30) if foot == "TAXI" else (25, 45, 120), anchor="mm")
         for cx in (W * 0.22, W * 0.78):
