@@ -65,7 +65,8 @@ def mat_asphalt():
     col = taxi._mixc(nt, taxi._maprange(nt, n1.outputs["Fac"], 0.35, 0.65), (0.045, 0.045, 0.045, 1), (0.052, 0.051, 0.050, 1))
     col = taxi._mixc(nt, taxi._math(nt, "MULTIPLY", agg, 0.25), col, (0.11, 0.105, 0.10, 1))
     taxi._l(nt, col, b.inputs["Base Color"])
-    taxi._l(nt, taxi._maprange(nt, n1.outputs["Fac"], 0.3, 0.7, 0.62, 0.9), b.inputs["Roughness"])
+    taxi._l(nt, taxi._maprange(nt, n1.outputs["Fac"], 0.3, 0.7, 0.80, 0.95), b.inputs["Roughness"])
+    b.inputs["Specular IOR Level"].default_value = 0.35
     bp = taxi._n(nt, "ShaderNodeBump", 0, -400, Strength=0.35, Distance=0.002)
     taxi._l(nt, agg, bp.inputs["Height"])
     taxi._l(nt, bp.outputs["Normal"], b.inputs["Normal"])
@@ -138,6 +139,22 @@ def setup_stage(scene):
         o.rotation_euler = (0, 0, -a)
         o.parent = ring
         me.materials.append(mat_block(i))
+        coll.objects.link(o)
+    # low distant skyline inside the gap (stays under the 12 deg sun line)
+    for k in range(6):
+        a = math.radians(-34 + 68 * k / 5)
+        h = rnd.uniform(5, 11)
+        bm = bmesh.new()
+        bmesh.ops.create_cube(bm, size=1.0)
+        bmesh.ops.scale(bm, vec=(rnd.uniform(14, 22), 12, h), verts=bm.verts)
+        bmesh.ops.translate(bm, vec=(0, 0, h / 2), verts=bm.verts)
+        me = bpy.data.meshes.new("proof_low")
+        bm.to_mesh(me)
+        o = bpy.data.objects.new("proof_low", me)
+        o.location = (75 * math.sin(a), 75 * math.cos(a), 0)
+        o.rotation_euler = (0, 0, -a)
+        o.parent = ring
+        me.materials.append(mat_block(k + 3))
         coll.objects.link(o)
     return coll
 

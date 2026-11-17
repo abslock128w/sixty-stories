@@ -282,6 +282,8 @@ def body_pos(u, v, w):
     Z += crown * (1 - u * u) * w ** 4
     if Y > 0.9:
         Z += 0.007 * math.exp(-((au - 0.48) / 0.07) ** 2) * w ** 6 * smooth((Y - 0.9) / 0.4)
+    # boot lid trailing edge kicks up into a small integrated lip
+    Z += 0.014 * smooth((-2.05 - Y) / 0.30) * w ** 10 * (1 - 0.3 * u * u)
     # front fascia: slightly lower nose in plan corners
     Z -= tF * 0.03 * au ** 3 * w
     # half width
@@ -825,44 +827,50 @@ def mat_lens(name, color, rough=0.02, pattern=0.0):
     return m
 
 
-def build_materials(variant, cfg, tex, dirt):
-    sfx = "_" + variant
+def _get(fn, name):
+    """Reuse a shared material if it already exists (several cars per file), else build it."""
+    m = bpy.data.materials.get(name)
+    return m if m is not None else fn()
+
+
+def build_materials(variant, cfg, tex, dirt, tag=None):
+    sfx = "_" + (tag or variant)
     M = {}
-    M["paint"] = mat_paint("taxi_paint" + sfx, cfg, tex, dirt)
-    M["inner"] = mat_simple("taxi_inner" + sfx, (0.045, 0.045, 0.047), rough=0.7)
-    M["black_tex"] = mat_simple("taxi_black_plastic", (0.022, 0.022, 0.023), rough=0.62, bump=0.25, bump_scale=900.0)
-    M["black_gloss"] = mat_simple("taxi_black_gloss", (0.008, 0.008, 0.009), rough=0.08, coat=1.0)
-    M["rubber"] = mat_simple("taxi_rubber", (0.018, 0.018, 0.018), rough=0.7, spec=0.3)
-    M["chrome"] = mat_simple("taxi_chrome", (0.92, 0.92, 0.92), rough=0.04, metal=1.0)
-    M["satin"] = mat_simple("taxi_satin_alu", (0.6, 0.6, 0.62), rough=0.28, metal=1.0)
+    M["paint"] = _get(lambda: mat_paint("taxi_paint" + sfx, cfg, tex, dirt), "taxi_paint" + sfx)
+    M["inner"] = _get(lambda: mat_simple("taxi_inner" + sfx, (0.045, 0.045, 0.047), rough=0.7), "taxi_inner" + sfx)
+    M["black_tex"] = _get(lambda: mat_simple("taxi_black_plastic", (0.022, 0.022, 0.023), rough=0.62, bump=0.25, bump_scale=900.0), "taxi_black_plastic")
+    M["black_gloss"] = _get(lambda: mat_simple("taxi_black_gloss", (0.008, 0.008, 0.009), rough=0.08, coat=1.0), "taxi_black_gloss")
+    M["rubber"] = _get(lambda: mat_simple("taxi_rubber", (0.018, 0.018, 0.018), rough=0.7, spec=0.3), "taxi_rubber")
+    M["chrome"] = _get(lambda: mat_simple("taxi_chrome", (0.92, 0.92, 0.92), rough=0.04, metal=1.0), "taxi_chrome")
+    M["satin"] = _get(lambda: mat_simple("taxi_satin_alu", (0.6, 0.6, 0.62), rough=0.28, metal=1.0), "taxi_satin_alu")
     M["trim"] = M["chrome"] if cfg["trim"] == "chrome" else M["black_gloss"]
-    M["glass_ws"] = mat_glass("taxi_glass_ws" + sfx, dirt=dirt, wiper=True)
-    M["glass"] = mat_glass("taxi_glass" + sfx, tint=(0.80, 0.86, 0.84), dirt=dirt * 0.6)
-    M["mirror"] = mat_simple("taxi_mirror", (0.85, 0.87, 0.88), rough=0.02, metal=1.0)
-    M["lens_clear"] = mat_lens("taxi_lens_clear", (0.96, 0.97, 0.97), rough=0.01)
-    M["lens_red"] = mat_lens("taxi_lens_red", (0.75, 0.025, 0.02), rough=0.02, pattern=0.08)
-    M["lens_amber"] = mat_lens("taxi_lens_amber", (0.95, 0.42, 0.02), rough=0.02)
-    M["reflector"] = mat_simple("taxi_reflector", (0.9, 0.9, 0.92), rough=0.08, metal=1.0)
-    M["housing"] = mat_simple("taxi_lamp_housing", (0.16, 0.16, 0.17), rough=0.22, metal=1.0)
-    M["drl"] = mat_simple("taxi_drl", (0.9, 0.95, 1.0), rough=0.3, emission=(0.86, 0.93, 1.0), estrength=14.0)
-    M["tail_led"] = mat_simple("taxi_tail_led", (0.6, 0.02, 0.01), rough=0.3, emission=(1.0, 0.03, 0.01), estrength=9.0)
-    M["amber_led"] = mat_simple("taxi_amber_led", (0.8, 0.35, 0.0), rough=0.4)
-    M["tyre"] = mat_tyre("taxi_tyre", tex)
-    M["rim"] = mat_rim("taxi_rim_" + cfg["rims"], cfg["rims"])
-    M["disc"] = mat_simple("taxi_brake_disc", (0.16, 0.15, 0.145), rough=0.32, metal=0.85, bump=0.15, bump_scale=600.0)
-    M["caliper"] = mat_simple("taxi_caliper", (0.10, 0.10, 0.105), rough=0.45, metal=0.3)
-    M["liner"] = mat_simple("taxi_liner", (0.03, 0.03, 0.03), rough=0.85, bump=0.4, bump_scale=200.0)
-    M["under"] = mat_simple("taxi_underbody", (0.02, 0.02, 0.02), rough=0.9)
-    M["seat"] = mat_simple("taxi_seat_vinyl", (0.028, 0.028, 0.03), rough=0.42, bump=0.12, bump_scale=420.0)
-    M["dash"] = mat_simple("taxi_dash", (0.035, 0.035, 0.037), rough=0.62, bump=0.2, bump_scale=700.0)
-    M["headliner"] = mat_simple("taxi_headliner", (0.30, 0.29, 0.27), rough=0.95)
-    M["carpet"] = mat_simple("taxi_carpet", (0.03, 0.03, 0.032), rough=1.0, bump=0.5, bump_scale=1500.0)
-    M["screen"] = mat_simple("taxi_screen", (0.02, 0.03, 0.05), rough=0.05, emission=(0.25, 0.45, 0.9), estrength=1.2)
-    M["perspex"] = mat_simple("taxi_perspex", (0.95, 0.95, 0.95), rough=0.03, transmission=1.0, ior=1.49)
-    M["plate"] = mat_image("taxi_plate_" + cfg["plate"][0].replace(" ", "_"), tex["plate"], rough=0.35, coat=0.3)
+    M["glass_ws"] = _get(lambda: mat_glass("taxi_glass_ws" + sfx, dirt=dirt, wiper=True), "taxi_glass_ws" + sfx)
+    M["glass"] = _get(lambda: mat_glass("taxi_glass" + sfx, tint=(0.80, 0.86, 0.84), dirt=dirt * 0.6), "taxi_glass" + sfx)
+    M["mirror"] = _get(lambda: mat_simple("taxi_mirror", (0.85, 0.87, 0.88), rough=0.02, metal=1.0), "taxi_mirror")
+    M["lens_clear"] = _get(lambda: mat_lens("taxi_lens_clear", (0.96, 0.97, 0.97), rough=0.01), "taxi_lens_clear")
+    M["lens_red"] = _get(lambda: mat_lens("taxi_lens_red", (0.75, 0.025, 0.02), rough=0.02, pattern=0.08), "taxi_lens_red")
+    M["lens_amber"] = _get(lambda: mat_lens("taxi_lens_amber", (0.95, 0.42, 0.02), rough=0.02), "taxi_lens_amber")
+    M["reflector"] = _get(lambda: mat_simple("taxi_reflector", (0.9, 0.9, 0.92), rough=0.08, metal=1.0), "taxi_reflector")
+    M["housing"] = _get(lambda: mat_simple("taxi_lamp_housing", (0.16, 0.16, 0.17), rough=0.22, metal=1.0), "taxi_lamp_housing")
+    M["drl"] = _get(lambda: mat_simple("taxi_drl", (0.9, 0.95, 1.0), rough=0.3, emission=(0.86, 0.93, 1.0), estrength=14.0), "taxi_drl")
+    M["tail_led"] = _get(lambda: mat_simple("taxi_tail_led", (0.6, 0.02, 0.01), rough=0.3, emission=(1.0, 0.03, 0.01), estrength=9.0), "taxi_tail_led")
+    M["amber_led"] = _get(lambda: mat_simple("taxi_amber_led", (0.8, 0.35, 0.0), rough=0.4), "taxi_amber_led")
+    M["tyre"] = _get(lambda: mat_tyre("taxi_tyre", tex), "taxi_tyre")
+    M["rim"] = _get(lambda: mat_rim("taxi_rim_" + cfg["rims"], cfg["rims"]), "taxi_rim_" + cfg["rims"])
+    M["disc"] = _get(lambda: mat_simple("taxi_brake_disc", (0.16, 0.15, 0.145), rough=0.32, metal=0.85, bump=0.15, bump_scale=600.0), "taxi_brake_disc")
+    M["caliper"] = _get(lambda: mat_simple("taxi_caliper", (0.10, 0.10, 0.105), rough=0.45, metal=0.3), "taxi_caliper")
+    M["liner"] = _get(lambda: mat_simple("taxi_liner", (0.03, 0.03, 0.03), rough=0.85, bump=0.4, bump_scale=200.0), "taxi_liner")
+    M["under"] = _get(lambda: mat_simple("taxi_underbody", (0.02, 0.02, 0.02), rough=0.9), "taxi_underbody")
+    M["seat"] = _get(lambda: mat_simple("taxi_seat_vinyl", (0.028, 0.028, 0.03), rough=0.42, bump=0.12, bump_scale=420.0), "taxi_seat_vinyl")
+    M["dash"] = _get(lambda: mat_simple("taxi_dash", (0.035, 0.035, 0.037), rough=0.62, bump=0.2, bump_scale=700.0), "taxi_dash")
+    M["headliner"] = _get(lambda: mat_simple("taxi_headliner", (0.30, 0.29, 0.27), rough=0.95), "taxi_headliner")
+    M["carpet"] = _get(lambda: mat_simple("taxi_carpet", (0.03, 0.03, 0.032), rough=1.0, bump=0.5, bump_scale=1500.0), "taxi_carpet")
+    M["screen"] = _get(lambda: mat_simple("taxi_screen", (0.02, 0.03, 0.05), rough=0.05, emission=(0.25, 0.45, 0.9), estrength=1.2), "taxi_screen")
+    M["perspex"] = _get(lambda: mat_simple("taxi_perspex", (0.95, 0.95, 0.95), rough=0.03, transmission=1.0, ior=1.49), "taxi_perspex")
+    M["plate"] = _get(lambda: mat_image("taxi_plate_" + cfg["plate"][0].replace(" ", "_"), tex["plate"], rough=0.35, coat=0.3), "taxi_plate_" + cfg["plate"][0].replace(" ", "_"))
     if cfg["taxi"]:
-        M["roofsign"] = mat_image("taxi_roofsign", tex["roofsign"], rough=0.25, emission=1.6)
-        M["sign_body"] = mat_simple("taxi_sign_body", (0.85, 0.83, 0.78), rough=0.3)
+        M["roofsign"] = _get(lambda: mat_image("taxi_roofsign", tex["roofsign"], rough=0.25, emission=1.6), "taxi_roofsign")
+        M["sign_body"] = _get(lambda: mat_simple("taxi_sign_body", (0.85, 0.83, 0.78), rough=0.3), "taxi_sign_body")
     return M
 
 
@@ -1257,7 +1265,7 @@ def build_lamps(coll, M, parent, blat, hl, tl):
                 o = bm_to_obj("taxi_drl", sweep_tube(pts, 0.0045, 8, scale_xy=(1.0, 0.6)), coll, [M["drl"]], parent)
                 objs.append(o)
                 # LED high-beam / cornering cubes between the modules
-                for k in range(3):
+                for k in range(0):
                     p, n = P(sgn * (0.70 + 0.0 * k), 0.745 + 0.0 * k, 0.04)
                     p = p + Vector((sgn * (k - 1) * 0.02, 0, 0))
                     o = rounded_box("taxi_hl_led", (0.012, 0.012, 0.010), coll, [M["drl"]], parent,
@@ -1619,7 +1627,7 @@ def build_details(coll, M, parent, cfg, body, blat, clat, tex):
         if front:
             p, n = blat.normal(0.0, YF, 0.465, "F")
         else:
-            p, n = blat.normal(0.0, YR, 0.74, "K")
+            p, n = blat.normal(0.0, YR, 0.705, "K")
         bm = bmesh.new()
         bmesh.ops.create_grid(bm, x_segments=1, y_segments=1, size=0.5)
         bmesh.ops.scale(bm, vec=(0.305, 0.152, 1), verts=bm.verts)
@@ -1667,9 +1675,9 @@ def build_details(coll, M, parent, cfg, body, blat, clat, tex):
             n = h[1]
             cup = rounded_box("taxi_handle_cup", (0.004, 0.17, 0.05), coll, [M["black_tex"]], parent,
                               loc=h[0] - n * 0.0005, sup=0.45, levels=2)
-            hd = rounded_box("taxi_door_handle", (0.022, 0.19, 0.032), coll,
+            hd = rounded_box("taxi_door_handle", (0.018, 0.175, 0.026), coll,
                              [M["chrome"] if cfg["trim"] == "chrome" else M["paint"]], parent,
-                             loc=h[0] + n * 0.010, sup=0.45, levels=2,
+                             loc=h[0] + n * 0.008, sup=0.45, levels=2,
                              shape=lambda u, v, w: (0.004 * (1 - v * v), 0, 0))
             objs += [cup, hd]
 
@@ -1702,6 +1710,30 @@ def build_details(coll, M, parent, cfg, body, blat, clat, tex):
         bm = lathe([(0.0, 0.018), (0.022, 0.018), (0.03, 0.01), (0.03, 0.0)], 16, axis="Z")
         o = bm_to_obj("taxi_wiper_pivot", bm, coll, [M["black_tex"]], parent)
         o.location = pv + Vector((0, 0.03, -0.01))
+        objs.append(o)
+
+    # ---- rear garnish between the tail lamps (gloss black / chrome) + maker emblems
+    U = list(np.linspace(-0.495, 0.495, 24))
+    W = list(np.linspace(0.815, 0.865, 3))
+    bm = bmesh.new()
+    vv = [[bm.verts.new(blat.normal(u, YR, w, "K")[0] + blat.normal(u, YR, w, "K")[1] * 0.0015) for w in W] for u in U]
+    for i in range(len(U) - 1):
+        for j in range(len(W) - 1):
+            bm.faces.new((vv[i][j], vv[i][j + 1], vv[i + 1][j + 1], vv[i + 1][j]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    g = bm_to_obj("taxi_rear_garnish", bm, coll, [M["trim"]], parent)
+    sg = g.modifiers.new("Thickness", "SOLIDIFY")
+    sg.thickness = 0.003
+    sg.offset = 1.0
+    objs.append(g)
+    for (side_, u, w, r) in (("K", 0.0, 0.84, 0.022), ("F", 0.0, 0.73, 0.036)):
+        p, n = blat.normal(u, YR if side_ == "K" else YF, w, side_)
+        em = lathe([(0.0, 0.0), (0.004, 0.0), (0.006, r * 0.55), (0.006, r * 0.75), (0.004, r), (0.0, r + 0.002)], 40, axis="Z")
+        # chevron inside the ring
+        o = bm_to_obj("taxi_emblem", em, coll, [M["chrome"]], parent)
+        o.location = p + n * (0.004 if side_ == "K" else 0.02)
+        o.rotation_euler = Vector((0, 0, 1)).rotation_difference(n).to_euler()
+        o.scale = (1.35, 1.0, 1.0)
         objs.append(o)
 
     # ---- exhaust (rear left, under the bumper)
@@ -1845,6 +1877,10 @@ def build(variant="yellow_cab", name=None, seed=None, dirt=None, parent_coll=Non
         for ob in list(old.all_objects):
             bpy.data.objects.remove(ob)
         bpy.data.collections.remove(old)
+    for mn in ("taxi_paint_", "taxi_glass_ws_", "taxi_glass_"):
+        m = bpy.data.materials.get(mn + name)
+        if m is not None and m.users == 0:
+            bpy.data.materials.remove(m)
     coll = bpy.data.collections.new(name)
     (parent_coll or bpy.context.scene.collection).children.link(coll)
     root = bpy.data.objects.new(name + "_root", None)
@@ -1852,7 +1888,7 @@ def build(variant="yellow_cab", name=None, seed=None, dirt=None, parent_coll=Non
     coll.objects.link(root)
     root["variant"] = variant
     tex = make_textures(variant, cfg)
-    M = build_materials(variant, cfg, tex, dirt)
+    M = build_materials(variant, cfg, tex, dirt, name)
     body, blat, hl, tl = build_body(coll, M, root)
     cab, clat, glass = build_cabin(coll, M, root)
     build_lamps(coll, M, root, blat, hl, tl)
