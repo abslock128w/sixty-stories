@@ -353,7 +353,7 @@ def make_textures(variant, cfg):
             x0 = k * W // 2
             d.text((x0 + 120, 40), "VANTERRA", font=fb, fill=255)
             d.text((x0 + 620, 58), "ROADMASTER  A/S", font=fs, fill=230)
-            d.text((x0 + 1180, 40), "225/55 R17", font=fb, fill=255)
+            d.text((x0 + 1180, 40), "225/55 R18", font=fb, fill=255)
             d.text((x0 + 1640, 64), "94V  M+S  TUBELESS", font=fs, fill=220)
         # moulded rim-protector rib ring + fine radial texture
         d.rectangle((0, 8, W, 14), fill=150)
@@ -1400,13 +1400,12 @@ def rim_parts(coll, M, parent, spokes=10):
             dep = 0.026 - 0.008 * t
             xf = 0.078 + 0.020 * t ** 1.4 + 0.004 * math.sin(math.pi * t)  # face position (dish)
             ring = []
+            # machined spoke section: flat face with chamfered edges, tapered flanks, flat back
+            sec = [(-0.50, 0.70), (-0.38, 1.0), (0.38, 1.0), (0.50, 0.70),
+                   (0.44, 0.05), (0.15, 0.0), (-0.15, 0.0), (-0.44, 0.05)]
             for s in range(ns):
-                a = 2 * math.pi * s / ns
-                cx = math.cos(a)
-                cy = math.sin(a)
-                # section: crowned top (toward +X), flat back
-                lat = cy * wdt / 2
-                ax_ = xf - dep / 2 + cx * dep / 2 + (0.003 * (1 - cy * cy) if cx > 0 else 0)
+                lat = sec[s][0] * wdt
+                ax_ = xf - dep + sec[s][1] * dep
                 yy = r * math.sin(th) + lat * math.cos(th)
                 zz = r * math.cos(th) - lat * math.sin(th)
                 ring.append(bm.verts.new((ax_, yy, zz)))
@@ -1548,8 +1547,8 @@ def build_details(coll, M, parent, cfg, body, blat, clat, tex):
     # ---- underbody tray / shadow box
     bm = bmesh.new()
     bmesh.ops.create_cube(bm, size=1.0)
-    bmesh.ops.scale(bm, vec=(1.70, 4.3, 0.06), verts=bm.verts)
-    bmesh.ops.translate(bm, vec=(0, -0.05, 0.215), verts=bm.verts)
+    bmesh.ops.scale(bm, vec=(1.60, 3.85, 0.05), verts=bm.verts)
+    bmesh.ops.translate(bm, vec=(0, 0.0, 0.225), verts=bm.verts)
     objs.append(bm_to_obj("taxi_underbody", bm, coll, [M["under"]], parent, smooth=False))
     # floor pan inside the cabin
     bm = bmesh.new()
