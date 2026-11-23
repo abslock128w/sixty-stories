@@ -2230,9 +2230,9 @@ class Facade:
         cs = T.xyz(cellv)
         batch = T.noise(T.comb(T.math('MULTIPLY', cs[0], 0.11), T.math('MULTIPLY', cs[1], 0.07), 0.0), 1.0, 2, 0.5)
         lift = T.n('ShaderNodeTexWhiteNoise', {'Vector': T.comb(T.math('FLOOR', T.math('DIVIDE', cs[1], 13.0)), 0.5, 0.5)}, noise_dimensions='3D')
-        bright = T.math('MULTIPLY', T.remap(sep[0], 0, 1, 0.80, 1.10), T.remap(batch.outputs['Factor'], 0.3, 0.7, 0.86, 1.10))
+        bright = T.math('MULTIPLY', T.remap(sep[0], 0, 1, 0.86, 1.06), T.remap(batch.outputs['Factor'], 0.3, 0.7, 0.88, 1.08))
         bright = T.math('MULTIPLY', bright, T.remap(lift.outputs['Value'], 0, 1, 0.95, 1.04))
-        hue = T.n('ShaderNodeHueSaturation', {'Hue': T.remap(sep[1], 0, 1, 0.493, 0.507), 'Saturation': T.remap(sep[2], 0, 1, 0.80, 1.0),
+        hue = T.n('ShaderNodeHueSaturation', {'Hue': T.remap(sep[1], 0, 1, 0.493, 0.507), 'Saturation': T.remap(sep[2], 0, 1, 0.70, 0.86),
                                                'Value': bright, 'Color': col})
         # ---- scanned face from the atlas
         loc = T.xyz(gi.outputs['Local'])
@@ -2258,7 +2258,7 @@ class Facade:
         c2 = T.mul_col(c1, det)
         # a century of city air: a grey-brown film, uneven, heavier on some bricks (more porous) than others
         pat = T.noise(pos, 3.0, 4, 0.6)
-        pf = T.math('ADD', T.remap(pat.outputs['Factor'], 0.3, 0.7, 0.10, 0.30), T.remap(wn2.outputs['Value'], 0, 1, -0.06, 0.10))
+        pf = T.math('ADD', T.remap(pat.outputs['Factor'], 0.3, 0.7, 0.14, 0.36), T.remap(wn2.outputs['Value'], 0, 1, -0.06, 0.10))
         c2 = T.mix(pf, T.mul_col(c2, (0.86, 0.86, 0.86, 1)), srgb((88, 76, 66)))
         T.L.new(c2, go.inputs['Color'])
         rr = T.math('ADD', T.remap(ir.outputs['Color'], 0.5, 1.0, 0.70, 0.93), T.remap(wn2.outputs['Value'], 0, 1, -0.04, 0.04))
@@ -2311,8 +2311,8 @@ class Facade:
         rust = T.math('MULTIPLY', T.math('MULTIPLY', alpha, nzf), S, clamp=True)
         c = gi.outputs['Color']
         c = T.mix(T.math('MULTIPLY', soot, 0.85), c, T.mul_col(c, (0.16, 0.15, 0.14, 1)))
-        c = T.mix(T.math('MINIMUM', T.math('MULTIPLY', streak, 1.3), 1.0), c, T.mul_col(c, (0.36, 0.34, 0.32, 1)))
-        c = T.mix(T.math('MULTIPLY', effl, 0.75), c, (0.62, 0.60, 0.55, 1))
+        c = T.mix(T.math('MINIMUM', T.math('MULTIPLY', streak, 1.6), 1.0), c, T.mul_col(c, (0.30, 0.29, 0.28, 1)))
+        c = T.mix(T.math('MULTIPLY', effl, 0.35), c, (0.55, 0.53, 0.49, 1))
         c = T.mix(T.math('MULTIPLY', rust, 0.8), c, srgb((92, 46, 22)))
         T.L.new(c, go.inputs['Color'])
         r = T.math('ADD', gi.outputs['Rough'], T.math('MULTIPLY', T.math('ADD', soot, effl), 0.15))
@@ -2326,9 +2326,9 @@ class Facade:
             T.set(nd.inputs[k], v)
         return nd
 
-    def _ao_dirt(self, T, col, rough, amount=0.55):
+    def _ao_dirt(self, T, col, rough, amount=0.55, dist=0.35):
         """Grime collecting in concave corners (reveals, under sills, against the belt course)."""
-        ao = T.n('ShaderNodeAmbientOcclusion', {'Distance': 0.35}, samples=6, only_local=False)
+        ao = T.n('ShaderNodeAmbientOcclusion', {'Distance': dist}, samples=6, only_local=False)
         occ = T.math('POWER', T.math('SUBTRACT', 1.0, ao.outputs['AO']), 1.4)
         nz = T.noise(T.n('ShaderNodeTexCoord').outputs['Object'], 7.0, 4, 0.6)
         f = T.math('MULTIPLY', T.math('MULTIPLY', occ, amount), T.remap(nz.outputs['Factor'], 0.35, 0.65, 0.5, 1.3), clamp=True)
@@ -2400,7 +2400,7 @@ class Facade:
         col = T.mix(brick, mort, b.outputs['Color'])
         rough = T.mixf(brick, 0.96, b.outputs['Rough'])
         w = self._group(T, wg, {'Color': col, 'Rough': rough, 'Strength': 1.0})
-        c, r = self._ao_dirt(T, w.outputs['Color'], w.outputs['Rough'], 0.5)
+        c, r = self._ao_dirt(T, w.outputs['Color'], w.outputs['Rough'], 0.4, dist=0.25)
         # height: brick faces with per-brick tilt, recessed mortar (raked deeper where eroded)
         wn = T.n('ShaderNodeTexWhiteNoise', {'Vector': cell}, noise_dimensions='3D')
         tilt = T.xyz(wn.outputs['Color'])
