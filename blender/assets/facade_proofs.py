@@ -2,6 +2,8 @@
 
     $PY facade_proofs.py [shot ...] [--w 640] [--samples 32] [--threads 2] [--save] [--tag x]
 shots: full shopfront window fire dusk  (default: all)
+    --border x0,y0,x1,y1  render only that region (0..1, origin bottom-left), cropped: for 100% crops
+    --nodenoise 1         denoiser off (sharpness check)
 Writes blender/out/preview/assets/facade_<shot>[_tag].png ; --save writes blender/out/assets/facade.blend
 """
 import math
@@ -285,6 +287,13 @@ def main():
         fn = os.path.join(OUT_PREV, f"facade_{s if s != 'fire' else 'fire_escape'}" + (s == 'window' and '_close' or '') + (f"_{opt['tag']}" if opt['tag'] else '') + ".png")
         if s == 'full':
             fn = fn.replace('facade_full', 'facade_full')
+        if opt.get('border'):
+            bx = [float(x) for x in opt['border'].split(',')]
+            scene.render.use_border = True
+            scene.render.use_crop_to_border = True
+            scene.render.border_min_x, scene.render.border_min_y, scene.render.border_max_x, scene.render.border_max_y = bx
+        if opt.get('nodenoise'):
+            scene.cycles.use_denoising = False
         scene.render.filepath = fn
         t1 = time.time()
         bpy.ops.render.render(write_still=True)

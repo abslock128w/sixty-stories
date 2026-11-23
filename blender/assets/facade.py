@@ -43,7 +43,7 @@ ROOT = "/home/user/sixty"
 CH = 0.075           # brick course height (65 brick + 10 mortar)
 CL = 0.225           # brick module length (215 + 10)
 MORT = 0.005         # half mortar joint
-BRICK_PROUD = 0.010  # brick face in front of mortar plane
+BRICK_PROUD = 0.006  # brick face in front of mortar plane (lightly struck joints, weathered back)
 
 PALETTES = {  # sRGB 0..255; several bricks per palette, the last one is a rare clinker
     'red':   [(120, 54, 40), (106, 48, 36), (132, 62, 46), (114, 60, 46), (98, 44, 34), (128, 72, 54), (110, 52, 42), (72, 38, 32)],
@@ -463,6 +463,13 @@ def new_mat(name):
     T = NT(nt)
     out = T.n('ShaderNodeOutputMaterial')
     return m, T, out
+
+def tex_image(rel, color=False):
+    """Load a texture shipped with the asset (blender/assets/<rel>), shared by every facade instance."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), rel)
+    img = bpy.data.images.load(path, check_existing=True)
+    img.colorspace_settings.name = 'sRGB' if color else 'Non-Color'
+    return img
 
 
 def principled(T, out, base, rough=0.5, metal=0.0, normal=None, **extra):
@@ -2191,17 +2198,24 @@ class Facade:
         self.materials = Mt
 
     def brick_color_group(self, pal, tag):
+        """Per-brick colour / roughness / normal.  Inputs: Cell (i, j, kind), Pos (object coords), Local (lu, lv in metres
+        from the cell's lower-left corner incl. mortar), Scan (1 = use the scanned-face atlas).  The palette sets each
+        brick's colour; a face cut from the CC0 red_brick scan (tex_gen/brick_atlas_*) supplies clay texture, pores, fire
+        flashing, chips and arrises; low-frequency cell noise adds batch / scaffold-lift variation."""
         g = bpy.data.node_groups.new(tag + "_BrickColor", 'ShaderNodeTree')
-        g.interface.new_socket("Cell", in_out='INPUT', socket_type='NodeSocketVector')
-        g.interface.new_socket("Pos", in_out='INPUT', socket_type='NodeSocketVector')
+        for nm, st in (("Cell", 'NodeSocketVector'), ("Pos", 'NodeSocketVector'), ("Local", 'NodeSocketVector'), ("Scan", 'NodeSocketFloat')):
+            g.interface.new_socket(nm, in_out='INPUT', socket_type=st)
         g.interface.new_socket("Color", in_out='OUTPUT', socket_type='NodeSocketColor')
         g.interface.new_socket("Rough", in_out='OUTPUT', socket_type='NodeSocketFloat')
         g.interface.new_socket("Height", in_out='OUTPUT', socket_type='NodeSocketFloat')
+        g.interface.new_socket("Normal", in_out='OUTPUT', socket_type='NodeSocketVector')
         T = NT(g)
         gi = T.n('NodeGroupInput')
         go = T.n('NodeGroupOutput')
-        wn = T.n('ShaderNodeTexWhiteNoise', {'Vector': gi.outputs['Cell']}, noise_dimensions='3D')
-        wn2 = T.n('ShaderNodeTexWhiteNoise', {'Vector': T.vmath('ADD', gi.outputs['Cell'], (17.3, 5.1, 2.2))}, noise_dimensions='3D')
+        cellv = gi.outputs['Cell']
+        wn = T.n('ShaderNodeTexWhiteNoise', {'Vector': cellv}, noise_dimensions='3D')
+        wn2 = T.n('ShaderNodeTexWhiteNoise', {'Vector': T.vmath('ADD', cellv, (17.3, 5.1, 2.2))}, noise_dimensions='3D')
+        wn3 = T.n('ShaderNodeTexWhiteNoise', {'Vector': T.vmath('ADD', cellv, (3.7, 41.9, 8.4))}, noise_dimensions='3D')
         n = len(pal)
         stops = []
         weights = [1.0] * (n - 1) + [0.25]
@@ -2212,24 +2226,60 @@ class Facade:
             acc += w
         col = T.ramp(wn.outputs['Value'], stops, interp='CONSTANT')
         sep = T.xyz(wn.outputs['Color'])
-        bright = T.remap(sep[0], 0, 1, 0.72, 1.12)
-        hue = T.n('ShaderNodeHueSaturation', {'Hue': T.remap(sep[1], 0, 1, 0.492, 0.508), 'Saturation': T.remap(sep[2], 0, 1, 0.78, 1.0),
+        # batch / lift variation: neighbouring bricks correlate (bricks came from the same pallet, laid the same day)
+        cs = T.xyz(cellv)
+        batch = T.noise(T.comb(T.math('MULTIPLY', cs[0], 0.11), T.math('MULTIPLY', cs[1], 0.07), 0.0), 1.0, 2, 0.5)
+        lift = T.n('ShaderNodeTexWhiteNoise', {'Vector': T.comb(T.math('FLOOR', T.math('DIVIDE', cs[1], 13.0)), 0.5, 0.5)}, noise_dimensions='3D')
+        bright = T.math('MULTIPLY', T.remap(sep[0], 0, 1, 0.80, 1.10), T.remap(batch.outputs['Factor'], 0.3, 0.7, 0.86, 1.10))
+        bright = T.math('MULTIPLY', bright, T.remap(lift.outputs['Value'], 0, 1, 0.95, 1.04))
+        hue = T.n('ShaderNodeHueSaturation', {'Hue': T.remap(sep[1], 0, 1, 0.493, 0.507), 'Saturation': T.remap(sep[2], 0, 1, 0.80, 1.0),
                                                'Value': bright, 'Color': col})
-        # face texture: sandy mottling, pits, fire flashing toward one end
+        # ---- scanned face from the atlas
+        loc = T.xyz(gi.outputs['Local'])
+        fu = T.remap(loc[0], MORT, CL - MORT, 0.004, 0.996)
+        fv = T.remap(loc[1], MORT, CH - MORT, 0.01, 0.99)
+        flip = T.math('GREATER_THAN', wn3.outputs['Value'], 0.5)
+        fu = T.mixf(flip, fu, T.math('SUBTRACT', 1.0, fu))
+        fv = T.mixf(flip, fv, T.math('SUBTRACT', 1.0, fv))
+        k = T.math('FLOOR', T.math('MULTIPLY', T.xyz(wn3.outputs['Color'])[0], 63.999))
+        tx = T.math('FLOORED_MODULO', k, 8.0)
+        ty = T.math('FLOOR', T.math('DIVIDE', k, 8.0))
+        auv = T.comb(T.math('DIVIDE', T.math('ADD', tx, fu), 8.0), T.math('DIVIDE', T.math('ADD', ty, fv), 8.0), 0.0)
+        ia = T.n('ShaderNodeTexImage', {'Vector': auv}, image=tex_image("tex_gen/brick_atlas_detail.png"), interpolation='Linear', extension='EXTEND')
+        inn = T.n('ShaderNodeTexImage', {'Vector': auv}, image=tex_image("tex_gen/brick_atlas_nor_gl.png"), interpolation='Linear', extension='EXTEND')
+        ir = T.n('ShaderNodeTexImage', {'Vector': auv}, image=tex_image("tex_gen/brick_atlas_rough.png"), interpolation='Linear', extension='EXTEND')
+        scan = gi.outputs['Scan']
+        det = T.mix(scan, (0.5, 0.5, 0.5, 1), ia.outputs['Color'])
+        det = T.vmath('POWER', T.vmath('SCALE', det, scale=2.0), (1.35, 1.35, 1.35))
         pos = gi.outputs['Pos']
         mott = T.noise(pos, 38.0, 6, 0.6)
-        pits = T.n('ShaderNodeTexVoronoi', {'Vector': pos, 'Scale': 260.0})
-        pit = T.smooth(pits.outputs['Distance'], 0.0, 0.12)
-        flash = T.noise(T.vmath('ADD', pos, T.vmath('SCALE', gi.outputs['Cell'], scale=3.1)), 6.0, 2, 0.5)
-        m1 = T.remap(mott.outputs['Factor'], 0.3, 0.7, 0.86, 1.10)
+        m1 = T.remap(mott.outputs['Factor'], 0.3, 0.7, 0.94, 1.05)
         c1 = T.mul_col(hue.outputs[0], T.comb(m1, m1, m1))
-        dark = T.mix(T.math('MULTIPLY', T.smooth(flash.outputs['Factor'], 0.55, 0.75), T.math('GREATER_THAN', sep[1], 0.55)), c1,
-                     T.mul_col(c1, (0.55, 0.45, 0.42, 1)))
-        c2 = T.mix(T.math('SUBTRACT', 1.0, pit), T.mul_col(dark, (0.5, 0.45, 0.42, 1)), dark)
+        c2 = T.mul_col(c1, det)
+        # a century of city air: a grey-brown film, uneven, heavier on some bricks (more porous) than others
+        pat = T.noise(pos, 3.0, 4, 0.6)
+        pf = T.math('ADD', T.remap(pat.outputs['Factor'], 0.3, 0.7, 0.10, 0.30), T.remap(wn2.outputs['Value'], 0, 1, -0.06, 0.10))
+        c2 = T.mix(pf, T.mul_col(c2, (0.86, 0.86, 0.86, 1)), srgb((88, 76, 66)))
         T.L.new(c2, go.inputs['Color'])
-        T.L.new(T.remap(wn2.outputs['Value'], 0, 1, 0.72, 0.9), go.inputs['Rough'])
-        h = T.math('ADD', T.math('MULTIPLY', mott.outputs['Factor'], 0.5), T.math('MULTIPLY', pit, 0.6))
-        T.L.new(h, go.inputs['Height'])
+        rr = T.math('ADD', T.remap(ir.outputs['Color'], 0.5, 1.0, 0.70, 0.93), T.remap(wn2.outputs['Value'], 0, 1, -0.04, 0.04))
+        T.L.new(T.mixf(scan, T.remap(wn2.outputs['Value'], 0, 1, 0.74, 0.9), rr), go.inputs['Rough'])
+        T.L.new(T.math('MULTIPLY', mott.outputs['Factor'], 0.4), go.inputs['Height'])
+        # tangent-space (OpenGL) normal -> world: T = z x N, B = N x T
+        geo = T.n('ShaderNodeNewGeometry')
+        N = geo.outputs['Normal']
+        Tn = T.vmath('NORMALIZE', T.vmath('CROSS_PRODUCT', (0.0, 0.0, 1.0), N))
+        Bn = T.vmath('CROSS_PRODUCT', N, Tn)
+        ns = T.xyz(inn.outputs['Color'])
+        sgn = T.mixf(flip, 1.0, -1.0)
+        nx = T.math('MULTIPLY', T.math('MULTIPLY', T.math('SUBTRACT', T.math('MULTIPLY', ns[0], 2.0), 1.0), sgn), 1.0)
+        ny = T.math('MULTIPLY', T.math('MULTIPLY', T.math('SUBTRACT', T.math('MULTIPLY', ns[1], 2.0), 1.0), sgn), 1.0)
+        nw = T.vmath('ADD', T.vmath('ADD', T.vmath('SCALE', Tn, scale=nx), T.vmath('SCALE', Bn, scale=ny)), N)
+        nw = T.vmath('NORMALIZE', nw)
+        nrm = T.n('ShaderNodeMix', data_type='VECTOR')
+        T.set(nrm.inputs[0], scan)
+        T.set(nrm.inputs[4], N)
+        T.set(nrm.inputs[5], nw)
+        T.L.new(nrm.outputs[1], go.inputs['Normal'])
         return g
 
     def weather_group(self, tag):
@@ -2276,14 +2326,34 @@ class Facade:
             T.set(nd.inputs[k], v)
         return nd
 
+    def _ao_dirt(self, T, col, rough, amount=0.55):
+        """Grime collecting in concave corners (reveals, under sills, against the belt course)."""
+        ao = T.n('ShaderNodeAmbientOcclusion', {'Distance': 0.35}, samples=6, only_local=False)
+        occ = T.math('POWER', T.math('SUBTRACT', 1.0, ao.outputs['AO']), 1.4)
+        nz = T.noise(T.n('ShaderNodeTexCoord').outputs['Object'], 7.0, 4, 0.6)
+        f = T.math('MULTIPLY', T.math('MULTIPLY', occ, amount), T.remap(nz.outputs['Factor'], 0.35, 0.65, 0.5, 1.3), clamp=True)
+        return T.mix(f, col, T.mul_col(col, (0.42, 0.40, 0.38, 1))), T.math('ADD', rough, T.math('MULTIPLY', f, 0.05))
+
+    def _brick_local(self, T, u, v, i, j):
+        off = T.math('MULTIPLY', T.math('FLOORED_MODULO', j, 2.0), CL / 2)
+        lu = T.math('SUBTRACT', T.math('ADD', u, off), T.math('MULTIPLY', i, CL))
+        lv = T.math('SUBTRACT', v, T.math('MULTIPLY', j, CH))
+        return lu, lv
+
     def mat_brick_geo(self, bc, wg, tag):
         m, T, out = new_mat(tag + "_brick")
         at = T.n('ShaderNodeAttribute', attribute_name='cell')
         tc = T.n('ShaderNodeTexCoord')
-        b = self._group(T, bc, {'Cell': at.outputs['Vector'], 'Pos': tc.outputs['Object']})
+        w0 = self._group(T, wg, {'Color': (0.5, 0.5, 0.5, 1), 'Rough': 0.5, 'Strength': 0.0})
+        uvs = T.xyz(w0.outputs['UV'])
+        cs = T.xyz(at.outputs['Vector'])
+        lu, lv = self._brick_local(T, uvs[0], uvs[1], cs[0], cs[1])
+        scan = T.math('LESS_THAN', cs[0], 4999.0)       # voussoirs (radial) keep the procedural face
+        b = self._group(T, bc, {'Cell': at.outputs['Vector'], 'Pos': tc.outputs['Object'], 'Local': T.comb(lu, lv, 0.0), 'Scan': scan})
         w = self._group(T, wg, {'Color': b.outputs['Color'], 'Rough': b.outputs['Rough'], 'Strength': 1.0})
-        nrm = T.bump(b.outputs['Height'], 0.6, 0.0015)
-        principled(T, out, w.outputs['Color'], w.outputs['Rough'], normal=nrm)
+        c, r = self._ao_dirt(T, w.outputs['Color'], w.outputs['Rough'], 0.45)
+        nrm = T.bump(b.outputs['Height'], 0.25, 0.0015, normal=b.outputs['Normal'])
+        principled(T, out, c, r, normal=nrm)
         return m
 
     def mat_brick_field(self, bc, wg, name, use_mask=True):
@@ -2300,10 +2370,13 @@ class Facade:
         lv = T.math('SUBTRACT', v, T.math('MULTIPLY', j, CH))
         ex = T.math('MINIMUM', lu, T.math('SUBTRACT', CL, lu))
         ey = T.math('MINIMUM', lv, T.math('SUBTRACT', CH, lv))
-        # irregular joint edges
-        jn = T.noise(tc.outputs['Object'], 120.0, 3, 0.6)
-        e = T.math('ADD', T.math('MINIMUM', ex, ey), T.math('MULTIPLY', T.math('SUBTRACT', jn.outputs['Factor'], 0.5), 0.003))
-        brick = T.smooth(e, 0.0042, 0.0075)
+        # irregular joint edges: hand-laid arrises, worn corners, occasional spall into the joint
+        jn = T.noise(tc.outputs['Object'], 140.0, 4, 0.65)
+        jn2 = T.noise(tc.outputs['Object'], 18.0, 2, 0.5)
+        corner = T.math('MULTIPLY', T.smooth(ex, 0.02, 0.0), T.smooth(ey, 0.02, 0.0))
+        e = T.math('ADD', T.math('MINIMUM', ex, ey), T.math('MULTIPLY', T.math('SUBTRACT', jn.outputs['Factor'], 0.5), 0.0045))
+        e = T.math('SUBTRACT', e, T.math('MULTIPLY', corner, T.remap(jn2.outputs['Factor'], 0.4, 0.7, 0.0, 0.006)))
+        brick = T.smooth(e, 0.0040, 0.0062)
         if use_mask:
             mu = T.math('DIVIDE', T.math('ADD', T.math('FLOORED_MODULO', i, float(self.ni)), 0.5), float(self.ni))
             mv = T.math('DIVIDE', T.math('ADD', j, 0.5), float(self.nj))
@@ -2311,22 +2384,33 @@ class Facade:
             sepm = T.n('ShaderNodeSeparateColor', {'Color': mimg.outputs['Color']})
             brick = T.math('MULTIPLY', brick, T.math('SUBTRACT', 1.0, sepm.outputs[0]))
         cell = T.comb(i, j, 0.0)
-        b = self._group(T, bc, {'Cell': cell, 'Pos': tc.outputs['Object']})
+        b = self._group(T, bc, {'Cell': cell, 'Pos': tc.outputs['Object'], 'Local': T.comb(lu, lv, 0.0), 'Scan': 1.0})
+        # mortar: lime-sand texture from the CC0 concrete scan, dirt in the bed joints, repointed patches
+        mp = T.vmath('SCALE', T.comb(u, v, 0.0), scale=1.0 / 0.9)
+        mimg2 = T.n('ShaderNodeTexImage', {'Vector': mp}, image=tex_image("tex_scan/hangar_concrete_floor_diff_4k.jpg", color=True), interpolation='Linear')
+        ml = T.n('ShaderNodeRGBToBW', {'Color': mimg2.outputs['Color']}).outputs[0]
         mort_n = T.noise(tc.outputs['Object'], 60.0, 4, 0.6)
-        mort = T.mul_col(srgb((136, 128, 116)), T.comb(*([T.remap(mort_n.outputs['Factor'], 0.3, 0.7, 0.75, 1.1)] * 3)))
+        mf = T.math('MULTIPLY', T.remap(ml, 0.02, 0.045, 0.72, 1.2), T.remap(mort_n.outputs['Factor'], 0.3, 0.7, 0.85, 1.08))
+        bed = T.math('LESS_THAN', ey, ex)
+        mf = T.math('MULTIPLY', mf, T.mixf(bed, 1.0, 0.82))
+        mort = T.mul_col(srgb((128, 121, 110)), T.comb(mf, mf, mf))
+        rep = T.n('ShaderNodeTexVoronoi', {'Vector': T.comb(T.math('MULTIPLY', u, 0.5), v, 0.0), 'Scale': 0.9})
+        rpf = T.math('GREATER_THAN', T.n('ShaderNodeTexWhiteNoise', {'Vector': rep.outputs['Position']}, noise_dimensions='3D').outputs['Value'], 0.9)
+        mort = T.mix(rpf, mort, T.mul_col(srgb((150, 148, 142)), T.comb(*([T.remap(ml, 0.02, 0.045, 0.9, 1.06)] * 3))))
         col = T.mix(brick, mort, b.outputs['Color'])
-        rough = T.mixf(brick, 0.95, b.outputs['Rough'])
+        rough = T.mixf(brick, 0.96, b.outputs['Rough'])
         w = self._group(T, wg, {'Color': col, 'Rough': rough, 'Strength': 1.0})
-        # height: brick faces with per-brick tilt, recessed mortar
+        c, r = self._ao_dirt(T, w.outputs['Color'], w.outputs['Rough'], 0.5)
+        # height: brick faces with per-brick tilt, recessed mortar (raked deeper where eroded)
         wn = T.n('ShaderNodeTexWhiteNoise', {'Vector': cell}, noise_dimensions='3D')
         tilt = T.xyz(wn.outputs['Color'])
         tlt = T.math('ADD', T.math('MULTIPLY', T.math('SUBTRACT', lu, CL / 2), T.math('SUBTRACT', tilt[0], 0.5)),
                      T.math('MULTIPLY', T.math('SUBTRACT', lv, CH / 2), T.math('SUBTRACT', tilt[1], 0.5)))
-        h = T.math('ADD', T.math('MULTIPLY', brick, 0.010), T.math('MULTIPLY', tlt, 0.06))
-        h = T.math('ADD', h, T.math('MULTIPLY', b.outputs['Height'], 0.0008))
-        h = T.math('ADD', h, T.math('MULTIPLY', mort_n.outputs['Factor'], 0.0015))
-        nrm = T.bump(h, 1.0, 1.0)
-        principled(T, out, w.outputs['Color'], w.outputs['Rough'], normal=nrm)
+        h = T.math('ADD', T.math('MULTIPLY', brick, 0.008), T.math('MULTIPLY', tlt, 0.05))
+        h = T.math('ADD', h, T.math('MULTIPLY', b.outputs['Height'], 0.0006))
+        h = T.math('ADD', h, T.math('MULTIPLY', T.math('SUBTRACT', 1.0, brick), T.math('MULTIPLY', ml, 0.12)))
+        nrm = T.bump(h, 1.0, 1.0, normal=b.outputs['Normal'])
+        principled(T, out, c, r, normal=nrm)
         return m
 
     def mat_simple(self, name, col, rough, wg=None, noise=0.0, metal=0.0):
