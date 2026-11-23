@@ -792,7 +792,7 @@ def mat_tyre(name, tex):
 def mat_rim(name, kind):
     """Painted alloy; brake dust collects in occluded areas and toward the barrel."""
     m, nt, b = _new_mat(name)
-    base = (0.62, 0.63, 0.64, 1.0) if kind == "silver" else (0.06, 0.06, 0.065, 1.0)
+    base = (0.30, 0.31, 0.32, 1.0) if kind == "silver" else (0.04, 0.04, 0.045, 1.0)
     ao = _n(nt, "ShaderNodeAmbientOcclusion", -600, 300, Distance=0.05)
     ao.samples = 8
     tc = _texco(nt)
@@ -902,7 +902,7 @@ def build_materials(variant, cfg, tex, dirt, tag=None):
     M["rim"] = _get(lambda: mat_rim("taxi_rim_" + cfg["rims"], cfg["rims"]), "taxi_rim_" + cfg["rims"])
     M["disc"] = _get(lambda: mat_simple("taxi_brake_disc", (0.16, 0.15, 0.145), rough=0.32, metal=0.85, bump=0.15, bump_scale=600.0), "taxi_brake_disc")
     M["caliper"] = _get(lambda: mat_simple("taxi_caliper", (0.10, 0.10, 0.105), rough=0.45, metal=0.3), "taxi_caliper")
-    M["liner"] = _get(lambda: mat_simple("taxi_liner", (0.03, 0.03, 0.03), rough=0.85, bump=0.4, bump_scale=200.0), "taxi_liner")
+    M["liner"] = _get(lambda: mat_simple("taxi_liner", (0.012, 0.012, 0.012), rough=0.85, bump=0.4, bump_scale=200.0), "taxi_liner")
     M["under"] = _get(lambda: mat_simple("taxi_underbody", (0.02, 0.02, 0.02), rough=0.9), "taxi_underbody")
     M["seat"] = _get(lambda: mat_simple("taxi_seat_vinyl", (0.028, 0.028, 0.03), rough=0.42, bump=0.12, bump_scale=420.0), "taxi_seat_vinyl")
     M["dash"] = _get(lambda: mat_simple("taxi_dash", (0.035, 0.035, 0.037), rough=0.62, bump=0.2, bump_scale=700.0), "taxi_dash")
@@ -1345,13 +1345,23 @@ def build_lamps(coll, M, parent, blat, hl, tl):
                     pts.append(p - n * 0.014)
                 o = bm_to_obj("taxi_drl", sweep_tube(pts, 0.0045, 8, scale_xy=(1.0, 0.6)), coll, [M["drl"]], parent)
                 objs.append(o)
-                # LED high-beam / cornering cubes between the modules
-                for k in range(0):
-                    p, n = P(sgn * (0.70 + 0.0 * k), 0.745 + 0.0 * k, 0.04)
-                    p = p + Vector((sgn * (k - 1) * 0.02, 0, 0))
-                    o = rounded_box("taxi_hl_led", (0.012, 0.012, 0.010), coll, [M["drl"]], parent,
-                                    loc=p, sup=0.3, levels=1)
+                # black inner mask: a fin under the modules and a cowl over them
+                for (wf, ins, th) in ((0.722, 0.030, 0.010), (0.842, 0.036, 0.007)):
+                    pts = []
+                    for t in np.linspace(0.53, 0.97, 16):
+                        p, n = blat.normal(sgn * t, YF, wf, "F")
+                        pts.append(p - n * ins)
+                    o = bm_to_obj("taxi_hl_mask", sweep_tube(pts, 0.024, 8, scale_xy=(th / 0.024, 1.0),
+                                                             up=Vector((0, 1, 0))), coll, [M["lamp_black"]], parent)
                     objs.append(o)
+                # LED high-beam cubes in a row between the modules, with chrome collars
+                for k in range(3):
+                    p, n = P(sgn * (0.705 + 0.022 * (k - 1)), 0.76, 0.045)
+                    o = rounded_box("taxi_hl_led", (0.014, 0.012, 0.012), coll, [M["lamp_chrome"]], parent,
+                                    loc=p, sup=0.3, levels=1)
+                    o2 = rounded_box("taxi_hl_led_chip", (0.007, 0.006, 0.006), coll, [M["drl"]], parent,
+                                     loc=p + n * 0.006, sup=0.3, levels=1)
+                    objs += [o, o2]
                 # amber indicator block in the outer, wrapped part
                 p, n = blat.normal(sgn, YF - 0.10, 0.75, "R" if sgn > 0 else "L")
                 o = rounded_box("taxi_indicator", (0.006, 0.08, 0.022), coll, [M["amber_led"]], parent,
@@ -1609,20 +1619,22 @@ def build_details(coll, M, parent, cfg, body, blat, clat, tex):
         for sx in (1, -1):
             pts = []
             for k in range(0, 61):
-                a = math.radians(-100 + 200 * k / 60)
+                a = math.radians(-84 + 168 * k / 60)
                 Y = ax + (ARCH_R + 0.004) * math.sin(a)
                 Z = WHEEL_Z + 0.012 + (ARCH_R + 0.004) * math.cos(a)
                 h = on_side(sx, Y, Z)
-                if h[0] is None or Z < _Zb(Y) + 0.01:
+                if h[0] is None or Z < _Zb(Y) + 0.03 or abs(h[1].x) < 0.55:
                     continue
-                pts.append(h[0] - Vector((sx * 0.004, 0, 0)))
+                pts.append(h[0] - Vector((sx * 0.006, 0, 0)))
             if len(pts) > 3:
-                bm = sweep_tube(pts, 0.009, 8, scale_xy=(1.0, 1.4), up=Vector((1, 0, 0)))
+                n_ = len(pts)
+                rad = [0.0075 * min(1.0, 0.35 + 0.65 * min(i, n_ - 1 - i) / 5.0) for i in range(n_)]
+                bm = sweep_tube(pts, rad, 8, scale_xy=(1.0, 1.3), up=Vector((1, 0, 0)))
                 o = bm_to_obj("taxi_arch_lip", bm, coll, [M["paint"]], parent)
                 objs.append(o)
             prof = [(sx * 0.58, ARCH_R + 0.0), (sx * 0.92, ARCH_R + 0.0)]
             bm = lathe([(0.0, ARCH_R - 0.003), (0.34, ARCH_R - 0.003)], 40, axis="X",
-                       angle=math.radians(230), start=math.radians(-115))
+                       angle=math.radians(196), start=math.radians(-98))
             o = bm_to_obj("taxi_wheel_liner", bm, coll, [M["liner"]], parent)
             o.location = (sx * 0.58 if sx > 0 else -0.92, ax, WHEEL_Z + 0.012)
             objs.append(o)

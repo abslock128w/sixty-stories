@@ -23,7 +23,7 @@ OUT = os.path.join(taxi.ROOT, "blender", "out", "preview", "assets")
 # The street runs along Y, so the sun is kept within ~30 deg of the street axis.
 SHOTS = {
     "front34": dict(cam=(4.9, 6.4, 1.62), at=(0.0, 0.35, 0.72), lens=50, sun_az=28.0),
-    "rear34": dict(cam=(-3.6, -7.0, 1.70), at=(0.0, -0.3, 0.72), lens=50, sun_az=208.0),
+    "rear34": dict(cam=(-3.6, -7.0, 1.70), at=(0.0, -0.3, 0.72), lens=50, sun_az=166.0),
     "side": dict(cam=(8.3, 0.05, 1.05), at=(0.0, 0.05, 0.72), lens=50, sun_az=158.0),
     "wheel_close": dict(cam=(2.15, 2.75, 0.62), at=(0.82, 1.45, 0.37), lens=85, sun_az=30.0),
     "lamp_close": dict(cam=(1.85, 4.05, 1.10), at=(0.62, 2.28, 0.76), lens=85, sun_az=24.0),
