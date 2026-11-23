@@ -2355,7 +2355,7 @@ class Facade:
         Mt['stone'] = self.mat_stone(tag + "_stone", srgb((150, 138, 118)), wg)
         Mt['granite'] = self.mat_stone(tag + "_granite", srgb((96, 94, 92)), wg, rough=0.55, speck=True)
         Mt['paint'] = self.mat_paint(tag + "_winpaint", trim, wg, chip=0.35)
-        Mt['putty'] = self.mat_simple(tag + "_putty", srgb((122, 116, 100)), 0.8)
+        Mt['putty'] = self.mat_simple(tag + "_putty", srgb((86, 82, 72)), 0.8, noise=0.4)
         Mt['glass'] = self.mat_glass(tag + "_glass")
         Mt['glass_thin'] = self.mat_glass(tag + "_glass_thin", thin=True)
         Mt['prism_glass'] = self.mat_glass(tag + "_prism", prism=True)
@@ -2366,8 +2366,8 @@ class Facade:
         Mt['letters_white'] = self.mat_simple(tag + "_lettwhite", srgb((236, 230, 214)), 0.6)
         Mt['brass'] = self.mat_metal(tag + "_brass", srgb((190, 150, 90)), 0.32, tarnish=True)
         Mt['steel'] = self.mat_metal(tag + "_steel", srgb((150, 152, 156)), 0.35)
-        Mt['iron'] = self.mat_paint(tag + "_iron", srgb((22, 22, 22)), wg, chip=0.5, rust=True)
-        Mt['fire_escape'] = self.mat_paint(tag + "_fe", srgb((24, 24, 23)), wg, chip=0.7, rust=True)
+        Mt['iron'] = self.mat_steelpaint(tag + "_iron", srgb((22, 22, 22)), 0.5)
+        Mt['fire_escape'] = self.mat_steelpaint(tag + "_fe", srgb((26, 26, 25)), 1.0)
         Mt['door'] = self.mat_paint(tag + "_door", trim, wg, chip=0.3, gloss=True)
         Mt['tile'] = self.mat_tile(tag + "_tile")
         Mt['awning'] = self.mat_canvas(tag + "_awning", awn, wg)
@@ -2528,8 +2528,18 @@ class Facade:
         go = T.n('NodeGroupOutput')
         tc = T.n('ShaderNodeTexCoord')
         p = T.xyz(tc.outputs['Object'])
-        onret = T.math('GREATER_THAN', p[0], self.W - 0.06)
+        geo = T.n('ShaderNodeNewGeometry')
+        gn = T.xyz(geo.outputs['Normal'])
+        anx = T.math('ABSOLUTE', gn[0])
+        any_ = T.math('ABSOLUTE', gn[1])
+        onret = T.math('MAXIMUM', T.math('GREATER_THAN', p[0], self.W - 0.06),
+                       T.math('MULTIPLY', T.math('GREATER_THAN', any_, 0.5), T.math('GREATER_THAN', p[0], self.W - 0.5)))
         u = T.math('ADD', T.math('MINIMUM', p[0], self.W), T.math('MULTIPLY', onret, T.math('MAXIMUM', p[1], 0.0)))
+        # window/door reveals (faces turned 90 degrees to the wall): continue the coursing into the depth so the brick
+        # field is not smeared across the jamb
+        onfront = T.math('SUBTRACT', 1.0, onret)
+        u = T.math('ADD', u, T.math('MULTIPLY', T.math('MULTIPLY', onfront, T.math('GREATER_THAN', anx, 0.5)), T.math('MAXIMUM', p[1], 0.0)))
+        u = T.math('ADD', u, T.math('MULTIPLY', T.math('MULTIPLY', onret, T.math('GREATER_THAN', any_, 0.5)), T.math('MAXIMUM', T.math('SUBTRACT', self.W, p[0]), 0.0)))
         uv = T.comb(T.math('DIVIDE', u, self.weather.nx * Weather.RES), T.math('DIVIDE', p[2], self.weather.ny * Weather.RES), 0.0)
         T.L.new(T.comb(u, p[2], 0.0), go.inputs['UV'])
         im = T.n('ShaderNodeTexImage', {'Vector': uv}, image=self.weather_img, extension='EXTEND', interpolation='Linear')
@@ -2774,7 +2784,7 @@ class Facade:
         spots = T.n('ShaderNodeTexVoronoi', {'Vector': p, 'Scale': 70.0})
         ring = T.math('MULTIPLY', T.smooth(spots.outputs['Distance'], 0.16, 0.10), T.smooth(spots.outputs['Distance'], 0.04, 0.10))
         spot_mask = T.smooth(T.noise(p, 1.5, 2, 0.5).outputs['Factor'], 0.5, 0.62)
-        dust = T.math('ADD', dust, T.math('MULTIPLY', T.math('MULTIPLY', ring, spot_mask), 0.5))
+        dust = T.math('ADD', dust, T.math('MULTIPLY', T.math('MULTIPLY', ring, spot_mask), 1.0))
         dust = T.math('MULTIPLY', dust, T.remap(pid, 0, 1, 0.5, 1.2), clamp=True)
         # fine scratches: very thin stretched noise lines, only change roughness
         smp = T.n('ShaderNodeMapping', {'Vector': p, 'Rotation': (0.0, 0.0, 0.0), 'Scale': (400.0, 400.0, 6.0)})
@@ -2785,7 +2795,7 @@ class Facade:
         pr = principled(T, None, tint, rough, normal=nrm, Transmission_Weight=1.0, IOR=1.52)
         pr.inputs['Thin Wall'].default_value = bool(thin)
         dif = T.n('ShaderNodeBsdfDiffuse', {'Color': srgb((128, 120, 108))})
-        ms = T.n('ShaderNodeMixShader', {'Fac': T.math('MULTIPLY', dust, 0.07, clamp=True)})
+        ms = T.n('ShaderNodeMixShader', {'Fac': T.math('ADD', T.math('MULTIPLY', dust, 0.09), 0.012, clamp=True)})
         T.L.new(pr.outputs[0], ms.inputs[1])
         T.L.new(dif.outputs[0], ms.inputs[2])
         T.L.new(ms.outputs[0], out.inputs['Surface'])
@@ -2869,6 +2879,43 @@ class Facade:
         n1 = T.noise(tc.outputs['Object'], 30.0, 4, 0.6)
         c = T.mix(n1.outputs['Factor'], srgb((150, 90, 40)), srgb((210, 160, 90)))
         principled(T, out, c, 0.7, Subsurface_Weight=0.1)
+        return m
+
+    def mat_steelpaint(self, name, col, wear=1.0):
+        """Repainted structural steel (fire escape, railings): several coats of black of different sheen (patchy
+        overpainting), red-oxide primer and rust showing where convex edges are knocked (pointiness), rust blooming in
+        the concave joints (AO) where water sits, and rust run-off streaks below joints."""
+        m, T, out = new_mat(name)
+        tc = T.n('ShaderNodeTexCoord')
+        p = tc.outputs['Object']
+        geo = T.n('ShaderNodeNewGeometry')
+        n1 = T.noise(p, 1.3, 3, 0.5)
+        n2 = T.noise(p, 22.0, 8, 0.7, distortion=0.4)
+        # coats: two blacks with different sheen
+        coat = T.smooth(n1.outputs['Factor'], 0.45, 0.55)
+        c = T.mix(coat, col, T.mul_col(col, (1.35, 1.32, 1.28, 1)))
+        rough = T.mixf(coat, 0.38, 0.62)
+        # edge wear (convex)
+        pt = geo.outputs['Pointiness']
+        edge = T.math('MULTIPLY', T.smooth(pt, 0.53, 0.62), T.smooth(n2.outputs['Factor'], 0.42, 0.58))
+        edge = T.math('MULTIPLY', edge, wear)
+        # rust in joints (concave): AO
+        ao = T.n('ShaderNodeAmbientOcclusion', {'Distance': 0.06}, samples=4, only_local=True)
+        cav = T.math('MULTIPLY', T.smooth(ao.outputs['AO'], 0.85, 0.45), T.remap(n2.outputs['Factor'], 0.3, 0.7, 0.4, 1.2))
+        cav = T.math('MULTIPLY', cav, wear, clamp=True)
+        # run-off streaks: stretched in Z
+        smp = T.n('ShaderNodeMapping', {'Vector': p, 'Scale': (14.0, 14.0, 1.0)})
+        st = T.smooth(T.noise(smp.outputs[0], 3.0, 4, 0.6).outputs['Factor'], 0.58, 0.72)
+        streak = T.math('MULTIPLY', st, 0.45 * wear)
+        rustc = T.mix(T.noise(p, 80.0, 4, 0.6).outputs['Factor'], srgb((92, 42, 18)), srgb((140, 70, 30)))
+        primer = srgb((110, 40, 26))
+        c = T.mix(T.math('MULTIPLY', edge, 0.9), c, T.mix(T.smooth(n2.outputs['Factor'], 0.5, 0.6), primer, rustc))
+        c = T.mix(T.math('MULTIPLY', cav, 0.85), c, rustc)
+        c = T.mix(streak, c, T.mul_col(rustc, (0.6, 0.55, 0.5, 1)))
+        rr = T.math('MAXIMUM', T.math('MAXIMUM', edge, cav), streak)
+        rough = T.mixf(rr, rough, 0.9)
+        h = T.math('ADD', T.math('MULTIPLY', T.math('MAXIMUM', edge, cav), -0.6), T.math('MULTIPLY', n2.outputs['Factor'], 0.15))
+        principled(T, out, c, rough, normal=T.bump(h, 0.5, 0.0008))
         return m
 
     def mat_canvas(self, name, col, wg):

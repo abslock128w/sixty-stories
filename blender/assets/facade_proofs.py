@@ -117,6 +117,80 @@ def env_material(name, col, kind='plain'):
         c = T.mix(T.math('MULTIPLY', joint, 0.8), c, (0.04, 0.04, 0.04, 1))
         h = T.math('ADD', T.math('MULTIPLY', joint, -1.0), T.math('MULTIPLY', n2.outputs['Factor'], 0.15))
         facade.principled(T, out, c, T.remap(n1.outputs['Factor'], 0.3, 0.7, 0.75, 0.95), normal=T.bump(h, 0.6, 0.004))
+    elif kind == 'sidewalk':
+        # NYC flags: 1.5 m slabs poured at different times; scanned CC0 concrete surface (hangar_concrete_floor, 4k);
+        # tooled joints with dark grime, worn/chipped slab edges, per-slab tone, the odd replacement slab, gum,
+        # coffee/oil stains, a darker damp band at the building line and at the curb.
+        sep = T.xyz(p)
+        S = 1.5
+        sx, sy = T.math('DIVIDE', sep[0], S), T.math('DIVIDE', sep[1], S)
+        ix, iy = T.math('FLOOR', sx), T.math('FLOOR', sy)
+        fx, fy = T.math('SUBTRACT', sx, ix), T.math('SUBTRACT', sy, iy)
+        ex = T.math('MULTIPLY', T.math('MINIMUM', fx, T.math('SUBTRACT', 1.0, fx)), S)
+        ey = T.math('MULTIPLY', T.math('MINIMUM', fy, T.math('SUBTRACT', 1.0, fy)), S)
+        jn = T.noise(p, 25.0, 3, 0.6)
+        e = T.math('ADD', T.math('MINIMUM', ex, ey), T.math('MULTIPLY', T.math('SUBTRACT', jn.outputs['Factor'], 0.5), 0.006))
+        joint = T.smooth(e, 0.006, 0.002)
+        wear = T.math('MULTIPLY', T.smooth(e, 0.03, 0.006), T.smooth(T.noise(p, 9.0, 4, 0.6).outputs['Factor'], 0.5, 0.62))
+        cell = T.comb(ix, iy, 0.0)
+        wn = T.n('ShaderNodeTexWhiteNoise', {'Vector': cell}, noise_dimensions='3D')
+        wc = T.xyz(wn.outputs['Color'])
+        uv = T.vmath('SCALE', T.comb(T.math('ADD', sep[0], T.math('MULTIPLY', wc[0], 7.0)), T.math('ADD', sep[1], T.math('MULTIPLY', wc[1], 7.0)), 0.0), scale=1.0 / 2.4)
+        root = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tex_scan')
+        def img(fn, color):
+            im = bpy.data.images.load(os.path.join(root, fn), check_existing=True)
+            im.colorspace_settings.name = 'sRGB' if color else 'Non-Color'
+            return T.n('ShaderNodeTexImage', {'Vector': uv}, image=im, interpolation='Linear')
+        dif = img('hangar_concrete_floor_diff_4k.jpg', True)
+        rgh = img('hangar_concrete_floor_rough_4k.jpg', False)
+        nor = img('hangar_concrete_floor_nor_gl_4k.jpg', False)
+        lum = T.n('ShaderNodeRGBToBW', {'Color': dif.outputs['Color']}).outputs[0]
+        detail = T.remap(lum, 0.02, 0.05, 0.78, 1.18, clamp=False)
+        tone = T.remap(wc[2], 0, 1, 0.86, 1.08)
+        newer = T.math('GREATER_THAN', wc[0], 0.9)
+        tone = T.math('ADD', tone, T.math('MULTIPLY', newer, 0.12))
+        n1 = T.noise(p, 0.6, 4, 0.6)
+        f = T.math('MULTIPLY', T.math('MULTIPLY', detail, tone), T.remap(n1.outputs['Factor'], 0.3, 0.7, 0.85, 1.08))
+        c = T.mul_col(col, T.comb(f, f, f))
+        # damp/dirty band along the building line (y ~ 0) and the curb (y ~ -4.6)
+        yb = T.smooth(sep[1], -0.6, 0.0)
+        yc = T.smooth(sep[1], -3.9, -4.6)
+        band = T.math('MULTIPLY', T.math('MAXIMUM', yb, T.math('MULTIPLY', yc, 0.7)), T.remap(n1.outputs['Factor'], 0.3, 0.7, 0.4, 1.0))
+        c = T.mix(T.math('MULTIPLY', band, 0.55), c, T.mul_col(c, (0.55, 0.53, 0.50, 1)))
+        # stains: big soft (coffee/oil) and gum spots
+        sv = T.n('ShaderNodeTexVoronoi', {'Vector': p, 'Scale': 0.9})
+        sw = T.n('ShaderNodeTexWhiteNoise', {'Vector': sv.outputs['Position']}, noise_dimensions='3D')
+        stain = T.math('MULTIPLY', T.smooth(sv.outputs['Distance'], 0.22, 0.05), T.math('GREATER_THAN', sw.outputs['Value'], 0.6))
+        stain = T.math('MULTIPLY', stain, T.smooth(T.noise(p, 8.0, 3, 0.6).outputs['Factor'], 0.35, 0.6))
+        c = T.mix(T.math('MULTIPLY', stain, 0.45), c, T.mul_col(c, (0.5, 0.45, 0.4, 1)))
+        gv = T.n('ShaderNodeTexVoronoi', {'Vector': p, 'Scale': 7.0})
+        gw = T.n('ShaderNodeTexWhiteNoise', {'Vector': gv.outputs['Position']}, noise_dimensions='3D')
+        gum = T.math('MULTIPLY', T.smooth(gv.outputs['Distance'], 0.035, 0.02), T.math('GREATER_THAN', gw.outputs['Value'], 0.55))
+        c = T.mix(T.math('MULTIPLY', gum, 0.8), c, (0.07, 0.07, 0.07, 1))
+        c = T.mix(T.math('MULTIPLY', joint, 0.85), c, (0.035, 0.033, 0.03, 1))
+        c = T.mix(T.math('MULTIPLY', wear, 0.4), c, T.mul_col(c, (1.15, 1.13, 1.1, 1)))
+        r = T.math('ADD', T.remap(rgh.outputs['Color'], 0.0, 1.0, 0.62, 0.98), T.math('MULTIPLY', band, -0.12))
+        r = T.math('ADD', r, T.math('MULTIPLY', gum, -0.3))
+        nm = T.n('ShaderNodeNormalMap', {'Color': nor.outputs['Color'], 'Strength': 0.7})
+        h = T.math('ADD', T.math('MULTIPLY', joint, -1.0), T.math('MULTIPLY', wear, -0.4))
+        facade.principled(T, out, c, r, normal=T.bump(h, 0.8, 0.004, normal=nm.outputs['Normal']))
+    elif kind == 'asphalt_scan':
+        root = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tex_scan')
+        sep = T.xyz(p)
+        uv = T.vmath('SCALE', T.comb(sep[0], sep[1], 0.0), scale=1.0 / 3.0)
+        def img(fn, color):
+            im = bpy.data.images.load(os.path.join(root, fn), check_existing=True)
+            im.colorspace_settings.name = 'sRGB' if color else 'Non-Color'
+            return T.n('ShaderNodeTexImage', {'Vector': uv}, image=im, interpolation='Linear')
+        dif = img('asphalt_02_diff_2k.jpg', True)
+        arm = img('asphalt_02_arm_2k.jpg', False)
+        nor = img('asphalt_02_nor_gl_2k.jpg', False)
+        n1 = T.noise(p, 0.15, 4, 0.6)
+        f = T.remap(n1.outputs['Factor'], 0.3, 0.7, 0.75, 1.15)
+        c = T.mul_col(dif.outputs['Color'], T.comb(f, f, f))
+        r = T.remap(T.xyz(arm.outputs['Color'])[1], 0, 1, 0.55, 0.95)
+        nm = T.n('ShaderNodeNormalMap', {'Color': nor.outputs['Color'], 'Strength': 0.8})
+        facade.principled(T, out, c, r, normal=nm.outputs['Normal'])
     elif kind == 'asphalt':
         n1 = T.noise(p, 2.0, 6, 0.6)
         vo = T.n('ShaderNodeTexVoronoi', {'Vector': p, 'Scale': 300.0})
@@ -140,8 +214,8 @@ def setup_env(scene, F):
     col = bpy.data.collections.new("PROOF_env")
     scene.collection.children.link(col)
     W, R = F.W, F.RET
-    conc = env_material("env_concrete", facade.srgb((150, 146, 138)), 'concrete')
-    asph = env_material("env_asphalt", facade.srgb((52, 52, 54)), 'asphalt')
+    conc = env_material("env_concrete", facade.srgb((146, 142, 134)), 'sidewalk')
+    asph = env_material("env_asphalt", facade.srgb((52, 52, 54)), 'asphalt_scan')
     gran = env_material("env_granite", facade.srgb((120, 118, 114)))
     # sidewalks (L shape around the corner) at z=0, roads at -0.15
     box(col, "sidewalk_front", (-40, -4.6, -0.2), (W + 4.6, 0.0, 0.0), conc)
@@ -187,6 +261,7 @@ CAMS = {
     'brick': ((9.35, -1.45, 6.75), (9.15, 0.0, 6.45), 40, (1920, 1280), 226, 11, False),
     'glass': ((3.55, -1.35, 6.55), (4.55, 0.0, 6.45), 45, (1920, 1280), 226, 11, False),
     'interior': ((4.62, -1.25, 6.35), (4.4, 3.0, 5.75), 32, (1920, 1280), 226, 11, False),
+    'display': ((4.3, -1.15, 1.5), (4.9, 2.0, 0.85), 30, (1920, 1280), 215, 18, False),
     'awning': ((12.9, -3.3, 4.35), (9.6, -0.55, 3.25), 32, (1920, 1280), 226, 11, False),
 }
 NAMES = {'fire': 'facade_fire_escape', 'window': 'facade_window_close', 'brick': 'facade_brick_close', 'glass': 'facade_glass_close',
@@ -288,7 +363,7 @@ def main():
         w = int(opt['w'])
         h = int(round(w * res[1] / res[0]))
         setup_render(scene, w, h, int(opt['samples']), int(opt['threads']))
-        facade.set_lights(col, day=not dusk, interior_mult=(1.0 if dusk else 0.6), shop_mult=(1.0 if dusk else 0.6))
+        facade.set_lights(col, day=not dusk, interior_mult=(1.0 if dusk else 0.3), shop_mult=(1.0 if dusk else 0.6))
         scene.view_settings.exposure = 2.4 if dusk else 0.0
         fn = os.path.join(OUT_PREV, NAMES.get(s, f"facade_{s}") + (f"_{opt['tag']}" if opt['tag'] else '') + ".png")
         if opt.get('border'):
