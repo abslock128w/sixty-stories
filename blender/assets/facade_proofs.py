@@ -1,7 +1,7 @@
 """Proof scene + renders for the facade hero asset.
 
     $PY facade_proofs.py [shot ...] [--w 640] [--samples 32] [--threads 2] [--save] [--tag x]
-shots: full shopfront window fire dusk  (default: all)
+shots: brick glass interior shopfront awning fire full dusk (default) + window wall
     --border x0,y0,x1,y1  render only that region (0..1, origin bottom-left), cropped: for 100% crops
     --nodenoise 1         denoiser off (sharpness check)
 Writes blender/out/preview/assets/facade_<shot>[_tag].png ; --save writes blender/out/assets/facade.blend
@@ -184,7 +184,13 @@ CAMS = {
     'fire': ((2.3, -2.6, 1.7), (1.35, 0.4, 14.0), 22, (1280, 1920), 25, 14, False),
     'wall': ((6.4, -5.5, 6.9), (5.6, 0.0, 7.6), 35, (1920, 1280), 226, 11, False),
     'dusk': ((19.0, -27.5, 1.65), (6.6, 0.0, 10.6), 35, (1920, 1440), 260, -3.5, True),
+    'brick': ((9.35, -1.45, 6.75), (9.15, 0.0, 6.45), 40, (1920, 1280), 226, 11, False),
+    'glass': ((3.55, -1.35, 6.55), (4.55, 0.0, 6.45), 45, (1920, 1280), 226, 11, False),
+    'interior': ((4.62, -1.25, 6.35), (4.4, 3.0, 5.75), 32, (1920, 1280), 226, 11, False),
+    'awning': ((5.6, -3.4, 1.75), (7.6, -0.6, 3.15), 30, (1920, 1280), 226, 11, False),
 }
+NAMES = {'fire': 'facade_fire_escape', 'window': 'facade_window_close', 'brick': 'facade_brick_close', 'glass': 'facade_glass_close',
+         'interior': 'facade_interior_close', 'awning': 'facade_awning_close'}
 
 
 def setup_render(scene, w, h, samples, threads):
@@ -249,7 +255,7 @@ def main():
         else:
             shots.append(a)
         i += 1
-    shots = shots or list(CAMS)
+    shots = shots or ['brick', 'glass', 'interior', 'shopfront', 'awning', 'fire', 'full', 'dusk']
     clean()
     scene = bpy.context.scene
     t0 = time.time()
@@ -284,9 +290,7 @@ def main():
         setup_render(scene, w, h, int(opt['samples']), int(opt['threads']))
         facade.set_lights(col, day=not dusk, interior_mult=(1.0 if dusk else 0.6), shop_mult=(1.0 if dusk else 0.6))
         scene.view_settings.exposure = 2.4 if dusk else 0.0
-        fn = os.path.join(OUT_PREV, f"facade_{s if s != 'fire' else 'fire_escape'}" + (s == 'window' and '_close' or '') + (f"_{opt['tag']}" if opt['tag'] else '') + ".png")
-        if s == 'full':
-            fn = fn.replace('facade_full', 'facade_full')
+        fn = os.path.join(OUT_PREV, NAMES.get(s, f"facade_{s}") + (f"_{opt['tag']}" if opt['tag'] else '') + ".png")
         if opt.get('border'):
             bx = [float(x) for x in opt['border'].split(',')]
             scene.render.use_border = True

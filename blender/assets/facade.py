@@ -37,6 +37,9 @@ import bpy
 import numpy as np
 from mathutils import Matrix, Vector
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import facade_props as P  # noqa: E402
+
 ROOT = "/home/user/sixty"
 
 # ----------------------------------------------------------------------------- constants
@@ -444,8 +447,8 @@ class NT:
     def bump(self, h, strength=1.0, dist=0.01, normal=None):
         nd = self.N.new('ShaderNodeBump')
         self.set(nd.inputs['Height'], h)
-        nd.inputs['Strength'].default_value = strength
-        nd.inputs['Distance'].default_value = dist
+        self.set(nd.inputs['Strength'], strength)
+        self.set(nd.inputs['Distance'], dist)
         if normal is not None:
             self.set(nd.inputs['Normal'], normal)
         return nd.outputs[0]
@@ -853,7 +856,8 @@ class Facade:
             p1 = self.wp(wall, c, gv0, dg)
             p2 = self.wp(wall, c, gv1, dg)
             p3 = self.wp(wall, a, gv1, dg)
-            gl.quad([p0, p1, p2, p3], 'glass')
+            pid = (hash((round(a, 3), round(gv0, 3), wall)) % 9973) / 9973.0
+            gl.box(*self._wbox(wall, a, c, gv0, gv1, dg - 0.002, dg + 0.002), 'glass', cell=(pid, gv0, gv1))
             # putty bevels on the outside face of the glass (triangular-ish strips)
             pw, pd = 0.010, 0.010
             do = dg + pd
@@ -1227,7 +1231,7 @@ class Facade:
         for k in range(len(edges) - 1):
             g0 = edges[k] + (0.03 if k > 0 else 0.0)
             g1 = edges[k + 1] - (0.03 if k < len(edges) - 2 else 0.0)
-            gl.quad([self.wp(F, g0, 0.64, D), self.wp(F, g1, 0.64, D), self.wp(F, g1, 2.86, D), self.wp(F, g0, 2.86, D)], 'glass')
+            gl.box(*self._wbox(F, g0, g1, 0.64, 2.86, D - 0.005, D + 0.005), 'glass', cell=((g0 * 7.31) % 1.0, 0.64, 2.86))
         self.displays = getattr(self, 'displays', []) + [(a, c)]
 
     def entrance(self, e0, e1, D, R):
@@ -1244,7 +1248,7 @@ class Facade:
             ci.box(*self._wbox(F, uu - 0.03, uu + 0.03, 0, 0.60, D - rec, D), 'shop_paint')
             ci.box(*self._wbox(F, uu - 0.03, uu + 0.03, 2.86, 2.95, D - rec, D), 'shop_paint')
             p = [self.wp(F, uu, 0.60, D - 0.03), self.wp(F, uu, 0.60, D - rec + 0.05), self.wp(F, uu, 2.86, D - rec + 0.05), self.wp(F, uu, 2.86, D - 0.03)]
-            gl.quad(p, 'glass')
+            gl.quad(p, 'glass_thin')
             ci.box(*self._wbox(F, uu - 0.035, uu + 0.035, 0, 2.95, D - 0.06, D + 0.04), 'shop_paint')
         # recess ceiling (soffit) with a small lamp
         ci.box(*self._wbox(F, e0, e1, 2.86, 2.95, D - rec, D), 'shop_paint')
@@ -1254,7 +1258,7 @@ class Facade:
         ci.box(*self._wbox(F, e1 - 0.12, e1, 0, 2.86, dd - 0.06, dd + 0.02), 'shop_paint')
         ci.box(*self._wbox(F, e0, e1, 2.32, 2.42, dd - 0.06, dd + 0.02), 'shop_paint')
         # transom glass
-        gl.quad([self.wp(F, e0 + 0.12, 2.42, dd - 0.02), self.wp(F, e1 - 0.12, 2.42, dd - 0.02), self.wp(F, e1 - 0.12, 2.86, dd - 0.02), self.wp(F, e0 + 0.12, 2.86, dd - 0.02)], 'glass')
+        gl.quad([self.wp(F, e0 + 0.12, 2.42, dd - 0.02), self.wp(F, e1 - 0.12, 2.42, dd - 0.02), self.wp(F, e1 - 0.12, 2.86, dd - 0.02), self.wp(F, e0 + 0.12, 2.86, dd - 0.02)], 'glass_thin')
         # the door: stiles/rails with a large glass light
         a, c = e0 + 0.12, e1 - 0.12
         d0, d1 = dd - 0.045, dd + 0.0
@@ -1262,7 +1266,7 @@ class Facade:
         ci.box(*self._wbox(F, c - 0.11, c, 0.0, 2.32, d0, d1), 'shop_paint')
         ci.box(*self._wbox(F, a + 0.11, c - 0.11, 0.0, 0.32, d0, d1), 'shop_paint')
         ci.box(*self._wbox(F, a + 0.11, c - 0.11, 2.20, 2.32, d0, d1), 'shop_paint')
-        gl.quad([self.wp(F, a + 0.11, 0.32, dd - 0.022), self.wp(F, c - 0.11, 0.32, dd - 0.022), self.wp(F, c - 0.11, 2.20, dd - 0.022), self.wp(F, a + 0.11, 2.20, dd - 0.022)], 'glass')
+        gl.quad([self.wp(F, a + 0.11, 0.32, dd - 0.022), self.wp(F, c - 0.11, 0.32, dd - 0.022), self.wp(F, c - 0.11, 2.20, dd - 0.022), self.wp(F, a + 0.11, 2.20, dd - 0.022)], 'glass_thin')
         # kick plate and push bar / pull handle
         br.box(*self._wbox(F, a + 0.01, c - 0.01, 0.02, 0.28, d1, d1 + 0.003), 'brass')
         hz = 1.05
@@ -1297,7 +1301,7 @@ class Facade:
         ci.box(*self._wbox(F, u0, u0 + 0.07, 0.16, 3.23, dd - 0.05, dd + 0.02), 'door')
         ci.box(*self._wbox(F, u1 - 0.07, u1, 0.16, 3.23, dd - 0.05, dd + 0.02), 'door')
         ci.box(*self._wbox(F, u0, u1, 2.55, 2.65, dd - 0.05, dd + 0.02), 'door')
-        gl.quad([self.wp(F, u0 + 0.07, 2.65, dd - 0.02), self.wp(F, u1 - 0.07, 2.65, dd - 0.02), self.wp(F, u1 - 0.07, 3.23, dd - 0.02), self.wp(F, u0 + 0.07, 3.23, dd - 0.02)], 'glass')
+        gl.quad([self.wp(F, u0 + 0.07, 2.65, dd - 0.02), self.wp(F, u1 - 0.07, 2.65, dd - 0.02), self.wp(F, u1 - 0.07, 3.23, dd - 0.02), self.wp(F, u0 + 0.07, 3.23, dd - 0.02)], 'glass_thin')
         # transom numerals in gold leaf
         self.text(self.vt['number'], FONT_SERIF, size=0.22, wall=F, u=(u0 + u1) / 2, v=2.86, d=dd - 0.018, depth=0.0, mat='letters', key='letters_flat')
         # door leaf: wood with glazed upper panel and an iron grille
@@ -1308,7 +1312,7 @@ class Facade:
         ci.box(*self._wbox(F, a + 0.13, c - 0.13, 0.16, 0.95, d0, d1), 'door')
         ci.box(*self._wbox(F, a + 0.13, c - 0.13, 2.40, 2.55, d0, d1), 'door')
         ci.box(*self._wbox(F, a + 0.20, c - 0.20, 0.30, 0.82, d1, d1 + 0.012), 'door')
-        gl.quad([self.wp(F, a + 0.13, 0.95, dd - 0.025), self.wp(F, c - 0.13, 0.95, dd - 0.025), self.wp(F, c - 0.13, 2.40, dd - 0.025), self.wp(F, a + 0.13, 2.40, dd - 0.025)], 'glass')
+        gl.quad([self.wp(F, a + 0.13, 0.95, dd - 0.025), self.wp(F, c - 0.13, 0.95, dd - 0.025), self.wp(F, c - 0.13, 2.40, dd - 0.025), self.wp(F, a + 0.13, 2.40, dd - 0.025)], 'glass_thin')
         ir = self.M('iron')
         for k in range(6):
             uu = a + 0.13 + (c - a - 0.26) * (k + 0.5) / 6
@@ -1831,58 +1835,82 @@ class Facade:
         self.shop_interior(R)
 
     def furnish(self, it, R, x0, x1, z0, zc, D, k, b):
-        kind = R.choice(['living', 'office', 'bed', 'living', 'office', 'store'])
+        """Furnish one room (x0..x1, front wall at y=0.33, back wall at D) with real furniture shapes (facade_props).
+        Rooms differ in type, palette, layout and lighting so the building reads as occupied by different people."""
+        fu = self.M('furn')
+        D = D - 0.02                                   # inner face of the back wall
         cx = (x0 + x1) / 2
+        wx = (b + 0.5) * self.bw                       # window centre
+        kinds = ['living', 'bed', 'kitchen', 'office', 'living', 'bed', 'kitchen', 'store']
+        kind = kinds[(k * 3 + b * 5 + self.seed) % len(kinds)] if R.random() < 0.8 else R.choice(kinds)
+        fab = R.choice(['fab_a', 'fab_b', 'fab_c', 'fab_d'])
+        woods = R.sample(['wood_dark', 'wood_mid', 'wood_light'], 2)
+        P.radiator(fu, wx - 0.40, wx + 0.40, 0.33 + 0.13, z0, R.choice(['radiator', 'radiator', 'radiator_alu']))
+        lamps = []
         if kind == 'living':
-            # sofa against the back wall, picture, floor lamp, bookshelf on a side wall
-            sc = R.choice(['fab_a', 'fab_b', 'fab_c'])
-            it.box((cx - 1.0, D - 0.95, z0), (cx + 1.0, D - 0.02, z0 + 0.42), sc)
-            it.box((cx - 1.0, D - 0.25, z0 + 0.42), (cx + 1.0, D - 0.05, z0 + 0.85), sc)
-            for s in (-1, 1):
-                it.box((cx + s * 1.0 - 0.12 * (s > 0), D - 0.95, z0), (cx + s * 1.0 + 0.12 * (s < 0) * 0 + (0.12 if s > 0 else 0), D - 0.05, z0 + 0.62), sc)
-            it.box((cx - 0.45, D - 0.03, z0 + 1.35), (cx + 0.45, D - 0.0, z0 + 1.95), 'frame_dark')
-            it.box((cx - 0.40, D - 0.035, z0 + 1.40), (cx + 0.40, D - 0.03, z0 + 1.90), R.choice(['art_a', 'art_b']))
-            it.box((cx - 0.5, D - 2.1, z0), (cx + 0.5, D - 1.6, z0 + 0.42), 'wood_dark')
-            it.box((x0 + 0.02, D - 2.5, z0), (x0 + 0.35, D - 0.6, z0 + 2.1), 'wood_mid')
-            for sh in range(5):
-                zz = z0 + 0.35 + sh * 0.38
-                for bk in range(int(1.8 / 0.06)):
-                    if R.random() < 0.8:
-                        h = R.uniform(0.18, 0.30)
-                        yy = D - 2.45 + bk * 0.06
-                        it.box((x0 + 0.06, yy, zz), (x0 + 0.30, yy + 0.05, zz + h), R.choice(['book_a', 'book_b', 'book_c', 'book_d']))
-            lx = x1 - 0.4
-            it.rod((lx, D - 0.6, z0), (lx, D - 0.6, z0 + 1.55), 0.012, 'brass')
-            it.rod((lx, D - 0.6, z0 + 1.45), (lx, D - 0.6, z0 + 1.75), 0.18, 'lampshade', seg=16, r1=0.12)
-            if R.random() < 0.5:
-                self.lights.append(dict(kind='point', loc=Vector((lx, D - 0.6, z0 + 1.6)), energy=20, color=(1.0, 0.7, 0.4), radius=0.08, group='interior', lit=True))
-        elif kind == 'office':
-            for dx in (-0.75, 0.75):
-                it.box((cx + dx - 0.6, D - 1.6, z0 + 0.72), (cx + dx + 0.6, D - 0.85, z0 + 0.75), 'wood_light')
-                it.box((cx + dx - 0.58, D - 1.55, z0), (cx + dx - 0.54, D - 0.9, z0 + 0.72), 'steel')
-                it.box((cx + dx + 0.54, D - 1.55, z0), (cx + dx + 0.58, D - 0.9, z0 + 0.72), 'steel')
-                it.box((cx + dx - 0.28, D - 1.05, z0 + 0.75), (cx + dx + 0.28, D - 1.02, z0 + 1.10), 'screen')
-                it.box((cx + dx - 0.25, D - 2.1, z0 + 0.45), (cx + dx + 0.25, D - 1.65, z0 + 0.52), 'fab_c')
-                it.box((cx + dx - 0.25, D - 2.15, z0 + 0.52), (cx + dx + 0.25, D - 2.08, z0 + 1.05), 'fab_c')
-                it.rod((cx + dx, D - 1.9, z0), (cx + dx, D - 1.9, z0 + 0.45), 0.025, 'steel')
-            for f in range(3):
-                it.box((x1 - 0.5, D - 0.6 - f * 0.5, z0), (x1 - 0.02, D - 0.15 - f * 0.5, z0 + 1.3), 'steel_cab')
-            it.box((cx - 1.2, D - 0.03, z0 + 1.2), (cx + 1.2, D - 0.0, z0 + 2.1), 'board')
+            sx = cx - 0.35
+            P.rug(fu, sx, D - 1.7, z0, 2.2, 1.6, R.choice(['fab_a', 'fab_b', 'fab_d']))
+            P.sofa(fu, sx, D - 0.04, z0, 1.9, fab, woods[0], R)
+            P.table(fu, sx, D - 1.7, z0, 1.0, 0.55, 0.42, woods[1], woods[1])
+            P.armchair(fu, x0 + 0.6, D - 2.5, z0, R.uniform(-0.9, -0.5), R.choice(['fab_a', 'fab_b', 'fab_c', 'fab_d']), woods[0])
+            P.bookcase(fu, x1 - 0.75, x1 - 0.05, D, z0, 2.0, woods[0], R)
+            P.picture(fu, sx, D, z0 + 1.55, 0.9, 0.6, 'frame_dark', R.choice(['art_a', 'art_b']))
+            lamps.append(P.floor_lamp(fu, x0 + 0.3, D - 1.3, z0, 'brass', 'lampshade'))
+            P.plant(fu, x1 - 0.35, 0.33 + 0.45, z0, R, big=True)
         elif kind == 'bed':
-            it.box((cx - 0.8, D - 2.1, z0), (cx + 0.8, D - 0.05, z0 + 0.5), 'fab_d')
-            it.box((cx - 0.8, D - 0.12, z0), (cx + 0.8, D - 0.02, z0 + 1.1), 'wood_dark')
-            it.box((cx - 0.7, D - 0.55, z0 + 0.5), (cx + 0.7, D - 0.15, z0 + 0.62), 'fab_e')
-            it.box((x0 + 0.05, D - 3.2, z0), (x0 + 0.55, D - 2.2, z0 + 1.1), 'wood_mid')
-            it.box((x0 + 0.1, D - 3.0, z0 + 1.1), (x0 + 0.12, D - 2.5, z0 + 1.7), 'mirror')
+            W = R.choice([1.4, 1.6])
+            P.rug(fu, cx, D - 1.3, z0, W + 0.8, 2.2, R.choice(['fab_d', 'fab_b']))
+            P.bed(fu, cx, D, z0, W, woods[0], 'fab_e', R.choice(['fab_d', 'fab_b', 'fab_e', 'fab_a']), 'fab_e', R)
+            for s in (-1, 1):
+                if x0 < cx + s * (W / 2 + 0.3) < x1:
+                    lamps.append(P.nightstand_lamp(fu, cx + s * (W / 2 + 0.3), D - 0.25, z0, woods[1], R.choice(['pot_white', 'brass']), 'lampshade'))
+            P.rbox(fu, (x0 + 0.33, D - 2.9, z0 + 1.0), (0.6, 1.1, 2.0), 0.01, woods[1], seg=2)          # wardrobe
+            P.rbox(fu, (x0 + 0.02, D - 2.9, z0 + 1.0), (0.01, 0.9, 1.7), 0.0, 'mirror', seg=1) if R.random() < 0.4 else None
+            P.picture(fu, cx, D - 0.05, z0 + 1.6, 0.6, 0.45, 'frame_dark', R.choice(['art_a', 'art_b']))
+            P.chair(fu, x1 - 0.4, D - 2.6, z0, R.uniform(2.0, 2.6), woods[0])
+        elif kind == 'kitchen':
+            P.kitchen(fu, x0 + 0.02, x1 - 0.02, D, z0, R, R.choice(['cab_white', 'cab_green', 'cab_cream']), R.choice(['marble', 'wood_light', 'steel']))
+            rnd = R.random() < 0.5
+            tx, ty = cx, D - 2.3
+            P.table(fu, tx, ty, z0, 0.9 if rnd else 1.2, 0.9 if rnd else 0.8, 0.75, woods[1], woods[0], round_=rnd)
+            for s in (-1, 1):
+                P.chair(fu, tx + s * 0.62, ty, z0, s * math.pi / 2 + R.uniform(-0.2, 0.2) + math.pi, woods[0])
+            P.chair(fu, tx, ty - 0.6, z0, R.uniform(-0.3, 0.3) + math.pi, woods[0])
+            lamps.append(P.ceiling_fixture(fu, tx, ty, zc, 'lampshade', kind=1))
+            P.lathe(fu, (tx, ty, z0 + 0.75), [(0.0, 0.0), (0.1, 0.0), (0.12, 0.06), (0.0, 0.06)], 'pot_white', seg=16)     # fruit bowl
+            for q in range(4):
+                P.blob(fu, (tx + R.uniform(-0.05, 0.05), ty + R.uniform(-0.05, 0.05), z0 + 0.84), (0.035, 0.035, 0.033), R.choice(['terracotta', 'leaf', 'book_c']), seg=10, rings=6)
+        elif kind == 'office':
+            P.rug(fu, cx, D - 1.6, z0, 1.8, 1.4, 'fab_c')
+            for dx in ((-0.7, 0.7) if x1 - x0 > 2.6 else (0.0,)):
+                P.table(fu, cx + dx, D - 0.45, z0, 1.2, 0.7, 0.74, 'wood_light', 'steel')
+                P.rbox(fu, (cx + dx, D - 0.3, z0 + 0.74 + 0.21), (0.55, 0.03, 0.34), 0.006, 'screen', seg=2)
+                P.rbox(fu, (cx + dx, D - 0.27, z0 + 0.79), (0.04, 0.04, 0.1), 0.004, 'steel_cab', seg=1)
+                P.office_chair(fu, cx + dx, D - 1.2, z0, R.uniform(-0.5, 0.5), 'fab_c', 'screen')
+                lamps.append(Vector((cx + dx + 0.4, D - 0.35, z0 + 1.15)))
+                P.lathe(fu, (cx + dx + 0.45, D - 0.35, z0 + 0.74), [(0.0, 0.0), (0.07, 0.0), (0.02, 0.02), (0.01, 0.40), (0.0, 0.4)], 'steel_cab', seg=12)
+                P.lathe(fu, (cx + dx + 0.40, D - 0.40, z0 + 1.10), [(0.09, 0.0), (0.02, 0.1), (0.0, 0.1)], 'shade_green', seg=16)
+            for f in range(2):
+                P.rbox(fu, (x1 - 0.3, D - 1.5 - f * 0.5, z0 + 0.66), (0.46, 0.48, 1.32), 0.006, 'steel_cab', seg=1)
+            P.rbox(fu, (cx, D - 0.01, z0 + 1.65), (1.6, 0.02, 0.9), 0.003, 'board', seg=1)
         else:
-            for _ in range(R.randint(5, 10)):
-                bx, by = R.uniform(x0 + 0.3, x1 - 0.8), R.uniform(D - 2.5, D - 0.6)
+            # flat between tenants: boxes, a mattress against the wall, a ladder
+            for _ in range(R.randint(5, 9)):
+                bx, by = R.uniform(x0 + 0.4, x1 - 0.5), R.uniform(D - 2.6, D - 0.4)
                 s = R.uniform(0.35, 0.6)
                 zz = z0
                 for st in range(R.randint(1, 3)):
-                    it.box((bx, by, zz), (bx + s, by + s * 0.8, zz + s * 0.7), 'cardboard')
+                    P.rbox(fu, (bx, by, zz + s * 0.35), (s, s * 0.8, s * 0.7), 0.004, 'cardboard', seg=1, rz=R.uniform(-0.15, 0.15))
                     zz += s * 0.7
                     s *= 0.9
+            P.rbox(fu, (x1 - 0.2, D - 1.2, z0 + 0.95), (0.2, 1.4, 1.9), 0.06, 'fab_e', rx=0.12)
+        # ceiling fixture: a dome in most rooms
+        if kind != 'kitchen':
+            P.ceiling_fixture(fu, cx, D * 0.55, zc, 'fixture_off', kind=0)
+        # practical lamps: warm, dim, only in some rooms
+        for lp in lamps:
+            if R.random() < 0.6:
+                self.lights.append(dict(kind='point', loc=lp, energy=R.uniform(12, 30), color=(1.0, 0.68, 0.40), radius=0.06, group='interior', lit=True))
 
     def treatment(self, op, R):
         wall, u0, u1, v0, v1 = op['wall'], op['u0'], op['u1'], op['v0'], op['v1']
@@ -2142,6 +2170,7 @@ class Facade:
         Mt['paint'] = self.mat_paint(tag + "_winpaint", trim, wg, chip=0.35)
         Mt['putty'] = self.mat_simple(tag + "_putty", srgb((122, 116, 100)), 0.8)
         Mt['glass'] = self.mat_glass(tag + "_glass")
+        Mt['glass_thin'] = self.mat_glass(tag + "_glass_thin", thin=True)
         Mt['prism_glass'] = self.mat_glass(tag + "_prism", prism=True)
         Mt['shop_paint'] = self.mat_paint(tag + "_shoppaint", sign if v['trim'] != 'cream' else trim, wg, chip=0.6, ground=True)
         Mt['sign_board'] = self.mat_paint(tag + "_signboard", sign, wg, chip=0.25, gloss=True)
@@ -2189,6 +2218,9 @@ class Facade:
                          ('mirror', (220, 220, 220), 0.03), ('lampshade', (230, 210, 170), 0.8), ('book_a', (110, 30, 26), 0.6),
                          ('book_b', (30, 50, 80), 0.6), ('book_c', (190, 170, 130), 0.6), ('book_d', (40, 70, 50), 0.6)):
             Mt[nm] = self.mat_simple(tag + "_" + nm, srgb(c), r, noise=0.15)
+        for nm, c, r in (('cab_white', (214, 212, 204), 0.35), ('cab_green', (70, 92, 78), 0.4), ('cab_cream', (206, 192, 160), 0.4),
+                         ('radiator', (196, 190, 172), 0.45), ('radiator_alu', (160, 150, 120), 0.35)):
+            Mt[nm] = self.mat_simple(tag + "_" + nm, srgb(c), r, noise=0.2)
         Mt['art_a'] = self.mat_simple(tag + "_art_a", srgb((180, 120, 60)), 0.6, noise=1.0)
         Mt['art_b'] = self.mat_simple(tag + "_art_b", srgb((70, 110, 140)), 0.6, noise=1.0)
         Mt['goods'] = self.mat_attr(tag + "_goods", 0.45)
@@ -2326,12 +2358,14 @@ class Facade:
             T.set(nd.inputs[k], v)
         return nd
 
-    def _ao_dirt(self, T, col, rough, amount=0.55, dist=0.35):
+    def _ao_dirt(self, T, col, rough, amount=0.55, dist=0.35, limit=None):
         """Grime collecting in concave corners (reveals, under sills, against the belt course)."""
         ao = T.n('ShaderNodeAmbientOcclusion', {'Distance': dist}, samples=6, only_local=False)
         occ = T.math('POWER', T.math('SUBTRACT', 1.0, ao.outputs['AO']), 1.4)
         nz = T.noise(T.n('ShaderNodeTexCoord').outputs['Object'], 7.0, 4, 0.6)
         f = T.math('MULTIPLY', T.math('MULTIPLY', occ, amount), T.remap(nz.outputs['Factor'], 0.35, 0.65, 0.5, 1.3), clamp=True)
+        if limit is not None:
+            f = T.math('MULTIPLY', f, limit)
         return T.mix(f, col, T.mul_col(col, (0.42, 0.40, 0.38, 1))), T.math('ADD', rough, T.math('MULTIPLY', f, 0.05))
 
     def _brick_local(self, T, u, v, i, j):
@@ -2400,7 +2434,7 @@ class Facade:
         col = T.mix(brick, mort, b.outputs['Color'])
         rough = T.mixf(brick, 0.96, b.outputs['Rough'])
         w = self._group(T, wg, {'Color': col, 'Rough': rough, 'Strength': 1.0})
-        c, r = self._ao_dirt(T, w.outputs['Color'], w.outputs['Rough'], 0.4, dist=0.25)
+        c, r = self._ao_dirt(T, w.outputs['Color'], w.outputs['Rough'], 0.4, dist=0.25, limit=T.mixf(brick, 0.25, 1.0))
         # height: brick faces with per-brick tilt, recessed mortar (raked deeper where eroded)
         wn = T.n('ShaderNodeTexWhiteNoise', {'Vector': cell}, noise_dimensions='3D')
         tilt = T.xyz(wn.outputs['Color'])
@@ -2504,23 +2538,53 @@ class Facade:
         principled(T, out, c, r, metal)
         return m
 
-    def mat_glass(self, name, prism=False):
+    def mat_glass(self, name, prism=False, thin=False):
+        """Window glass.  Solid slabs (4 mm sash panes, 10 mm shop plate) unless thin; per-pane tint and waviness from
+        the `cell` attribute (pane id, pane bottom, pane top); an outside film of city dust that is heaviest at the
+        bottom of each pane and in the corners, dried rain spots, faint vertical run marks and fine scratches."""
         m, T, out = new_mat(name)
         tc = T.n('ShaderNodeTexCoord')
         p = tc.outputs['Object']
-        # old cylinder glass: gentle horizontal waviness
-        mp = T.n('ShaderNodeMapping', {'Vector': p, 'Scale': (6.0, 6.0, 1.2) if not prism else (40, 40, 40)})
-        n1 = T.noise(mp.outputs[0], 2.0, 2, 0.4)
-        nrm = T.bump(n1.outputs['Factor'], 0.06 if not prism else 0.5, 0.01)
-        dirt = T.noise(p, 3.0, 5, 0.6)
-        rough = T.remap(dirt.outputs['Factor'], 0.45, 0.8, 0.0, 0.035)
         if prism:
-            rough = 0.4
-        pr = principled(T, None, (0.94, 0.95, 0.93, 1), rough, normal=nrm, Transmission_Weight=1.0, IOR=1.52)
-        pr.inputs['Thin Wall'].default_value = True
-        # a little grime film reduces transmission
-        dif = T.n('ShaderNodeBsdfDiffuse', {'Color': srgb((150, 132, 100)) if prism else srgb((110, 104, 96))})
-        ms = T.n('ShaderNodeMixShader', {'Fac': 0.55 if prism else T.remap(dirt.outputs['Factor'], 0.5, 0.85, 0.0, 0.05)})
+            mp = T.n('ShaderNodeMapping', {'Vector': p, 'Scale': (40, 40, 40)})
+            n1 = T.noise(mp.outputs[0], 2.0, 2, 0.4)
+            pr = principled(T, None, (0.94, 0.95, 0.93, 1), 0.4, normal=T.bump(n1.outputs['Factor'], 0.5, 0.01), Transmission_Weight=1.0, IOR=1.52)
+            pr.inputs['Thin Wall'].default_value = True
+            dif = T.n('ShaderNodeBsdfDiffuse', {'Color': srgb((150, 132, 100))})
+            ms = T.n('ShaderNodeMixShader', {'Fac': 0.55})
+            T.L.new(pr.outputs[0], ms.inputs[1]); T.L.new(dif.outputs[0], ms.inputs[2]); T.L.new(ms.outputs[0], out.inputs['Surface'])
+            return m
+        at = T.n('ShaderNodeAttribute', attribute_name='cell')
+        cs = T.xyz(at.outputs['Vector'])
+        pid = cs[0]
+        z = T.xyz(p)[2]
+        hgt = T.math('MAXIMUM', T.math('SUBTRACT', cs[2], cs[1]), 0.05)
+        t = T.math('DIVIDE', T.math('SUBTRACT', z, cs[1]), hgt, clamp=True)       # 0 at pane bottom .. 1 top
+        # cylinder / drawn glass: waviness strength varies pane to pane (some panes are original, some replaced)
+        wave_k = T.remap(pid, 0, 1, 0.01, 0.12)
+        mp = T.n('ShaderNodeMapping', {'Vector': p, 'Location': T.comb(pid, T.math('MULTIPLY', pid, 3.0), 0.0), 'Scale': (5.0, 5.0, 1.0)})
+        n1 = T.noise(mp.outputs[0], 2.2, 2, 0.4)
+        # dust film: gradient to the bottom + clumps, plus rain run marks
+        dn = T.noise(p, 9.0, 6, 0.65)
+        dust = T.math('ADD', T.math('MULTIPLY', T.math('POWER', T.math('SUBTRACT', 1.0, t), 3.0), 0.55), T.remap(dn.outputs['Factor'], 0.35, 0.7, 0.0, 0.35))
+        rmp = T.n('ShaderNodeMapping', {'Vector': p, 'Scale': (60.0, 60.0, 2.5)})
+        runs = T.noise(rmp.outputs[0], 3.0, 3, 0.5)
+        dust = T.math('ADD', dust, T.math('MULTIPLY', T.smooth(runs.outputs['Factor'], 0.58, 0.72), 0.25))
+        spots = T.n('ShaderNodeTexVoronoi', {'Vector': p, 'Scale': 70.0})
+        ring = T.math('MULTIPLY', T.smooth(spots.outputs['Distance'], 0.16, 0.10), T.smooth(spots.outputs['Distance'], 0.04, 0.10))
+        spot_mask = T.smooth(T.noise(p, 1.5, 2, 0.5).outputs['Factor'], 0.5, 0.62)
+        dust = T.math('ADD', dust, T.math('MULTIPLY', T.math('MULTIPLY', ring, spot_mask), 0.5))
+        dust = T.math('MULTIPLY', dust, T.remap(pid, 0, 1, 0.5, 1.2), clamp=True)
+        # fine scratches: very thin stretched noise lines, only change roughness
+        smp = T.n('ShaderNodeMapping', {'Vector': p, 'Rotation': (0.0, 0.0, 0.0), 'Scale': (400.0, 400.0, 6.0)})
+        scr = T.smooth(T.noise(smp.outputs[0], 1.0, 2, 0.5).outputs['Factor'], 0.66, 0.70)
+        rough = T.math('ADD', T.math('MULTIPLY', dust, 0.10), T.math('MULTIPLY', scr, 0.06))
+        nrm = T.bump(T.math('ADD', T.math('MULTIPLY', n1.outputs['Factor'], 1.0), T.math('MULTIPLY', ring, 0.02)), wave_k, 0.01)
+        tint = T.mix(pid, srgb((236, 244, 238)), srgb((240, 242, 236)))
+        pr = principled(T, None, tint, rough, normal=nrm, Transmission_Weight=1.0, IOR=1.52)
+        pr.inputs['Thin Wall'].default_value = bool(thin)
+        dif = T.n('ShaderNodeBsdfDiffuse', {'Color': srgb((128, 120, 108))})
+        ms = T.n('ShaderNodeMixShader', {'Fac': T.math('MULTIPLY', dust, 0.16, clamp=True)})
         T.L.new(pr.outputs[0], ms.inputs[1])
         T.L.new(dif.outputs[0], ms.inputs[2])
         T.L.new(ms.outputs[0], out.inputs['Surface'])
@@ -2614,7 +2678,7 @@ class Facade:
             'win_frame': (False, 0.003), 'glass': (False, 0.0), 'putty': (False, 0.0), 'shop_paint': (False, 0.004),
             'brass': (True, 0.0), 'tile': (False, 0.0), 'door': (False, 0.003), 'iron': (True, 0.0), 'awning': (True, 0.0),
             'cornice': (False, 0.004), 'fire_escape': (True, 0.0), 'services': (True, 0.0), 'shade': (True, 0.0),
-            'bulbs': (True, 0.0), 'interior': (False, 0.0), 'treat': (True, 0.0), 'shop_in': (False, 0.0), 'letters': (False, 0.0),
+            'bulbs': (True, 0.0), 'interior': (False, 0.0), 'furn': (True, 0.0), 'goods3d': (True, 0.0), 'treat': (True, 0.0), 'shop_in': (False, 0.0), 'letters': (False, 0.0),
             'letters_flat': (False, 0.0), 'props': (True, 0.0), 'blade': (False, 0.004), 'brickback': (False, 0.0),
         }
         self.objects = {}
