@@ -660,11 +660,21 @@ def m_soil(name):
 
 @cache
 def m_water(name):
+    """Shallow puddle: fresnel mix of transparency (road shows through) and a sharp mirror."""
     m, T, out = new_mat(name)
     p, pv, _ = coords(T)
-    n1 = T.noise(pv, 3.0, 3, 0.5)
-    pr = principled(T, None, (0.6, 0.6, 0.6, 1), 0.02, IOR=1.33, Transmission_Weight=1.0, normal=T.bump(n1.outputs['Factor'], 0.05, 0.003))
-    T.L.new(pr.outputs[0], out.inputs['Surface'])
+    n1 = T.noise(pv, 2.0, 3, 0.5)
+    nrm = T.bump(n1.outputs['Factor'], 0.03, 0.003)
+    fr = T.n('ShaderNodeFresnel', {'IOR': 1.33})
+    T.set(fr.inputs['Normal'], nrm)
+    gl = T.n('ShaderNodeBsdfGlossy', {'Color': (0.9, 0.9, 0.9, 1), 'Roughness': 0.015})
+    T.set(gl.inputs['Normal'], nrm)
+    tr = T.n('ShaderNodeBsdfTransparent', {'Color': (0.82, 0.80, 0.76, 1)})
+    ms = T.n('ShaderNodeMixShader')
+    T.L.new(fr.outputs[0], ms.inputs['Fac'])
+    T.L.new(tr.outputs[0], ms.inputs[1])
+    T.L.new(gl.outputs[0], ms.inputs[2])
+    T.L.new(ms.outputs[0], out.inputs['Surface'])
     return m
 
 

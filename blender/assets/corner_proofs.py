@@ -72,7 +72,7 @@ def setup_env(scene):
     blds = [
         ((-48, 0, 0), (-22, 24, 4.2), (150, 120, 96)), ((-48, 24, 0), (-22, 50, 44), (120, 110, 100)),
         ((-48, -60, 0), (-22, -26, 34), (110, 80, 66)), ((-20, -50, 0), (2, -22, 24), (160, 150, 130)), ((2, -50, 0), (30, -22, 52), (120, 116, 112)),
-        ((30, -50, 0), (60, -22, 20), (150, 146, 140)), ((-60, -60, 0), (-48, 60, 60), (140, 130, 120)),
+        ((30, -50, 0), (60, -22, 20), (150, 146, 140)),
     ]
     for i, (mn, mx, c) in enumerate(blds):
         FP.box(col, f"bld{i}", mn, mx, FP.env_material(f"env_bld{i}", facade.srgb(c), 'windows'))
@@ -165,6 +165,7 @@ def main():
         h = int(round(w * res[1] / res[0]))
         FP.setup_render(scene, w, h, int(opt['samples']), int(opt['threads']))
         scene.view_settings.exposure = 0.0
+        scene.render.filter_size = 1.2
         fn = os.path.join(OUT_PREV, f"corner_{'curb_close' if s == 'curb' else s}" + (f"_{opt['tag']}" if opt['tag'] else '') + ".png")
         scene.render.filepath = fn
         t1 = time.time()
