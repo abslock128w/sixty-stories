@@ -1979,70 +1979,11 @@ class Facade:
         it.box((x0, D - 0.05, 0), (x1, D, 3.6), 'wall_shop')
         it.box((x0 - 0.05, 0.1, 0), (x0, D, 3.6), 'wall_shop')
         it.box((x1, 0.1, 0), (x1 + 0.05, D, 3.6), 'wall_shop')
-        # back shelving with goods
-        sh_z = [0.35, 0.80, 1.25, 1.70, 2.15]
-        it.box((x0 + 0.1, D - 0.45, 0), (x1 - 0.1, D - 0.05, 0.3), 'wood_dark')
-        for z in sh_z:
-            it.box((x0 + 0.1, D - 0.45, z - 0.03), (x1 - 0.1, D - 0.05, z), 'wood_mid')
-            x = x0 + 0.15
-            while x < x1 - 0.25:
-                w = R.uniform(0.07, 0.18)
-                h = R.uniform(0.12, 0.38)
-                col = R.choice(GOODS)
-                if R.random() < 0.5:
-                    it.box((x, D - 0.40, z), (x + w, D - 0.12, z + h), 'goods', cell=col)
-                else:
-                    it.rod((x + w / 2, D - 0.25, z), (x + w / 2, D - 0.25, z + h * 0.8), w / 2, 'goods', seg=10, cell=col)
-                x += w + R.uniform(0.005, 0.03)
-        # counter with glass case, register
-        cx0, cx1 = x0 + 0.6, x0 + 3.6
-        it.box((cx0, 3.1, 0), (cx1, 3.75, 0.95), 'wood_dark')
-        it.box((cx0, 3.1, 0.95), (cx1, 3.8, 0.99), 'marble')
-        it.box((cx0 + 0.6, 3.3, 0.99), (cx0 + 0.95, 3.6, 1.2), 'steel')
-        # display window goods: tiered stands with produce
-        for (a, c) in getattr(self, 'displays', []):
-            it.box((a + 0.05, 0.16, 0.0), (c - 0.05, 0.95, 0.62), 'wood_mid')
-            for tier, (y0, h) in enumerate(((0.22, 0.62), (0.55, 0.9))):
-                it.box((a + 0.15, y0, h - 0.03), (c - 0.15, y0 + 0.35, h), 'wood_light')
-                x = a + 0.22
-                while x < c - 0.3:
-                    col = R.choice(GOODS)
-                    kind = self.vt['shop']
-                    if kind == 'bakery':
-                        # loaves: squashed spheres approximated by bevelled boxes; cakes as cylinders
-                        rr = R.random()
-                        if rr < 0.35:
-                            # basket of long loaves
-                            it.rod((x + 0.15, y0 + 0.17, h), (x + 0.15, y0 + 0.17, h + 0.12), 0.15, 'wicker', seg=16, r1=0.17)
-                            for q in range(R.randint(3, 6)):
-                                a0 = R.uniform(-0.5, 0.5)
-                                c0 = Vector((x + 0.15, y0 + 0.17, h + 0.12))
-                                d0 = Vector((math.cos(a0) * 0.18, math.sin(a0) * 0.10, R.uniform(0.15, 0.3)))
-                                it.rod(c0 - d0 * 0.6, c0 + d0, R.uniform(0.028, 0.04), 'bread', seg=10)
-                            x += 0.38
-                        elif rr < 0.7:
-                            for q in range(R.randint(2, 4)):
-                                rr2 = R.uniform(0.065, 0.09)
-                                yy = y0 + R.uniform(0.1, 0.25)
-                                it.rod((x + rr2, yy, h), (x + rr2, yy, h + 0.04), rr2, 'bread', seg=14, r1=rr2 * 0.95)
-                                it.rod((x + rr2, yy, h + 0.04), (x + rr2, yy, h + 0.085), rr2 * 0.95, 'bread', seg=14, r1=rr2 * 0.45)
-                                x += 2 * rr2 + 0.02
-                            x += 0.04
-                        elif rr < 0.8:
-                            l = R.uniform(0.22, 0.32)
-                            for q in range(3):
-                                it.rod((x, y0 + 0.08 + q * 0.09, h + 0.04), (x + l, y0 + 0.08 + q * 0.09, h + 0.04), 0.04, 'bread', seg=10)
-                            x += l + 0.06
-                        else:
-                            r = R.uniform(0.09, 0.14)
-                            it.rod((x + r, y0 + 0.17, h), (x + r, y0 + 0.17, h + 0.015), r + 0.03, 'pot_white', seg=16)
-                            it.rod((x + r, y0 + 0.17, h + 0.015), (x + r, y0 + 0.17, h + R.uniform(0.08, 0.14)), r, 'cake', seg=16, cell=col)
-                            x += 2 * r + 0.08
-                    else:
-                        w = R.uniform(0.08, 0.2)
-                        hh = R.uniform(0.1, 0.3)
-                        it.box((x, y0 + 0.08, h), (x + w, y0 + 0.25, h + hh), 'goods', cell=col)
-                        x += w + 0.04
+        g3 = self.M('goods3d')
+        if self.vt['shop'] == 'bakery':
+            self.bakery_fitout(g3, it, R, x0, x1, D)
+        else:
+            self.grocer_fitout(g3, it, R, x0, x1, D)
         self.lights.append(dict(kind='area', loc=Vector(((x0 + x1) / 2, 3.2, 3.5)), size=4.0, energy=160, color=(1.0, 0.86, 0.68), group='shop', lit=True))
         # pendant lights
         for xx in np.linspace(x0 + 0.9, x1 - 0.9, 4):
@@ -2050,6 +1991,239 @@ class Facade:
             it.rod((xx, 2.2, 2.75), (xx, 2.2, 2.55), 0.04, 'shade', seg=16, r1=0.22, caps=False)
             self.M('bulbs').rod((xx, 2.2, 2.63), (xx, 2.2, 2.56), 0.05, 'bulb', seg=10)
             self.lights.append(dict(kind='point', loc=Vector((xx, 2.2, 2.6)), energy=90, color=(1.0, 0.78, 0.5), radius=0.05, group='shop', lit=True))
+
+    # ---------------------------------------------------------------- shop fit-outs
+    @staticmethod
+    def _bread_cell(R, kind):
+        """cell = (bake level, flour dusting, egg-wash gloss)"""
+        if kind == 'rustic':
+            return (R.uniform(0.55, 0.95), R.uniform(0.3, 0.9), 0.0)
+        if kind == 'baguette':
+            return (R.uniform(0.45, 0.8), R.uniform(0.0, 0.25), 0.0)
+        if kind == 'pastry':
+            return (R.uniform(0.35, 0.65), 0.0, R.uniform(0.6, 1.0))
+        return (R.uniform(0.3, 0.7), R.uniform(0.0, 0.3), R.uniform(0.0, 0.5))
+
+    def _pastry_row(self, g, R, x0, x1, y, z, kind=None):
+        """One row of one kind of pastry on a tray from x0..x1 at depth y, tray top z."""
+        kind = kind or R.choice(['croissant', 'croissant', 'danish', 'cinnamon', 'muffin', 'donut', 'cookie', 'roll'])
+        x = x0
+        while True:
+            if kind == 'croissant':
+                s = R.uniform(0.9, 1.1); w = 0.13 * s
+                if x + w > x1: break
+                P.croissant(g, (x + w / 2, y + R.uniform(-0.01, 0.01), z), s, 'pastry', R, self._bread_cell(R, 'pastry'), rz=R.uniform(-0.3, 0.3))
+            elif kind == 'danish':
+                r = R.uniform(0.045, 0.052); w = 2 * r + 0.012
+                if x + w > x1: break
+                P.danish(g, (x + w / 2, y, z), r, 'pastry', R.choice(['jam', 'jam', 'custard']), R, self._bread_cell(R, 'pastry'))
+            elif kind == 'cinnamon':
+                r = R.uniform(0.045, 0.05); w = 2 * r + 0.008
+                if x + w > x1: break
+                P.cinnamon_roll(g, (x + w / 2, y, z), r, 'pastry', R, self._bread_cell(R, 'pastry'))
+            elif kind == 'muffin':
+                r = 0.034; w = 2 * r + 0.018
+                if x + w > x1: break
+                P.muffin(g, (x + w / 2, y, z), r, 'cup_paper', R.choice(['crust', 'choc']), R, self._bread_cell(R, 'soft'))
+            elif kind == 'donut':
+                r = 0.045; w = 2 * r + 0.01
+                if x + w > x1: break
+                P.donut(g, (x + w / 2, y, z), r, 'crust', R.choice(['icing', 'choc']), (0.35, 0.0, 0.3))
+            elif kind == 'cookie':
+                r = R.uniform(0.033, 0.04); w = 2 * r + 0.006
+                if x + w > x1: break
+                P.cookie(g, (x + w / 2, y, z), r, R.choice(['crust', 'choc']), R, self._bread_cell(R, 'soft'))
+            else:
+                r = R.uniform(0.042, 0.05); w = 2 * r + 0.006
+                if x + w > x1: break
+                P.roll(g, (x + w / 2, y, z + r * 0.55), r, 'crust', R, self._bread_cell(R, 'soft'))
+            x += w
+
+    def bakery_fitout(self, g, it, R, x0, x1, D):
+        """A working bakery: bread wall, pastry case, counter with register and packaging, menu board, window displays."""
+        # --- bread wall: slanted wooden shelves with loaves, baguette baskets on top
+        bx0, bx1 = x0 + 0.25, x1 - 0.25
+        it.box((bx0 - 0.05, D - 0.55, 0), (bx1 + 0.05, D - 0.05, 0.45), 'wood_dark')
+        for (z, ty) in ((0.55, 0), (0.95, 1), (1.35, 2), (1.75, 3)):
+            P.rbox(g, ((bx0 + bx1) / 2, D - 0.30, z), (bx1 - bx0, 0.5, 0.025), 0.004, 'wood_mid', seg=1, rx=0.22)
+            P.rbox(g, ((bx0 + bx1) / 2, D - 0.56, z + 0.03), (bx1 - bx0, 0.02, 0.07), 0.003, 'wood_mid', seg=1)
+            x = bx0 + 0.05
+            while x < bx1 - 0.3:
+                kind = R.random()
+                if kind < 0.45:
+                    r = R.uniform(0.10, 0.125)
+                    P.boule(g, (x + r, D - 0.32 + R.uniform(-0.04, 0.04), z + 0.02 + r * 0.3), r, 'crust', R, self._bread_cell(R, 'rustic'))
+                    x += 2 * r + 0.015
+                elif kind < 0.85:
+                    L = R.uniform(0.28, 0.34)
+                    P.batard(g, (x + 0.09, D - 0.30, z + 0.06), L, 'crust', R, self._bread_cell(R, 'rustic'), rz=math.pi / 2 + R.uniform(-0.15, 0.15))
+                    x += 0.19
+                else:
+                    x += R.uniform(0.15, 0.35)      # gap where loaves already sold
+        for k in range(int((bx1 - bx0) / 0.6)):
+            cx = bx0 + 0.3 + k * 0.6
+            P.basket(g, (cx, D - 0.30, 2.05), 0.36, 0.30, 0.22, 'wicker')
+            for q in range(R.randint(4, 8)):
+                P.baguette(g, (cx + R.uniform(-0.1, 0.1), D - 0.30 + R.uniform(-0.07, 0.07), 2.30), R.uniform(0.6, 0.7), 'crust', R,
+                           self._bread_cell(R, 'baguette'), rz=R.uniform(0, 3.1), ry=math.pi / 2 - R.uniform(0.1, 0.35))
+        # --- menu board (chalk) above the bread wall
+        mx = (x0 + x1) / 2
+        P.rbox(g, (mx, D - 0.06, 3.0), (2.6, 0.04, 0.85), 0.006, 'wood_dark', seg=2)
+        P.rbox(g, (mx, D - 0.085, 3.0), (2.5, 0.01, 0.75), 0.0, 'chalkboard', seg=1)
+        lines = [("BREAD", 0.07), ("SOURDOUGH  6.50     RYE  5.75     BAGUETTE  3.25", 0.04), ("PASTRY", 0.07),
+                 ("CROISSANT 3.50   DANISH 4.00   CINNAMON ROLL 4.25", 0.04), ("CAKES TO ORDER  -  ASK INSIDE", 0.04)]
+        zz = 3.30
+        for txt, sz in lines:
+            self.text(txt, FONT_SANS, size=sz, wall='F', u=mx + R.uniform(-0.02, 0.02), v=zz, d=-(D - 0.092), depth=0.0, mat='chalk', key='letters_flat',
+                      width_max=2.3)
+            zz -= sz * 2.2 + 0.03
+        # --- pastry display case (the old counter position)
+        cx0, cx1 = x0 + 0.6, x0 + 3.6
+        cy0, cy1 = 3.1, 3.75
+        it.box((cx0, cy0 + 0.05, 0), (cx1, cy1, 0.85), 'wood_dark')
+        it.box((cx0 - 0.02, cy0 + 0.03, 0), (cx1 + 0.02, cy0 + 0.07, 0.1), 'brass')
+        P.rbox(g, ((cx0 + cx1) / 2, (cy0 + cy1) / 2, 0.87), (cx1 - cx0 + 0.02, cy1 - cy0 + 0.04, 0.04), 0.004, 'marble', seg=2)
+        gl = self.M('glass')
+        gl.box((cx0 + 0.02, cy0 - 0.0, 0.89), (cx1 - 0.02, cy0 + 0.012, 1.32), 'glass', cell=(0.3, 0.89, 1.32))       # front
+        gl.box((cx0 + 0.02, cy0, 1.32), (cx1 - 0.02, cy1 - 0.15, 1.332), 'glass', cell=(0.6, 0.0, 0.0))                 # top
+        for xx in (cx0 + 0.008, cx1 - 0.02):
+            gl.box((xx, cy0, 0.89), (xx + 0.012, cy1 - 0.15, 1.32), 'glass', cell=(0.8, 0.89, 1.32))
+        for xx in (cx0 + 0.01, cx1 - 0.01):
+            P.rbox(g, (xx, cy0 + 0.006, 1.105), (0.02, 0.02, 0.43), 0.004, 'steel', seg=2)
+        P.rbox(g, ((cx0 + cx1) / 2, cy0 + 0.006, 1.33), (cx1 - cx0, 0.02, 0.02), 0.004, 'steel', seg=2)
+        gl.box((cx0 + 0.04, cy0 + 0.03, 1.08), (cx1 - 0.04, cy1 - 0.2, 1.09), 'glass', cell=(0.1, 0.0, 0.0))              # glass shelf
+        for (zt, yrow) in ((0.89, (cy0 + 0.13, cy0 + 0.33)), (1.09, (cy0 + 0.12, cy0 + 0.30))):
+            x = cx0 + 0.08
+            while x < cx1 - 0.4:
+                tw = R.uniform(0.42, 0.55)
+                P.tray(g, (x + tw / 2, (yrow[0] + yrow[1]) / 2, zt), tw, 0.36, 'steel')
+                kind = R.choice(['croissant', 'danish', 'cinnamon', 'muffin', 'donut', 'cookie', 'croissant'])
+                for yr in yrow:
+                    self._pastry_row(g, R, x + 0.02, x + tw - 0.02, yr, zt + 0.012, kind)
+                x += tw + 0.04
+        self.lights.append(dict(kind='area', loc=Vector(((cx0 + cx1) / 2, cy0 + 0.25, 1.30)), size=1.0, energy=25, color=(1.0, 0.85, 0.65), group='shop', lit=True))
+        # --- counter with register, card reader, packaging, cake under a dome
+        kx0, kx1 = cx1 + 0.05, min(x1 - 1.4, cx1 + 2.6)
+        it.box((kx0, cy0 + 0.05, 0), (kx1, cy1, 0.92), 'wood_dark')
+        P.rbox(g, ((kx0 + kx1) / 2, (cy0 + cy1) / 2, 0.94), (kx1 - kx0 + 0.04, cy1 - cy0 + 0.06, 0.04), 0.004, 'marble', seg=2)
+        rx = kx0 + 0.55
+        P.rbox(g, (rx, cy0 + 0.40, 1.02), (0.38, 0.40, 0.12), 0.01, 'screen', seg=2)                        # register drawer
+        P.rbox(g, (rx, cy0 + 0.45, 1.16), (0.32, 0.26, 0.16), 0.01, 'steel_cab', seg=2, rx=-0.35)          # keyboard body
+        P.rbox(g, (rx, cy0 + 0.55, 1.36), (0.30, 0.02, 0.22), 0.006, 'screen', seg=2, rx=0.25)             # customer display
+        P.rbox(g, (rx + 0.35, cy0 + 0.25, 1.0), (0.08, 0.15, 0.04), 0.008, 'screen', seg=2, rx=0.3)        # card reader
+        for k in range(R.randint(3, 5)):                                                                      # stacked cake boxes
+            P.pastry_box(g, (kx1 - 0.35, cy0 + 0.4, 0.96 + 0.06 * k + 0.0675), 0.30, 'paper_white', rz=R.uniform(-0.08, 0.08))
+        for k in range(R.randint(2, 4)):
+            P.paper_bag(g, (kx0 + 1.05 + k * 0.16, cy0 + 0.5, 0.96), 0.13, 0.08, 0.20, 'kraft', rz=R.uniform(-0.2, 0.2))
+        P.cake_stand(g, (kx0 + 1.65, cy0 + 0.35, 0.96), 0.15, 0.12, 'pot_white')
+        P.cake(g, (kx0 + 1.65, cy0 + 0.35, 1.08), 0.12, 0.09, 'crust', 'icing', 'jam', R, (0.95, 0.88, 0.86))
+        P.lathe(g, (kx0 + 1.65, cy0 + 0.35, 1.08), [(0.16, 0.0), (0.16, 0.16), (0.13, 0.24), (0.06, 0.27), (0.0, 0.28)], 'glass_thin', seg=32)
+        P.lathe(g, (kx0 + 0.2, cy0 + 0.25, 0.96), [(0.0, 0.0), (0.05, 0.0), (0.05, 0.14), (0.0, 0.14)], 'glass_thin', seg=16)     # tip jar
+        # --- side wall: packaged goods (jam jars, coffee, cookie tins)
+        sx = x1 - 0.30
+        for z in (1.0, 1.4, 1.8):
+            P.rbox(g, (sx, 1.9, z), (0.30, 2.0, 0.025), 0.003, 'wood_mid', seg=1)
+            y = 1.0
+            while y < 2.8:
+                kind = R.random()
+                if kind < 0.45:
+                    P.jar(g, (sx, y, z + 0.013), 0.035, 0.11, 'jamjar', 'paper_white', R.choice(GOODS))
+                    y += 0.085
+                elif kind < 0.75:
+                    P.carton(g, (sx, y, z + 0.013), 0.09, 0.07, 0.17, 'kraft', (0, 0, 0), rz=R.uniform(-0.1, 0.1))
+                    y += 0.10
+                else:
+                    P.can(g, (sx, y, z + 0.013), 0.06, 0.08, 'goods', R.choice(GOODS))
+                    y += 0.14
+        # --- cafe table by the right window
+        P.table(g, x1 - 0.9, 1.55, 0.0, 0.6, 0.6, 0.74, 'marble', 'iron', round_=True)
+        for s_ in (-1, 1):
+            P.chair(g, x1 - 0.9 + s_ * 0.45, 1.55, 0.0, s_ * math.pi / 2 + math.pi, 'wood_dark')
+        # --- window displays: stepped stands with bread, cakes and pastry
+        for (a, c) in getattr(self, 'displays', []):
+            it.box((a + 0.05, 0.16, 0.0), (c - 0.05, 0.95, 0.62), 'wood_mid')
+            w = c - a
+            if w < 1.0:
+                P.cake_stand(g, ((a + c) / 2, 0.55, 0.62), 0.16, 0.28, 'pot_white')
+                P.cake(g, ((a + c) / 2, 0.55, 0.90), 0.13, 0.11, 'crust', 'icing', R.choice(['jam', 'choc']), R, R.choice([(0.96, 0.92, 0.86), (0.93, 0.72, 0.74), (0.4, 0.24, 0.16)]))
+                continue
+            for tier, (y0, h) in enumerate(((0.25, 0.62), (0.62, 0.92))):
+                if tier == 1:
+                    P.rbox(g, ((a + c) / 2, y0 + 0.17, (h + 0.62) / 2), (w - 0.3, 0.3, h - 0.62), 0.004, 'wood_mid', seg=1)
+                x = a + 0.18
+                while x < c - 0.35:
+                    rr = R.random()
+                    if rr < 0.3:
+                        P.basket(g, (x + 0.16, y0 + 0.16, h), 0.34, 0.28, 0.1, 'wicker')
+                        for q in range(R.randint(3, 5)):
+                            P.baguette(g, (x + 0.16 + R.uniform(-0.04, 0.04), y0 + 0.14 + q * 0.03, h + 0.08 + q * 0.012), R.uniform(0.55, 0.65), 'crust', R,
+                                       self._bread_cell(R, 'baguette'), rz=R.uniform(-0.3, 0.3) + 0.3, ry=R.uniform(-0.25, -0.1))
+                        x += 0.40
+                    elif rr < 0.6:
+                        P.rbox(g, (x + 0.22, y0 + 0.17, h + 0.012), (0.42, 0.30, 0.024), 0.004, 'wood_light', seg=1)
+                        for q in range(R.randint(2, 3)):
+                            r = R.uniform(0.09, 0.11)
+                            P.boule(g, (x + 0.02 + r + q * 0.13, y0 + 0.17 + R.uniform(-0.04, 0.04), h + 0.024 + r * 0.3), r, 'crust', R, self._bread_cell(R, 'rustic'))
+                        x += 0.48
+                    elif rr < 0.8:
+                        P.cake_stand(g, (x + 0.15, y0 + 0.17, h), 0.15, 0.10, 'pot_white')
+                        P.cake(g, (x + 0.15, y0 + 0.17, h + 0.10), 0.12, R.uniform(0.07, 0.11), 'crust', 'icing', R.choice(['jam', 'choc']), R,
+                               R.choice([(0.96, 0.92, 0.86), (0.93, 0.72, 0.74), (0.4, 0.24, 0.16), (0.95, 0.88, 0.70)]))
+                        x += 0.34
+                    else:
+                        P.tray(g, (x + 0.2, y0 + 0.17, h), 0.38, 0.30, 'steel')
+                        self._pastry_row(g, R, x + 0.03, x + 0.37, y0 + 0.09, h + 0.012)
+                        self._pastry_row(g, R, x + 0.03, x + 0.37, y0 + 0.24, h + 0.012)
+                        x += 0.44
+            if w > 2.0:
+                P.tart(g, (c - 0.3, 0.75, 0.92), 0.12, 'pastry', R.choice(['jam', 'custard']), R, self._bread_cell(R, 'pastry'))
+
+    def grocer_fitout(self, g, it, R, x0, x1, D):
+        """Deli / hardware: shelves of real product shapes (cans, jars, bottles, cartons), counter with scale."""
+        deli = self.vt['shop'] == 'deli'
+        sh_z = [0.35, 0.80, 1.25, 1.70, 2.15]
+        it.box((x0 + 0.1, D - 0.45, 0), (x1 - 0.1, D - 0.05, 0.3), 'wood_dark')
+        for z in sh_z:
+            it.box((x0 + 0.1, D - 0.45, z - 0.03), (x1 - 0.1, D - 0.05, z), 'wood_mid')
+            x = x0 + 0.15
+            run_kind, run_left = None, 0
+            while x < x1 - 0.25:
+                if run_left <= 0:
+                    run_kind = R.choice(['can', 'jar', 'bottle', 'carton'] if deli else ['can', 'carton', 'carton', 'bottle'])
+                    run_col = R.choice(GOODS)
+                    run_left = R.randint(3, 9)            # products are faced in runs of the same item
+                run_left -= 1
+                yb = D - 0.38 + R.uniform(0, 0.02)
+                if run_kind == 'can':
+                    r = 0.037 if deli else 0.08
+                    P.can(g, (x + r, yb + 0.1, z), r, (0.11 if deli else 0.19), 'goods', run_col)
+                    x += 2 * r + 0.006
+                elif run_kind == 'jar':
+                    P.jar(g, (x + 0.04, yb + 0.1, z), 0.04, 0.13, 'jamjar', 'steel', run_col)
+                    x += 0.088
+                elif run_kind == 'bottle':
+                    P.bottle(g, (x + 0.037, yb + 0.1, z), 0.037, 0.30, 'bottle_glass' if deli else 'goods', run_col, wine=deli)
+                    x += 0.08
+                else:
+                    w = 0.07 if deli else 0.16
+                    P.carton(g, (x + w / 2, yb + 0.12, z), w, 0.06 if deli else 0.12, 0.22 if deli else 0.24, 'goods', run_col)
+                    x += w + 0.004
+        cx0, cx1 = x0 + 0.6, x0 + 3.6
+        it.box((cx0, 3.1, 0), (cx1, 3.75, 0.95), 'wood_dark')
+        it.box((cx0, 3.1, 0.95), (cx1, 3.8, 0.99), 'marble')
+        P.rbox(g, (cx0 + 0.8, 3.4, 1.05), (0.32, 0.3, 0.1), 0.02, 'steel', seg=2)          # scale
+        P.rbox(g, (cx0 + 0.8, 3.52, 1.22), (0.26, 0.04, 0.2), 0.01, 'screen', seg=2, rx=0.3)
+        for (a, c) in getattr(self, 'displays', []):
+            it.box((a + 0.05, 0.16, 0.0), (c - 0.05, 0.95, 0.62), 'wood_mid')
+            x = a + 0.15
+            while x < c - 0.25:
+                if deli and R.random() < 0.35:
+                    r = R.uniform(0.1, 0.15)
+                    P.lathe(g, (x + r, 0.55, 0.62), [(0.0, 0.0), (r * 0.96, 0.0), (r, 0.02), (r, 0.08), (r * 0.96, 0.1), (0.0, 0.1)], 'cheese', seg=28)
+                    x += 2 * r + 0.04
+                else:
+                    P.jar(g, (x + 0.045, 0.45, 0.62), 0.045, 0.15, 'jamjar', 'steel', R.choice(GOODS))
+                    x += 0.1
 
     # ---------------------------------------------------------------- text
     def text(self, s, font, size, wall, u, v, d, depth, mat, key, width_max=None):
@@ -2225,6 +2399,20 @@ class Facade:
         Mt['art_b'] = self.mat_simple(tag + "_art_b", srgb((70, 110, 140)), 0.6, noise=1.0)
         Mt['goods'] = self.mat_attr(tag + "_goods", 0.45)
         Mt['bread'] = self.mat_bread(tag + "_bread")
+        Mt['crust'] = self.mat_crust(tag + "_crust")
+        Mt['pastry'] = self.mat_crust(tag + "_pastry", pastry=True)
+        Mt['icing'] = self.mat_glaze(tag + "_icing", None, 0.25)
+        Mt['jam'] = self.mat_glaze(tag + "_jam", srgb((120, 14, 20)), 0.12)
+        Mt['custard'] = self.mat_glaze(tag + "_custard", srgb((232, 184, 84)), 0.3)
+        Mt['choc'] = self.mat_glaze(tag + "_choc", srgb((46, 24, 14)), 0.28)
+        Mt['cheese'] = self.mat_glaze(tag + "_cheese", srgb((214, 170, 70)), 0.5)
+        Mt['paper_white'] = self.mat_simple(tag + "_paperw", srgb((236, 232, 222)), 0.75, noise=0.1)
+        Mt['kraft'] = self.mat_simple(tag + "_kraft", srgb((168, 124, 80)), 0.85, noise=0.25)
+        Mt['cup_paper'] = self.mat_simple(tag + "_cup", srgb((226, 214, 196)), 0.7, noise=0.15)
+        Mt['chalkboard'] = self.mat_simple(tag + "_chalkb", srgb((34, 38, 36)), 0.85, noise=0.5)
+        Mt['chalk'] = self.mat_simple(tag + "_chalk", srgb((222, 220, 210)), 0.95, noise=0.6)
+        Mt['jamjar'] = self.mat_jar(tag + "_jamjar")
+        Mt['bottle_glass'] = self.mat_jar(tag + "_bottle", bottle=True)
         Mt['wicker'] = self.mat_simple(tag + "_wicker", srgb((140, 100, 56)), 0.8, noise=0.6)
         Mt['cake'] = self.mat_attr(tag + "_cake", 0.5, pastel=True)
         self.materials = Mt
@@ -2668,6 +2856,60 @@ class Facade:
         n1 = T.noise(tc.outputs['Object'], 30.0, 4, 0.6)
         c = T.mix(n1.outputs['Factor'], srgb((150, 90, 40)), srgb((210, 160, 90)))
         principled(T, out, c, 0.7, Subsurface_Weight=0.1)
+        return m
+
+    def mat_crust(self, name, pastry=False):
+        """Bread crust from the `cell` attribute (bake level, flour dusting, egg-wash gloss): pale-gold to deep chestnut,
+        darker on top where the oven radiates, floury on rustic loaves, fine crackle and blistering."""
+        m, T, out = new_mat(name)
+        tc = T.n('ShaderNodeTexCoord')
+        p = tc.outputs['Object']
+        at = T.n('ShaderNodeAttribute', attribute_name='cell')
+        cs = T.xyz(at.outputs['Vector'])
+        geo = T.n('ShaderNodeNewGeometry')
+        up = T.xyz(geo.outputs['Normal'])[2]
+        n1 = T.noise(p, 60.0, 5, 0.6)
+        bake = T.math('ADD', cs[0], T.math('MULTIPLY', T.smooth(up, 0.0, 0.9), 0.35))
+        bake = T.math('ADD', bake, T.remap(n1.outputs['Factor'], 0.3, 0.7, -0.12, 0.12))
+        col = T.ramp(bake, [(0.0, srgb((222, 182, 120))), (0.35, srgb((206, 140, 66))), (0.7, srgb((150, 82, 34))), (1.05, srgb((86, 44, 20))), (1.3, srgb((52, 28, 14)))])
+        cr = T.n('ShaderNodeTexVoronoi', {'Vector': p, 'Scale': 90.0}, feature='DISTANCE_TO_EDGE')
+        crack = T.smooth(cr.outputs['Distance'], 0.04, 0.0)
+        col = T.mix(T.math('MULTIPLY', crack, 0.5), col, T.mul_col(col, (1.25, 1.2, 1.1, 1)))
+        fl = T.noise(p, 25.0, 4, 0.7)
+        flour = T.math('MULTIPLY', T.math('MULTIPLY', cs[1], T.smooth(up, 0.2, 0.9)), T.smooth(fl.outputs['Factor'], 0.42, 0.62))
+        col = T.mix(T.math('MINIMUM', flour, 0.85), col, srgb((236, 228, 212)))
+        gloss = cs[2]
+        rough = T.mixf(gloss, T.mixf(flour, 0.62, 0.9), 0.28)
+        h = T.math('ADD', T.math('MULTIPLY', n1.outputs['Factor'], 0.5), T.math('MULTIPLY', crack, -0.4))
+        principled(T, out, col, rough, normal=T.bump(h, 0.35, 0.002), Subsurface_Weight=0.08, Subsurface_Radius=(0.01, 0.006, 0.004),
+                   Coat_Weight=T.math('MULTIPLY', gloss, 0.4 if pastry else 0.2))
+        return m
+
+    def mat_glaze(self, name, col, rough):
+        """Icing / jam / chocolate / cheese: smooth, slightly translucent, colour from `cell` when col is None."""
+        m, T, out = new_mat(name)
+        tc = T.n('ShaderNodeTexCoord')
+        c = col
+        if c is None:
+            at = T.n('ShaderNodeAttribute', attribute_name='cell')
+            c = at.outputs['Color']
+        n1 = T.noise(tc.outputs['Object'], 40.0, 3, 0.5)
+        principled(T, out, c, rough, normal=T.bump(n1.outputs['Factor'], 0.08, 0.001), Subsurface_Weight=0.25, Subsurface_Radius=(0.006, 0.004, 0.003))
+        return m
+
+    def mat_jar(self, name, bottle=False):
+        """Glass jar / bottle with its contents' colour from `cell` showing through, plus a paper label band."""
+        m, T, out = new_mat(name)
+        tc = T.n('ShaderNodeTexCoord')
+        at = T.n('ShaderNodeAttribute', attribute_name='cell')
+        z = T.xyz(tc.outputs['Object'])[2]
+        band = T.math('MULTIPLY', T.math('GREATER_THAN', T.math('FRACT', T.math('MULTIPLY', z, 1.0 / 0.35)), 0.05),
+                      T.math('LESS_THAN', T.math('FRACT', T.math('MULTIPLY', z, 1.0 / 0.35)), 0.12))
+        inner = T.mul_col(at.outputs['Color'], (0.55, 0.5, 0.45, 1)) if not bottle else srgb((40, 54, 30))
+        pr = principled(T, None, inner, 0.08, Coat_Weight=1.0, Coat_Roughness=0.02)
+        lab = principled(T, None, srgb((226, 216, 196)), 0.7)
+        ms = T.n('ShaderNodeMixShader', {'Fac': band})
+        T.L.new(pr.outputs[0], ms.inputs[1]); T.L.new(lab.outputs[0], ms.inputs[2]); T.L.new(ms.outputs[0], out.inputs['Surface'])
         return m
 
     # ---------------------------------------------------------------- objects
