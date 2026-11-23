@@ -251,12 +251,14 @@ def mesh_from_faces(name, lat, faces, mat_of_face=None, uv_scale=1.0):
 # ================================================================== body shape
 _Zb = pchip([(-2.6, 0.345), (-2.25, 0.32), (-1.85, 0.235), (-1.6, 0.205), (1.65, 0.20),
              (2.0, 0.225), (2.6, 0.265)])
-_Zt = pchip([(-2.6, 0.985), (-2.38, 1.03), (-2.0, 1.048), (-1.45, 1.04), (-0.9, 1.03),
+_Zt = pchip([(-2.6, 0.960), (-2.38, 1.025), (-2.0, 1.048), (-1.45, 1.04), (-0.9, 1.03),
              (0.0, 1.002), (0.8, 0.975), (1.4, 0.915), (2.0, 0.835), (2.3, 0.785), (2.6, 0.755)])
 _W0 = pchip([(-2.6, 0.855), (-2.25, 0.895), (-1.8, 0.918), (0.0, 0.925), (1.85, 0.918),
              (2.2, 0.895), (2.6, 0.865)])
-_prof = pchip([(0.0, 0.935), (0.05, 0.962), (0.14, 0.984), (0.42, 1.0), (0.62, 0.997),
-               (0.80, 0.982), (1.0, 0.950)])
+# cross-section (w = 0 sill .. 1 top): sill tuck-under, crowned door skin, soft shoulder,
+# then tumblehome rolling over into the deck
+_prof = pchip([(0.0, 0.905), (0.06, 0.940), (0.16, 0.968), (0.32, 0.988), (0.50, 0.998),
+               (0.64, 1.0), (0.74, 0.995), (0.84, 0.978), (0.93, 0.950), (1.0, 0.918)])
 
 
 def body_pos(u, v, w):
@@ -272,8 +274,9 @@ def body_pos(u, v, w):
     else:
         leanR = 0.035 * ((w - 0.40) / 0.60) ** 2
     au = abs(u)
-    sweepF = 0.30 * au ** 3.2
-    sweepR = 0.20 * au ** 2.6
+    # plan view: corners swept back progressively (no crease where fascia meets the flank)
+    sweepF = 0.11 * au ** 2 + 0.17 * au ** 5
+    sweepR = 0.07 * au ** 2 + 0.12 * au ** 4.5
     Y = v - tF * (leanF + sweepF) + tR * (leanR + sweepR)
     zb, zt = _Zb(Y), _Zt(Y)
     Z = zb + w * (zt - zb)
@@ -287,11 +290,15 @@ def body_pos(u, v, w):
     # front fascia: slightly lower nose in plan corners
     Z -= tF * 0.03 * au ** 3 * w
     # half width
+    # deck / bonnet / boot roll-off toward the flanks (rounded shoulder in section)
+    Z -= 0.040 * smooth((au - 0.50) / 0.50) ** 1.6 * w ** 6
     hw = _W0(Y) * _prof(w)
-    hw += 0.0055 * math.exp(-((w - 0.70) / 0.022) ** 2)          # shoulder character line
-    hw -= 0.004 * math.exp(-((w - 0.24) / 0.05) ** 2)             # lower door scallop
-    for ax in (AXF, AXR):
-        hw += 0.020 * math.exp(-((Y - ax) / 0.52) ** 2) * math.exp(-((w - 0.52) / 0.30) ** 2)
+    hw += 0.0045 * math.exp(-((w - 0.71) / 0.032) ** 2)          # soft shoulder character line
+    hw -= 0.005 * math.exp(-((w - 0.26) / 0.07) ** 2)             # lower door scallop
+    for ax in (AXF, AXR):                                         # fender blisters over the wheels
+        hw += 0.026 * math.exp(-((Y - ax) / 0.48) ** 2) * math.exp(-((w - 0.55) / 0.28) ** 2)
+    # flanks tuck in toward the bumpers (rounded corners in plan)
+    hw *= 1.0 - 0.050 * smooth((Y - (YF - 0.55)) / 0.55) ** 2 - 0.035 * smooth(((YR + 0.45) - Y) / 0.45) ** 2
     X = u * hw
     return (X, Y, Z)
 
@@ -307,8 +314,8 @@ _Zroof = pchip([(-1.0, 1.405), (-0.6, 1.452), (-0.25, 1.468), (0.05, 1.452), (0.
 def cabin_pos(u, s, w):
     Yb, Yt = _Yb(s), _Yt(s)
     pb = body_pos(u, Yb, 1.0)
-    rw = 0.705 - 0.03 * max(0.0, -s - 0.6) ** 2
-    pt = (u * rw, Yt, _Zroof(Yt) + 0.032 * (1 - u * u))
+    rw = 0.705 - 0.045 * max(0.0, -s - 0.55) ** 2 - 0.05 * smooth((s - 0.55) / 0.45) ** 2
+    pt = (u * rw, Yt, _Zroof(Yt) + 0.046 * (1 - u * u) - 0.022 * smooth((abs(u) - 0.55) / 0.45) ** 2)
     X = pb[0] + (pt[0] - pb[0]) * w
     Y = pb[1] + (pt[1] - pb[1]) * w
     Z = pb[2] + (pt[2] - pb[2]) * w
@@ -1037,14 +1044,14 @@ def build_body(coll, M, parent):
         sup = {"u": SU, "v": SY, "w": SW}[ax]
         {"u": ureq, "v": vreq, "w": wreq}[ax].extend(seam_lines(val, g, sup))
     for s in (1, -1):
-        ureq += [s * x for x in (0.42, 0.50, 0.58, 0.985, 0.955, 0.95 - 0.0, 0.42 - 0.012, 0.42 + 0.012,
+        ureq += [s * x for x in (0.42, 0.50, 0.58, 0.93, 0.42 - 0.012, 0.42 + 0.012,
                                  0.58 + 0.012, 0.58 - 0.012, 0.50 + 0.012, 0.50 - 0.012)]
     ureq += [0.0]
     wreq += edge_lines(0.70, 0.010) + edge_lines(0.885, 0.010) + edge_lines(0.68, 0.009)
     wreq += edge_lines(0.88, 0.009) + edge_lines(0.08, 0.012) + edge_lines(0.30, 0.012)
     wreq += edge_lines(0.60, 0.012) + edge_lines(0.86, 0.010) + edge_lines(0.16, 0.012)
-    wreq += [0.0, 0.015, 0.045, 0.985, 0.955, 0.67, 0.69, 0.72, 0.73]
-    vreq += [YF, YF - 0.03, YF - 0.08, YR, YR + 0.025, YR + 0.07, YF - 0.27, YF - 0.27 - 0.012,
+    wreq += [0.0, 0.04, 0.94, 0.67, 0.69, 0.72, 0.73]
+    vreq += [YF, YF - 0.09, YR, YR + 0.08, YF - 0.27, YF - 0.27 - 0.012,
              YF - 0.27 + 0.012, YR + 0.22, YR + 0.22 - 0.012, YR + 0.22 + 0.012, COWL_Y, COWL_Y + 0.012,
              DECK_Y, DECK_Y - 0.012]
     U = lines(ureq, -1, 1, 0.11)
@@ -1123,9 +1130,9 @@ def build_body(coll, M, parent):
 def build_cabin(coll, M, parent):
     ureq = [0.0]
     for s in (1, -1):
-        ureq += [s * x for x in (0.865, 0.88, 0.885, 0.90, 0.955, 0.985, 0.6, 0.3)]
+        ureq += [s * x for x in (0.865, 0.88, 0.885, 0.90, 0.80, 0.94, 0.6, 0.3)]
     sreq = [-1, -0.985, -0.95, -0.5, -0.485, -0.015, 0.0, 0.14, 0.155, 0.865, 0.88, 0.95, 0.985, 1.0, -0.8, 0.8]
-    wreq = [0, 0.02, 0.03, 0.035, 0.045, 0.05, 0.065, 0.905, 0.92, 0.935, 0.95, 0.955, 0.97, 0.985, 1.0, 0.25, 0.5, 0.75]
+    wreq = [0, 0.02, 0.03, 0.035, 0.045, 0.05, 0.065, 0.11, 0.86, 0.905, 0.92, 0.935, 0.95, 0.955, 0.97, 1.0, 0.25, 0.5, 0.75]
     U = lines(ureq, -1, 1, 0.09)
     S = lines(sreq, -1, 1, 0.07)
     W = lines(wreq, 0, 1, 0.09)
