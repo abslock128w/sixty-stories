@@ -76,6 +76,9 @@ def mat_asphalt():
 
 def mat_block(i):
     """Building block: wall tone + a grid of glazed windows (reflective) in facade coords."""
+    i = i % 7
+    if bpy.data.materials.get("proof_block_%d" % i):
+        return bpy.data.materials["proof_block_%d" % i]
     m, nt, b = taxi._new_mat("proof_block_%d" % i)
     tc = taxi._texco(nt)
     sep = taxi._n(nt, "ShaderNodeSeparateXYZ", -900, 0)
