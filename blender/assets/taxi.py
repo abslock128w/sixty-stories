@@ -616,7 +616,8 @@ def mat_paint(name, cfg, textures, dirt):
     _l(nt, fl.outputs["Distance"], flb.inputs["Height"])
 
     # ---- grime: graded up from the sills, broken up by noise, heavier behind wheels
-    gz = _maprange(nt, Z, 0.18, 0.50, 1.0, 0.0, interp="SMOOTHSTEP")
+    gz = _maprange(nt, Z, 0.20, 0.40, 1.0, 0.0, interp="SMOOTHSTEP")
+    gz = _math(nt, "POWER", gz, 1.6)
     gn = _n(nt, "ShaderNodeTexNoise", -800, 600, Scale=7.0, Detail=10.0, Roughness=0.62)
     _l(nt, obj, gn.inputs["Vector"])
     gn2 = _n(nt, "ShaderNodeTexNoise", -800, 800, Scale=55.0, Detail=6.0, Roughness=0.7)
@@ -634,9 +635,12 @@ def mat_paint(name, cfg, textures, dirt):
         dd.operation = "DISTANCE"
         _l(nt, vs.outputs[0], dd.inputs[0])
         _l(nt, cc.outputs[0], dd.inputs[1])
-        ring = _maprange(nt, dd.outputs["Value"], 0.62, 0.40, 0.0, 1.0, interp="SMOOTHSTEP")
+        ring = _maprange(nt, dd.outputs["Value"], 0.58, 0.42, 0.0, 1.0, interp="SMOOTHSTEP")
+        # only the trailing half of the arch, and only below the hub-ish line
+        ring = _math(nt, "MULTIPLY", ring, _maprange(nt, Y, ax - 0.05, ax - 0.40))
+        ring = _math(nt, "MULTIPLY", ring, _maprange(nt, Z, 0.62, 0.36))
         splash = ring if splash is None else _math(nt, "MAXIMUM", splash, ring)
-    grime = _math(nt, "MAXIMUM", gz, _math(nt, "MULTIPLY", splash, 0.55))
+    grime = _math(nt, "MAXIMUM", gz, _math(nt, "MULTIPLY", splash, 0.75))
     grime = _math(nt, "MULTIPLY", grime, gnn)
     grime = _math(nt, "MULTIPLY", grime, dirt, clamp=True)
 
@@ -690,10 +694,10 @@ def mat_paint(name, cfg, textures, dirt):
     dirt_col = (0.115, 0.098, 0.080, 1.0)
     col = _mixc(nt, chip, col, (0.30, 0.30, 0.29, 1.0))
     col = _mixc(nt, _math(nt, "MULTIPLY", scuff, 0.85), col, (0.55, 0.53, 0.49, 1.0))
-    col = _mixc(nt, _math(nt, "MULTIPLY", grime, 0.88), col, dirt_col)
+    col = _mixc(nt, _math(nt, "MULTIPLY", grime, 0.80), col, dirt_col)
     _l(nt, col, b.inputs["Base Color"])
     b.inputs["Metallic"].default_value = cfg["metal"]
-    rough = _mixf(nt, grime, 0.32, 0.85)
+    rough = _mixf(nt, grime, cfg.get("base_rough", 0.22), 0.80)
     rough = _math(nt, "MAXIMUM", rough, _math(nt, "MULTIPLY", chip, 0.6))
     _l(nt, rough, b.inputs["Roughness"])
     coat = _math(nt, "SUBTRACT", 1.0, _math(nt, "MAXIMUM", _math(nt, "MULTIPLY", grime, 0.95),
@@ -739,6 +743,7 @@ def mat_glass(name, tint=(0.86, 0.93, 0.90), dirt=0.5, wiper=False, frit=False):
     b.inputs["Base Color"].default_value = tint + (1.0,)
     b.inputs["Transmission Weight"].default_value = 1.0
     b.inputs["IOR"].default_value = 1.52
+    b.inputs["Specular Tint"].default_value = (0.88, 0.97, 0.93, 1.0)
     rough = _mixf(nt, dust, 0.0, 0.12)
     _l(nt, rough, b.inputs["Roughness"])
     # dust is a thin diffuse layer on top: use coat tint-less, plus sheen-like whitening via mix shader
@@ -769,12 +774,18 @@ def mat_tyre(name, tex):
     # brownish road dust on the lower sidewall / tread shoulders, cleaner letters
     dn = _n(nt, "ShaderNodeTexNoise", -600, 300, Scale=30.0, Detail=8.0)
     _l(nt, tc.outputs["Object"], dn.inputs["Vector"])
-    dust = _maprange(nt, dn.outputs["Fac"], 0.4, 0.75, 0.0, 0.3)
-    col = _mixc(nt, dust, (0.020, 0.020, 0.020, 1.0), (0.075, 0.068, 0.06, 1.0))
-    col = _mixc(nt, _math(nt, "MULTIPLY", im.outputs["Color"], 0.35), col, (0.05, 0.05, 0.05, 1.0))
+    # dust settles in the tread grooves and the occluded lower sidewall, letters stay cleaner
+    ao = _n(nt, "ShaderNodeAmbientOcclusion", -600, 500, Distance=0.012)
+    ao.samples = 6
+    groove = _maprange(nt, ao.outputs["AO"], 0.9, 0.5, 0.0, 1.0)
+    dust = _math(nt, "MULTIPLY", _maprange(nt, dn.outputs["Fac"], 0.35, 0.7, 0.25, 1.0),
+                 _math(nt, "MAXIMUM", groove, 0.18))
+    dust = _math(nt, "MULTIPLY", dust, 0.55)
+    col = _mixc(nt, dust, (0.011, 0.011, 0.011, 1.0), (0.085, 0.082, 0.076, 1.0))
+    col = _mixc(nt, _math(nt, "MULTIPLY", im.outputs["Color"], 0.55), col, (0.035, 0.035, 0.035, 1.0))
     _l(nt, col, b.inputs["Base Color"])
-    _l(nt, _mixf(nt, dust, 0.62, 0.9), b.inputs["Roughness"])
-    b.inputs["Specular IOR Level"].default_value = 0.35
+    _l(nt, _mixf(nt, dust, 0.55, 0.92), b.inputs["Roughness"])
+    b.inputs["Specular IOR Level"].default_value = 0.40
     return m
 
 
@@ -795,6 +806,27 @@ def mat_rim(name, kind):
     _l(nt, _mixf(nt, dust, 0.22, 0.7), b.inputs["Roughness"])
     b.inputs["Coat Weight"].default_value = 0.6
     _l(nt, _mixf(nt, dust, 0.05, 0.6), b.inputs["Coat Roughness"])
+    return m
+
+
+def mat_machined(name):
+    """Diamond-cut alloy face: bright bare aluminium, fine concentric lathe marks, clear lacquer."""
+    m, nt, b = _new_mat(name)
+    tc = _texco(nt)
+    sep = _n(nt, "ShaderNodeSeparateXYZ", -900, 0)
+    _l(nt, tc.outputs["Object"], sep.inputs["Vector"])
+    r = _math(nt, "SQRT", _math(nt, "ADD", _math(nt, "MULTIPLY", sep.outputs["Y"], sep.outputs["Y"]),
+                                _math(nt, "MULTIPLY", sep.outputs["Z"], sep.outputs["Z"])))
+    rings = _math(nt, "SINE", _math(nt, "MULTIPLY", r, 9000.0))
+    bp = _n(nt, "ShaderNodeBump", 200, -300, Strength=0.05, Distance=0.0001)
+    _l(nt, rings, bp.inputs["Height"])
+    _l(nt, bp.outputs["Normal"], b.inputs["Normal"])
+    b.inputs["Base Color"].default_value = (0.86, 0.86, 0.87, 1.0)
+    b.inputs["Metallic"].default_value = 1.0
+    b.inputs["Roughness"].default_value = 0.14
+    b.inputs["Anisotropic"].default_value = 0.6
+    b.inputs["Coat Weight"].default_value = 1.0
+    b.inputs["Coat Roughness"].default_value = 0.03
     return m
 
 
@@ -852,13 +884,17 @@ def build_materials(variant, cfg, tex, dirt, tag=None):
     M["satin"] = _get(lambda: mat_simple("taxi_satin_alu", (0.6, 0.6, 0.62), rough=0.28, metal=1.0), "taxi_satin_alu")
     M["trim"] = M["chrome"] if cfg["trim"] == "chrome" else M["black_gloss"]
     M["glass_ws"] = _get(lambda: mat_glass("taxi_glass_ws" + sfx, dirt=dirt, wiper=True), "taxi_glass_ws" + sfx)
-    M["glass"] = _get(lambda: mat_glass("taxi_glass" + sfx, tint=(0.80, 0.86, 0.84), dirt=dirt * 0.6), "taxi_glass" + sfx)
+    M["glass"] = _get(lambda: mat_glass("taxi_glass" + sfx, tint=(0.78, 0.86, 0.83), dirt=dirt * 0.6), "taxi_glass" + sfx)
+    M["frit"] = _get(lambda: mat_simple("taxi_glass_frit", (0.006, 0.006, 0.007), rough=0.45, coat=1.0, spec=0.3), "taxi_glass_frit")
+    M["machined"] = _get(lambda: mat_machined("taxi_rim_machined"), "taxi_rim_machined")
+    M["lamp_chrome"] = _get(lambda: mat_simple("taxi_lamp_chrome", (0.80, 0.80, 0.82), rough=0.06, metal=1.0), "taxi_lamp_chrome")
+    M["lamp_black"] = _get(lambda: mat_simple("taxi_lamp_black", (0.012, 0.012, 0.013), rough=0.35, coat=0.0), "taxi_lamp_black")
     M["mirror"] = _get(lambda: mat_simple("taxi_mirror", (0.85, 0.87, 0.88), rough=0.02, metal=1.0), "taxi_mirror")
     M["lens_clear"] = _get(lambda: mat_lens("taxi_lens_clear", (0.96, 0.97, 0.97), rough=0.01), "taxi_lens_clear")
     M["lens_red"] = _get(lambda: mat_lens("taxi_lens_red", (0.75, 0.025, 0.02), rough=0.02, pattern=0.08), "taxi_lens_red")
     M["lens_amber"] = _get(lambda: mat_lens("taxi_lens_amber", (0.95, 0.42, 0.02), rough=0.02), "taxi_lens_amber")
     M["reflector"] = _get(lambda: mat_simple("taxi_reflector", (0.9, 0.9, 0.92), rough=0.08, metal=1.0), "taxi_reflector")
-    M["housing"] = _get(lambda: mat_simple("taxi_lamp_housing", (0.16, 0.16, 0.17), rough=0.22, metal=1.0), "taxi_lamp_housing")
+    M["housing"] = _get(lambda: mat_simple("taxi_lamp_housing", (0.55, 0.55, 0.57), rough=0.16, metal=1.0), "taxi_lamp_housing")
     M["drl"] = _get(lambda: mat_simple("taxi_drl", (0.9, 0.95, 1.0), rough=0.3, emission=(0.86, 0.93, 1.0), estrength=14.0), "taxi_drl")
     M["tail_led"] = _get(lambda: mat_simple("taxi_tail_led", (0.6, 0.02, 0.01), rough=0.3, emission=(1.0, 0.03, 0.01), estrength=9.0), "taxi_tail_led")
     M["amber_led"] = _get(lambda: mat_simple("taxi_amber_led", (0.8, 0.35, 0.0), rough=0.4), "taxi_amber_led")
@@ -1177,10 +1213,18 @@ def build_cabin(coll, M, parent):
     sol.material_offset_rim = 1
     add_subsurf(cab, 1, 2)
     glass_objs = []
+
+    def frit_of(f):
+        # black ceramic band (screen-printed on the inner face) around the bonded screens
+        if f[1] in "FK":
+            r = f[2]
+            if abs(_mid(r["u"])) > 0.80 or _mid(r["w"]) < 0.11 or _mid(r["w"]) > 0.86:
+                return 1
+        return 0
     for nm, fl, mt in (("taxi_glass_ws", glass_ws, M["glass_ws"]), ("taxi_glass_side", glass_side, M["glass"]),
                        ("taxi_glass_rear", glass_back, M["glass"])):
-        gme = mesh_from_faces(nm, lat, fl)
-        g = obj_from_mesh(nm, gme, coll, [mt], parent)
+        gme = mesh_from_faces(nm, lat, fl, frit_of)
+        g = obj_from_mesh(nm, gme, coll, [mt, M["frit"]], parent)
         d = g.modifiers.new("Inset", "DISPLACE")
         d.strength = -0.004
         d.mid_level = 0.0
@@ -1419,11 +1463,13 @@ def rim_parts(coll, M, parent, spokes=10):
             rings.append(ring)
         for i in range(nr - 1):
             for s in range(ns):
-                bm.faces.new((rings[i][s], rings[i][(s + 1) % ns], rings[i + 1][(s + 1) % ns], rings[i + 1][s]))
+                f = bm.faces.new((rings[i][s], rings[i][(s + 1) % ns], rings[i + 1][(s + 1) % ns], rings[i + 1][s]))
+                if s == 1 and i < nr - 2:
+                    f.material_index = 1          # flat spoke face: diamond-cut
         bm.faces.new(rings[0][::-1])
         bm.faces.new(rings[-1])
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    o = bm_to_obj("taxi_rim_spokes", bm, coll, [M["rim"]], parent)
+    o = bm_to_obj("taxi_rim_spokes", bm, coll, [M["rim"], M["machined"]], parent)
     add_subsurf(o, 1, 2)
     parts.append(o)
     # hub face + centre cap
