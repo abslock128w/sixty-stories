@@ -184,6 +184,14 @@ def setup_render(scene, res, samples, threads, aspect=(16, 9)):
     scene.cycles.samples = samples
     scene.cycles.use_denoising = True
     scene.cycles.denoiser = "OPENIMAGEDENOISE"
+    scene.cycles.denoising_input_passes = "RGB_ALBEDO_NORMAL"
+    scene.cycles.denoising_prefilter = "ACCURATE"
+    try:
+        scene.cycles.denoising_quality = "HIGH"
+    except Exception:
+        pass
+    scene.cycles.pixel_filter_type = "BLACKMAN_HARRIS"
+    scene.cycles.filter_width = 1.2
     scene.cycles.use_adaptive_sampling = True
     scene.cycles.adaptive_threshold = 0.02
     scene.cycles.max_bounces = 10
@@ -218,7 +226,7 @@ def set_camera(scene, shot):
     cam.location = s["cam"]
     d = Vector(s["at"]) - Vector(s["cam"])
     cam.rotation_euler = d.to_track_quat("-Z", "Y").to_euler()
-    cam.data.dof.use_dof = shot in ("wheel_close", "lamp_close")
+    cam.data.dof.use_dof = False          # deep focus: nothing on the subject is blurred
     cam.data.dof.focus_distance = d.length
     cam.data.dof.aperture_fstop = 5.6
 

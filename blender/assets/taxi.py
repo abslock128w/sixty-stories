@@ -351,20 +351,24 @@ def make_textures(variant, cfg):
     # ---- tyre sidewall lettering (height map, outer sidewall band)
     p = os.path.join(TEX_DIR, "tyre_side.png")
     if not os.path.exists(p):
-        W, H = 4096, 160
+        W, H = 8192, 320
         im = Image.new("L", (W, H), 0)
         d = ImageDraw.Draw(im)
-        fb = ImageFont.truetype(FONT_X, 70)
-        fs = ImageFont.truetype(FONT_B, 34)
+        fb = ImageFont.truetype(FONT_X, 140)
+        fs = ImageFont.truetype(FONT_B, 68)
+        ft = ImageFont.truetype(FONT_M, 30)
         for k in range(2):
             x0 = k * W // 2
-            d.text((x0 + 120, 40), "VANTERRA", font=fb, fill=255)
-            d.text((x0 + 620, 58), "ROADMASTER  A/S", font=fs, fill=230)
-            d.text((x0 + 1180, 40), "225/55 R18", font=fb, fill=255)
-            d.text((x0 + 1640, 64), "94V  M+S  TUBELESS", font=fs, fill=220)
-        # moulded rim-protector rib ring + fine radial texture
-        d.rectangle((0, 8, W, 14), fill=150)
-        im = im.filter(ImageFilter.GaussianBlur(1.6))
+            d.text((x0 + 240, 80), "VANTERRA", font=fb, fill=255)
+            d.text((x0 + 1240, 116), "ROADMASTER  A/S", font=fs, fill=235)
+            d.text((x0 + 2360, 80), "225/55 R18", font=fb, fill=255)
+            d.text((x0 + 3280, 128), "94V  M+S  TUBELESS", font=fs, fill=225)
+            d.text((x0 + 1240, 210), "DOT 4XK9 R7T2 3125   MAX LOAD 670 kg   MAX PRESS 350 kPa", font=ft, fill=200)
+        # moulded rim-protector rib ring + fine radial serration band near the bead
+        d.rectangle((0, 16, W, 28), fill=150)
+        for x in range(0, W, 6):
+            d.line((x, 288, x, 316), fill=90, width=2)
+        im = im.filter(ImageFilter.GaussianBlur(0.7))
         im.save(p)
     out["tyre_side"] = _img_to_blender("taxi_tyre_side", p, "Non-Color")
 
@@ -768,7 +772,7 @@ def mat_tyre(name, tex):
     nz = _n(nt, "ShaderNodeTexNoise", -600, -600, Scale=900.0, Detail=4.0)
     _l(nt, tc.outputs["Object"], nz.inputs["Vector"])
     h = _math(nt, "ADD", im.outputs["Color"], _math(nt, "MULTIPLY", nz.outputs["Fac"], 0.15))
-    bp = _n(nt, "ShaderNodeBump", 200, -300, Strength=0.9, Distance=0.0012)
+    bp = _n(nt, "ShaderNodeBump", 200, -300, Strength=1.0, Distance=0.0016)
     _l(nt, h, bp.inputs["Height"])
     _l(nt, bp.outputs["Normal"], b.inputs["Normal"])
     # brownish road dust on the lower sidewall / tread shoulders, cleaner letters
@@ -928,6 +932,17 @@ def obj_from_mesh(name, me, coll, mats=(), parent=None):
     return ob
 
 
+def add_bevel(ob, width=0.0008, segs=2, angle=30.0):
+    """Tight bevel on hard edges: they catch a thin highlight instead of a soft roll."""
+    md = ob.modifiers.new("EdgeBevel", "BEVEL")
+    md.width = width
+    md.segments = segs
+    md.limit_method = "ANGLE"
+    md.angle_limit = math.radians(angle)
+    md.harden_normals = False
+    return md
+
+
 def add_subsurf(ob, levels=1, render=2):
     md = ob.modifiers.new("Subdivision", "SUBSURF")
     md.levels = levels
@@ -936,7 +951,14 @@ def add_subsurf(ob, levels=1, render=2):
     return md
 
 
-def bm_to_obj(name, bm, coll, mats=(), parent=None, smooth=True):
+def bm_to_obj(name, bm, coll, mats=(), parent=None, smooth=True, sharp=None):
+    """sharp: mark edges whose face angle exceeds this (degrees) as sharp, so hard machined
+    edges shade crisply instead of rolling off (smooth shading elsewhere)."""
+    if sharp is not None:
+        lim = math.radians(sharp)
+        for e in bm.edges:
+            if len(e.link_faces) == 2 and e.calc_face_angle(0.0) > lim:
+                e.smooth = False
     me = bpy.data.meshes.new(name)
     bm.to_mesh(me)
     bm.free()
@@ -1448,20 +1470,23 @@ def tyre_bmesh(segs=360):
         if r < R - 0.0015:
             continue
         th = math.atan2(y, z) % (2 * math.pi)
-        k = int(round(th / (2 * math.pi) * segs))
+        P = 68.0                                   # tread pitches around the tyre
         ax = abs(x)
         cut = 0.0
         if ax > 0.0745 and ax < 0.086:
-            phase = 0 if x > 0 else 3
-            if (k + phase) % 7 in (0, 1):
-                cut = 0.0075
+            # shoulder blocks: lateral slots, staggered left/right
+            f = (th / (2 * math.pi) * P + (0.0 if x > 0 else 0.5)) % 1.0
+            if f < 0.20:
+                cut = 0.0078
         elif 0.0365 < ax < 0.061:
-            phase = 2 if x > 0 else 5
-            if (k + phase + int(ax * 400)) % 9 == 0:
-                cut = 0.0065
+            # intermediate ribs: angled sipes (phase drifts with x)
+            f = (th / (2 * math.pi) * P + (ax - 0.036) * 14.0 + (0.25 if x > 0 else 0.75)) % 1.0
+            if abs(f - 0.5) < 0.06:
+                cut = 0.0060
         elif ax < 0.0235:
-            if k % 9 == 4:
-                cut = 0.003
+            f = (th / (2 * math.pi) * P * 2 + x * 10.0) % 1.0
+            if abs(f - 0.5) < 0.07:
+                cut = 0.0035
         if cut:
             v.co *= Vector((1, (r - cut) / r, (r - cut) / r))
     return bm
@@ -1475,7 +1500,9 @@ def rim_parts(coll, M, parent, spokes=10):
             (0.112, 0.221), (0.106, 0.210), (0.095, 0.200), (0.080, 0.192), (0.030, 0.188),
             (-0.060, 0.188), (-0.096, 0.208)]
     bm = lathe(prof, 96, axis="X")
-    parts.append(bm_to_obj("taxi_rim_barrel", bm, coll, [M["rim"]], parent))
+    o = bm_to_obj("taxi_rim_barrel", bm, coll, [M["rim"]], parent, sharp=40)
+    add_bevel(o, 0.0006, 2, 40)
+    parts.append(o)
     # spokes: swept closed section from hub to lip
     bm = bmesh.new()
     nr, ns = 9, 8
@@ -1485,11 +1512,11 @@ def rim_parts(coll, M, parent, spokes=10):
         rings = []
         for i in range(nr):
             t = i / (nr - 1)
-            r = 0.058 + t * (0.200 - 0.058)
+            r = 0.058 + t * (0.205 - 0.058)          # ends buried in the barrel lip
             th = base + off * (0.35 + 0.65 * t)
             wdt = 0.042 - 0.012 * t
             dep = 0.026 - 0.008 * t
-            xf = 0.078 + 0.020 * t ** 1.4 + 0.004 * math.sin(math.pi * t)  # face position (dish)
+            xf = 0.078 + 0.016 * t ** 1.4 + 0.004 * math.sin(math.pi * t)  # face position (dish)
             ring = []
             # machined spoke section: flat face with chamfered edges, tapered flanks, flat back
             sec = [(-0.50, 0.70), (-0.38, 1.0), (0.38, 1.0), (0.50, 0.70),
@@ -1509,13 +1536,26 @@ def rim_parts(coll, M, parent, spokes=10):
         bm.faces.new(rings[0][::-1])
         bm.faces.new(rings[-1])
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    o = bm_to_obj("taxi_rim_spokes", bm, coll, [M["rim"], M["machined"]], parent)
-    add_subsurf(o, 1, 2)
+    o = bm_to_obj("taxi_rim_spokes", bm, coll, [M["rim"], M["machined"]], parent, sharp=28)
+    add_bevel(o, 0.0007, 2, 28)
     parts.append(o)
     # hub face + centre cap
     hub = [(0.050, 0.0), (0.078, 0.0), (0.079, 0.02), (0.081, 0.030), (0.084, 0.050), (0.084, 0.064),
            (0.070, 0.066), (0.060, 0.064)]
-    parts.append(bm_to_obj("taxi_rim_hub", lathe(hub, 48, axis="X"), coll, [M["rim"]], parent))
+    o = bm_to_obj("taxi_rim_hub", lathe(hub, 64, axis="X"), coll, [M["rim"]], parent, sharp=35)
+    add_bevel(o, 0.0006, 2, 35)
+    parts.append(o)
+    # valve stem (chrome cap on a black rubber stem) through the barrel near the lip
+    th_v = math.radians(18)
+    stem = lathe([(0.0, 0.0045), (0.016, 0.0045), (0.016, 0.0038), (0.030, 0.0038), (0.031, 0.0)], 16, axis="Z")
+    cap = lathe([(0.016, 0.0040), (0.030, 0.0040), (0.031, 0.0)], 16, axis="Z")
+    # stem axis tilts outward (+X) and radially out, baked into the mesh (wheel copies get re-spun)
+    ax_dir = Vector((0.55, 0.0, 0.835)).normalized()
+    vm = (Matrix.Rotation(-th_v, 4, "X") @ Matrix.Translation((0.084, 0.0, 0.192))
+          @ Vector((0, 0, 1)).rotation_difference(ax_dir).to_matrix().to_4x4())
+    for nm_, b_, mt_ in (("taxi_valve_stem", stem, M["rubber"]), ("taxi_valve_cap", cap, M["chrome"])):
+        b_.transform(vm)
+        parts.append(bm_to_obj(nm_, b_, coll, [mt_], parent, sharp=50))
     cap = [(0.084, 0.0), (0.0905, 0.0), (0.0900, 0.018), (0.0880, 0.026), (0.084, 0.028), (0.080, 0.028)]
     parts.append(bm_to_obj("taxi_rim_cap", lathe(cap, 40, axis="X"), coll, [M["black_gloss"]], parent))
     # lug nuts (5 x PCD 114.3)
@@ -1530,11 +1570,25 @@ def rim_parts(coll, M, parent, spokes=10):
         nut.free()
         bm.from_mesh(tmp)
         bpy.data.meshes.remove(tmp)
-    parts.append(bm_to_obj("taxi_lug_nuts", bm, coll, [M["chrome"]], parent, smooth=False))
+    o = bm_to_obj("taxi_lug_nuts", bm, coll, [M["chrome"]], parent, sharp=30)
+    add_bevel(o, 0.0005, 1, 30)
+    parts.append(o)
     # brake disc (vented) + caliper
     disc = [(-0.012, 0.075), (0.012, 0.075), (0.013, 0.160), (-0.013, 0.160)]
     db = lathe(disc + [disc[0]], 72, axis="X")
-    parts.append(bm_to_obj("taxi_brake_disc", db, coll, [M["disc"]], parent))
+    parts.append(bm_to_obj("taxi_brake_disc", db, coll, [M["disc"]], parent, sharp=40))
+    sl = bmesh.new()
+    for k in range(6):
+        a0 = 2 * math.pi * k / 6
+        pts = [(0.0133, r_ * math.sin(a0 + (r_ - 0.10) * 3.2), r_ * math.cos(a0 + (r_ - 0.10) * 3.2))
+               for r_ in np.linspace(0.098, 0.150, 8)]
+        tb = sweep_tube(pts, 0.0022, 6, scale_xy=(0.35, 1.0), up=Vector((1, 0, 0)))
+        tmp = bpy.data.meshes.new("tmp")
+        tb.to_mesh(tmp)
+        tb.free()
+        sl.from_mesh(tmp)
+        bpy.data.meshes.remove(tmp)
+    parts.append(bm_to_obj("taxi_disc_slots", sl, coll, [M["under"]], parent))
     hat = [(0.012, 0.075), (0.040, 0.075), (0.050, 0.070), (0.052, 0.0), (0.040, 0.0)]
     parts.append(bm_to_obj("taxi_brake_hat", lathe(hat, 48, axis="X"), coll, [M["disc"]], parent))
 
@@ -1556,8 +1610,8 @@ def rim_parts(coll, M, parent, spokes=10):
     cal.faces.new(rings[0][::-1])
     cal.faces.new(rings[-1])
     bmesh.ops.recalc_face_normals(cal, faces=cal.faces)
-    o = bm_to_obj("taxi_caliper", cal, coll, [M["caliper"]], parent)
-    add_subsurf(o, 1, 2)
+    o = bm_to_obj("taxi_caliper", cal, coll, [M["caliper"]], parent, sharp=35)
+    add_bevel(o, 0.0015, 2, 35)
     parts.append(o)
     return parts
 
@@ -1565,7 +1619,7 @@ def rim_parts(coll, M, parent, spokes=10):
 def build_wheels(coll, M, parent, tyre_segs=360):
     """One wheel built from shared meshes, instanced at the 4 corners as linked duplicates."""
     proto = bpy.data.collections.new(coll.name + "_wheel_proto")
-    tyre = bm_to_obj("taxi_tyre", tyre_bmesh(tyre_segs), proto, [M["tyre"]])
+    tyre = bm_to_obj("taxi_tyre", tyre_bmesh(tyre_segs), proto, [M["tyre"]], sharp=38)
     parts = [tyre] + rim_parts(proto, M, None)
     objs = []
     for (ax, sx) in ((AXF, 1), (AXF, -1), (AXR, 1), (AXR, -1)):
@@ -1864,7 +1918,7 @@ def build_details(coll, M, parent, cfg, body, blat, clat, tex):
         p, n = blat.normal(u, YR if side_ == "K" else YF, w, side_)
         em = lathe([(0.0, 0.0), (0.004, 0.0), (0.006, r * 0.55), (0.006, r * 0.75), (0.004, r), (0.0, r + 0.002)], 40, axis="Z")
         # chevron inside the ring
-        o = bm_to_obj("taxi_emblem", em, coll, [M["chrome"]], parent)
+        o = bm_to_obj("taxi_emblem", em, coll, [M["chrome"]], parent, sharp=35)
         o.location = p + n * (0.004 if side_ == "K" else 0.02)
         o.rotation_euler = Vector((0, 0, 1)).rotation_difference(n).to_euler()
         o.scale = (1.35, 1.0, 1.0)
@@ -2003,8 +2057,9 @@ def build_interior(coll, M, parent, cfg):
 
 # ================================================================== assembly
 def build(variant="yellow_cab", name=None, seed=None, dirt=None, parent_coll=None, lod=0):
-    """lod 0 = hero (close-ups, ~1.25 M render faces); lod 1 = city (~0.35 M, render subdiv 1,
-    252-segment tyres); lod 2 = background traffic (no interior, subdiv 1 viewport+render)."""
+    """lod 0 = hero (close-ups, 720-segment tyres, bevelled wheel parts); lod 1 = city (render
+    subdiv 1, 252-segment tyres); lod 2 = background traffic (no interior, no bevels, subdiv 1,
+    180-segment tyres). seed: per-instance front-wheel steer; dirt: grime amount 0..1."""
     cfg = dict(VARIANTS[variant])
     name = name or ("ASSET_taxi" if variant == "yellow_cab" else "ASSET_taxi_" + variant)
     dirt = cfg["dirt"] if dirt is None else dirt
@@ -2028,10 +2083,14 @@ def build(variant="yellow_cab", name=None, seed=None, dirt=None, parent_coll=Non
     body, blat, hl, tl = build_body(coll, M, root)
     cab, clat, glass = build_cabin(coll, M, root)
     build_lamps(coll, M, root, blat, hl, tl)
-    build_wheels(coll, M, root, 360 if lod == 0 else 252)
+    build_wheels(coll, M, root, 720 if lod == 0 else (252 if lod == 1 else 180))
     build_details(coll, M, root, cfg, body, blat, clat, tex)
     if lod < 2:
         build_interior(coll, M, root, cfg)
+    if lod >= 2:
+        for ob in coll.all_objects:
+            for md in [m for m in ob.modifiers if m.type == "BEVEL"]:
+                ob.modifiers.remove(md)
     if lod >= 1:
         for ob in coll.all_objects:
             for md in ob.modifiers:
