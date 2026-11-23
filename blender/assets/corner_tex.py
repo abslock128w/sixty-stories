@@ -16,7 +16,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 TEX_DIR = os.path.join(ROOT, "blender", "out", "assets", "corner_tex")
-VERSION = "v8"
+VERSION = "v9"
 FONT_B = "/usr/share/fonts/opentype/inter/Inter-Bold.otf"
 FONT_S = "/usr/share/fonts/opentype/inter/Inter-SemiBold.otf"
 FONT_M = "/usr/share/fonts/opentype/inter/Inter-Medium.otf"
@@ -560,23 +560,49 @@ def cup(path):
 
 
 def cabinet_tag(path):
+    """Invented spray tag: skewed heavy letters, black outline, chrome fill, drips, overspray."""
     W, H = 800, 400
-    im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    d = ImageDraw.Draw(im)
     rng = random.Random(12)
-    # spray tag: thick strokes, black outline + silver fill (invented letters)
-    pts = []
-    for k in range(5):
-        x0 = 80 + k * 130
-        stroke = [(x0 + rng.randint(-10, 10), 320), (x0 + 30 + rng.randint(-10, 20), 80),
-                  (x0 + 80 + rng.randint(-10, 10), 300), (x0 + 110, 120)]
-        d.line(stroke, fill=(10, 10, 12, 255), width=46, joint="curve")
-        pts.append(stroke)
-    for s in pts:
-        d.line(s, fill=(190, 190, 200, 255), width=26, joint="curve")
-    d.line((60, 360, 760, 330), fill=(10, 10, 12, 255), width=10)
-    im = im.filter(ImageFilter.GaussianBlur(1.5))
-    im.save(path)
+    lay = Image.new("L", (W, H), 0)
+    d = ImageDraw.Draw(lay)
+    f = font(FONT_X, 190)
+    x = 40
+    for i, ch in enumerate("ZEKO"):
+        t = Image.new("L", (260, 300), 0)
+        ImageDraw.Draw(t).text((130, 150), ch, font=f, fill=255, anchor="mm")
+        t = t.rotate(rng.uniform(-14, 10), resample=Image.BICUBIC, expand=False)
+        t = t.transform(t.size, Image.AFFINE, (1, 0.25, -30, 0, 1, 0), resample=Image.BICUBIC)
+        lay.paste(Image.fromarray(np.maximum(np.asarray(lay.crop((x, 40 + i * 8, x + 260, 340 + i * 8))), np.asarray(t))), (x, 40 + i * 8))
+        x += 150 + rng.randint(-10, 15)
+    outline = lay.filter(ImageFilter.MaxFilter(15))
+    im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    o = np.asarray(outline, np.float32) / 255.0
+    fill = np.asarray(lay, np.float32) / 255.0
+    yy = np.linspace(0, 1, H)[:, None]
+    arr = np.zeros((H, W, 4), np.float32)
+    arr[..., :3] = 12
+    grad = 150 + 90 * (1 - yy)
+    for c in range(3):
+        arr[..., c] = np.where(fill > 0.5, grad + (12 if c == 2 else 0), 14)
+    alpha = np.clip(o * 1.0, 0, 1)
+    # drips below the letters
+    dr = Image.new("L", (W, H), 0)
+    dd = ImageDraw.Draw(dr)
+    for _ in range(9):
+        xx = rng.randint(60, W - 60)
+        col_ = np.nonzero(o[:, xx] > 0.5)[0]
+        if len(col_) == 0:
+            continue
+        y0 = col_.max()
+        dd.line((xx, y0, xx, min(H - 4, y0 + rng.randint(15, 70))), fill=255, width=rng.randint(3, 6))
+        dd.ellipse((xx - 4, y0 + 10, xx + 4, y0 + 18), fill=0)
+    dra = np.asarray(dr, np.float32) / 255.0
+    alpha = np.maximum(alpha, dra)
+    spray = np.asarray(outline.filter(ImageFilter.GaussianBlur(10)), np.float32) / 255.0 * 0.35
+    noise = np.random.default_rng(3).random((H, W)) < spray
+    alpha = np.maximum(alpha, noise * 0.8)
+    arr[..., 3] = alpha * 255
+    Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8), "RGBA").filter(ImageFilter.GaussianBlur(0.8)).save(path)
 
 
 def make_all(force=False):

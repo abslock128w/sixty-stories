@@ -27,14 +27,15 @@ OUT_BLEND = os.path.join(ROOT, "blender", "out", "assets", "corner.blend")
 FACADE_BLEND = os.path.join(ROOT, "blender", "out", "assets", "facade.blend")
 AV_W = 18.0   # avenue curb-to-curb
 CS_W = 18.0   # cross street curb-to-curb
+SUN_ENERGY = 6.0   # facade_proofs uses 4.5; raised so cast shadows read against the sky fill
 
 CAMS = {
     # name: (location, target, lens, (w, h), sun az, sun el)
-    'wide': ((-11.0, -9.0, 1.65), (3.2, 4.0, 2.3), 28, (1920, 1080), 255, 15),
-    'signal': ((-3.6, -0.2, 1.65), (4.6, -2.6, 3.6), 30, (1920, 1280), 255, 15),
-    'curb': ((-1.45, 9.7, 1.5), (0.1, 4.6, -0.25), 32, (1920, 1080), 255, 15),
-    'props': ((4.7, 3.7, 1.45), (7.6, 0.55, 0.55), 30, (1920, 1080), 255, 15),
-    'manhole': ((-4.15, 6.35, 1.2), (-5.0, 7.6, -0.08), 42, (1920, 1280), 255, 15),
+    'wide': ((-9.6, 10.2, 1.65), (2.6, 2.4, 1.9), 28, (1920, 1080), 235, 14),
+    'signal': ((-3.6, -0.2, 1.65), (4.6, -2.6, 3.6), 30, (1920, 1280), 235, 14),
+    'curb': ((-2.3, 9.7, 1.5), (0.2, 4.8, -0.3), 32, (1920, 1080), 235, 14),
+    'props': ((4.7, 3.7, 1.45), (7.6, 0.55, 0.55), 30, (1920, 1080), 235, 14),
+    'manhole': ((-4.15, 6.35, 1.2), (-5.0, 7.6, -0.08), 42, (1920, 1280), 235, 14),
 }
 
 
@@ -71,7 +72,7 @@ def setup_env(scene):
         FP.box(col, f"env_curb{i}", (x0, y0, -0.45), (x1, y1, 0.0), gran)
     blds = [
         ((-48, 0, 0), (-22, 24, 4.2), (150, 120, 96)), ((-48, 24, 0), (-22, 50, 44), (120, 110, 100)),
-        ((-48, -60, 0), (-22, -26, 34), (110, 80, 66)), ((-20, -50, 0), (2, -22, 24), (160, 150, 130)), ((2, -50, 0), (30, -22, 52), (120, 116, 112)),
+        ((-48, -60, 0), (-22, -26, 10), (110, 80, 66)), ((-20, -50, 0), (2, -22, 24), (160, 150, 130)), ((2, -50, 0), (30, -22, 52), (120, 116, 112)),
         ((30, -50, 0), (60, -22, 20), (150, 146, 140)),
     ]
     for i, (mn, mx, c) in enumerate(blds):
@@ -113,7 +114,7 @@ def main():
     i = 0
     while i < len(argv):
         a = argv[i]
-        if a in ('--save', '--nofacade'):
+        if a in ('--save', '--nofacade', '--nodenoise'):
             opt[a[2:]] = True
         elif a.startswith('--'):
             opt[a[2:]] = argv[i + 1]
@@ -124,7 +125,7 @@ def main():
     shots = shots or list(CAMS)
     if 'cam' in opt:
         v = [float(x) for x in opt['cam'].split(',')]
-        CAMS['custom'] = (tuple(v[0:3]), tuple(v[3:6]), v[6], (1920, 1080), 255, 15)
+        CAMS['custom'] = (tuple(v[0:3]), tuple(v[3:6]), v[6], (1920, 1080), 235, 14)
         shots = ['custom']
     FP.clean()
     scene = bpy.context.scene
@@ -160,11 +161,21 @@ def main():
         for ob in [o for o in scene.objects if o.name.startswith("PROOF_sun") or o.name.startswith("PROOF_cam")]:
             bpy.data.objects.remove(ob)
         FP.setup_world(scene, az, el)
+        for o in scene.objects:
+            if o.name.startswith("PROOF_sun"):
+                o.data.energy = SUN_ENERGY
         FP.make_cam(scene, loc, tgt, lens)
         w = int(opt['w'])
         h = int(round(w * res[1] / res[0]))
         FP.setup_render(scene, w, h, int(opt['samples']), int(opt['threads']))
         scene.view_settings.exposure = 0.0
+        if opt.get('nodenoise'):
+            scene.cycles.use_denoising = False
+        if 'border' in opt:
+            b = [float(x) for x in opt['border'].split(',')]
+            scene.render.use_border = True
+            scene.render.use_crop_to_border = True
+            scene.render.border_min_x, scene.render.border_min_y, scene.render.border_max_x, scene.render.border_max_y = b
         scene.render.filter_size = 1.2
         fn = os.path.join(OUT_PREV, f"corner_{'curb_close' if s == 'curb' else s}" + (f"_{opt['tag']}" if opt['tag'] else '') + ".png")
         scene.render.filepath = fn

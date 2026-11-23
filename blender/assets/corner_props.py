@@ -228,10 +228,10 @@ def newspaper_box(name="PROP_newspaper_box", seed=0, color=(26, 70, 142)):
     mb.rod((-0.06, -0.19, 1.065), (-0.06, -0.205, 1.065), 0.011, 'g', seg=12)
     finalize(mb, col, {'p': paint, 'g': galv, 'i': iron, 'd': dark}, bevel=0.003)
     mb = MB(name + "_glass")
-    mb.quad([(-0.19, -0.207, 0.6), (0.19, -0.207, 0.6), (0.19, -0.207, 0.94), (-0.19, -0.207, 0.94)], 'q')
+    mb.quad([(-0.19, -0.2095, 0.6), (0.19, -0.2095, 0.6), (0.19, -0.2095, 0.94), (-0.19, -0.2095, 0.94)], 'q')
     finalize(mb, col, {'q': glass}, recalc=False)
     mb = MB(name + "_decals")
-    decal(mb, (0, -0.12, 0.77), (0, -1, 0.35), 0.34, 0.42, 'n')
+    decal(mb, (0, -0.2058, 0.77), (0, -1, 0), 0.34, 0.33, 'n', uv=(0, 0.25, 1, 1))
     for sx in (-1, 1):
         decal(mb, (sx * 0.2515, 0.0, 0.84), (sx, 0, 0), 0.36, 0.135, 'd')
     decal(mb, (0, 0.2015, 0.84), (0, 1, 0), 0.36, 0.135, 'd')
@@ -832,8 +832,8 @@ def storm_inlet(name="PROP_storm_inlet", seed=0):
 def ramp_tactile(col, zfun, name="crn_tactile"):
     """Truncated-dome warning panel on the corner ramp (annular sector around the return centre)."""
     import numpy as np
-    paint = K.m_paint("crn_tactile_paint", srgb((206, 158, 30)), chip=0.6, rust=False, grime_h=0.0, grime_amt=0.0, rough=0.5, scale=3.0,
-                      under=srgb((64, 60, 56)))
+    paint = K.m_paint("crn_tactile_paint", srgb((222, 172, 28)), chip=0.3, rust=False, grime_h=0.0, grime_amt=0.0, rough=0.45, scale=3.0,
+                      under=srgb((120, 112, 100)))
     c = Vector((2.0, 2.0))
     r0, r1, half = 1.16, 1.76, math.radians(22)
     mb = MB(name)
