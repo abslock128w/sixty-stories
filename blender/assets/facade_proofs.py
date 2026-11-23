@@ -187,7 +187,7 @@ CAMS = {
     'brick': ((9.35, -1.45, 6.75), (9.15, 0.0, 6.45), 40, (1920, 1280), 226, 11, False),
     'glass': ((3.55, -1.35, 6.55), (4.55, 0.0, 6.45), 45, (1920, 1280), 226, 11, False),
     'interior': ((4.62, -1.25, 6.35), (4.4, 3.0, 5.75), 32, (1920, 1280), 226, 11, False),
-    'awning': ((5.6, -3.4, 1.75), (7.6, -0.6, 3.15), 30, (1920, 1280), 226, 11, False),
+    'awning': ((12.9, -3.3, 4.35), (9.6, -0.55, 3.25), 32, (1920, 1280), 226, 11, False),
 }
 NAMES = {'fire': 'facade_fire_escape', 'window': 'facade_window_close', 'brick': 'facade_brick_close', 'glass': 'facade_glass_close',
          'interior': 'facade_interior_close', 'awning': 'facade_awning_close'}

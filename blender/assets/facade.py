@@ -1385,7 +1385,7 @@ class Facade:
             row = []
             for i in range(nu + 1):
                 uu = a + (c - a) * i / nu
-                wav = (0.006 * math.sin(uu * 5.3 + 1.1) + 0.0025 * math.sin(uu * 23.0)) * tv
+                wav = (0.0025 * math.sin(uu * 5.3 + 1.1) + 0.001 * math.sin(uu * 23.0)) * tv
                 row.append(fab.add_v(self.wp(F, uu, z_front - val * tv, proj + 0.004 + wav)))
             vrows.append(row)
         for jv in range(6):
@@ -1408,7 +1408,7 @@ class Facade:
             fr.rod(self.wp(F, x, z_top - 0.55, 0.02), self.wp(F, x, z_front - 0.05, proj * 0.75), 0.010, 'iron', seg=6)
             fr.box(*self._wbox(F, x - 0.04, x + 0.04, z_top - 0.62, z_top - 0.48, 0.0, 0.012), 'iron')
         # lettering on the valance
-        self.text(self.shop_name, FONT_SANS, size=0.11, wall=F, u=(a + c) / 2, v=z_front - val / 2, d=proj + 0.007, depth=0.0,
+        self.text(self.shop_name, FONT_SANS, size=0.11, wall=F, u=(a + c) / 2, v=z_front - val / 2, d=proj + 0.0085, depth=0.0,
                   mat='letters_white', key='letters_flat', width_max=c - a - 0.6)
 
     # ---------------------------------------------------------------- cornice
@@ -1997,13 +1997,13 @@ class Facade:
             self.bakery_fitout(g3, it, R, x0, x1, D)
         else:
             self.grocer_fitout(g3, it, R, x0, x1, D)
-        self.lights.append(dict(kind='area', loc=Vector(((x0 + x1) / 2, 3.2, 3.5)), size=4.0, energy=160, color=(1.0, 0.86, 0.68), group='shop', lit=True))
+        self.lights.append(dict(kind='area', loc=Vector(((x0 + x1) / 2, 3.2, 3.5)), size=4.0, energy=380, color=(1.0, 0.86, 0.68), group='shop', lit=True))
         # pendant lights
         for xx in np.linspace(x0 + 0.9, x1 - 0.9, 4):
             it.rod((xx, 2.2, 3.55), (xx, 2.2, 2.75), 0.004, 'iron', seg=4)
             it.rod((xx, 2.2, 2.75), (xx, 2.2, 2.55), 0.04, 'shade', seg=16, r1=0.22, caps=False)
             self.M('bulbs').rod((xx, 2.2, 2.63), (xx, 2.2, 2.56), 0.05, 'bulb', seg=10)
-            self.lights.append(dict(kind='point', loc=Vector((xx, 2.2, 2.6)), energy=90, color=(1.0, 0.78, 0.5), radius=0.05, group='shop', lit=True))
+            self.lights.append(dict(kind='point', loc=Vector((xx, 2.2, 2.6)), energy=130, color=(1.0, 0.78, 0.5), radius=0.05, group='shop', lit=True))
 
     # ---------------------------------------------------------------- shop fit-outs
     @staticmethod
@@ -2767,7 +2767,7 @@ class Facade:
         n1 = T.noise(mp.outputs[0], 2.2, 2, 0.4)
         # dust film: gradient to the bottom + clumps, plus rain run marks
         dn = T.noise(p, 9.0, 6, 0.65)
-        dust = T.math('ADD', T.math('MULTIPLY', T.math('POWER', T.math('SUBTRACT', 1.0, t), 3.0), 0.55), T.remap(dn.outputs['Factor'], 0.35, 0.7, 0.0, 0.35))
+        dust = T.math('ADD', T.math('MULTIPLY', T.math('POWER', T.math('SUBTRACT', 1.0, t), 4.0), 0.6), T.remap(dn.outputs['Factor'], 0.35, 0.7, 0.0, 0.25))
         rmp = T.n('ShaderNodeMapping', {'Vector': p, 'Scale': (60.0, 60.0, 2.5)})
         runs = T.noise(rmp.outputs[0], 3.0, 3, 0.5)
         dust = T.math('ADD', dust, T.math('MULTIPLY', T.smooth(runs.outputs['Factor'], 0.58, 0.72), 0.25))
@@ -2785,7 +2785,7 @@ class Facade:
         pr = principled(T, None, tint, rough, normal=nrm, Transmission_Weight=1.0, IOR=1.52)
         pr.inputs['Thin Wall'].default_value = bool(thin)
         dif = T.n('ShaderNodeBsdfDiffuse', {'Color': srgb((128, 120, 108))})
-        ms = T.n('ShaderNodeMixShader', {'Fac': T.math('MULTIPLY', dust, 0.16, clamp=True)})
+        ms = T.n('ShaderNodeMixShader', {'Fac': T.math('MULTIPLY', dust, 0.07, clamp=True)})
         T.L.new(pr.outputs[0], ms.inputs[1])
         T.L.new(dif.outputs[0], ms.inputs[2])
         T.L.new(ms.outputs[0], out.inputs['Surface'])
@@ -2911,10 +2911,15 @@ class Facade:
         dn = T.noise(p, 6.0, 5, 0.65)
         zf = ps[2]
         hem = T.smooth(zf, 2.80, 2.76)
-        dirt = T.math('ADD', T.math('MULTIPLY', hem, 0.6), T.math('MULTIPLY', T.smooth(up, 0.55, 0.85), T.smooth(dn.outputs['Factor'], 0.52, 0.68)))
-        tide = T.math('MULTIPLY', T.smooth(up, 0.5, 0.8), T.smooth(T.math('ABSOLUTE', T.math('SUBTRACT', dn.outputs['Factor'], 0.6)), 0.012, 0.004))
+        # run-off streaks follow the slope (stretched noise) and thicken toward the low front edge where water pools
+        smp = T.n('ShaderNodeMapping', {'Vector': p, 'Scale': (9.0, 1.2, 1.2)})
+        sn = T.noise(smp.outputs[0], 2.5, 5, 0.6)
+        front = T.smooth(T.math('MULTIPLY', ps[1], -1.0), 0.5, 1.2)
+        slope_d = T.math('MULTIPLY', T.smooth(sn.outputs['Factor'], 0.50, 0.66), T.math('ADD', 0.25, T.math('MULTIPLY', front, 0.75)))
+        dirt = T.math('ADD', T.math('MULTIPLY', hem, 0.6), T.math('MULTIPLY', T.smooth(up, 0.55, 0.85), slope_d))
+        tide = T.math('MULTIPLY', T.math('MULTIPLY', T.smooth(up, 0.5, 0.8), front), T.smooth(T.math('ABSOLUTE', T.math('SUBTRACT', dn.outputs['Factor'], 0.6)), 0.012, 0.004))
         dirt = T.math('ADD', T.math('MULTIPLY', dirt, T.remap(dn.outputs['Factor'], 0.3, 0.7, 0.5, 1.0)), T.math('MULTIPLY', tide, 0.5), clamp=True)
-        c = T.mix(T.math('MULTIPLY', dirt, 0.55), c, T.mul_col(c, (0.42, 0.40, 0.36, 1)))
+        c = T.mix(T.math('MULTIPLY', dirt, 0.5), c, T.mul_col(c, (0.48, 0.45, 0.40, 1)))
         # hem binding tape (slightly darker, smoother) on the bottom 2.5 cm
         bind = T.smooth(zf, 2.79, 2.785)
         c = T.mix(T.math('MULTIPLY', bind, 0.7), c, T.mul_col(col, (0.7, 0.7, 0.7, 1)))
