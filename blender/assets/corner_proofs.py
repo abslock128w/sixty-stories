@@ -27,15 +27,16 @@ OUT_BLEND = os.path.join(ROOT, "blender", "out", "assets", "corner.blend")
 FACADE_BLEND = os.path.join(ROOT, "blender", "out", "assets", "facade.blend")
 AV_W = 18.0   # avenue curb-to-curb
 CS_W = 18.0   # cross street curb-to-curb
-SUN_ENERGY = 6.0   # facade_proofs uses 4.5; raised so cast shadows read against the sky fill
+SUN_ENERGY = 7.5
+SKY_FILL = 0.55   # sky strength seen by lighting rays (camera rays see 1.0)   # facade_proofs uses 4.5; raised so cast shadows read against the sky fill
 
 CAMS = {
     # name: (location, target, lens, (w, h), sun az, sun el)
-    'wide': ((-9.6, 10.2, 1.65), (2.6, 2.4, 1.9), 28, (1920, 1080), 235, 14),
-    'signal': ((-3.6, -0.2, 1.65), (4.6, -2.6, 3.6), 30, (1920, 1280), 235, 14),
-    'curb': ((-2.3, 9.7, 1.5), (0.2, 4.8, -0.3), 32, (1920, 1080), 235, 14),
-    'props': ((4.7, 3.7, 1.45), (7.6, 0.55, 0.55), 30, (1920, 1080), 235, 14),
-    'manhole': ((-4.15, 6.35, 1.2), (-5.0, 7.6, -0.08), 42, (1920, 1280), 235, 14),
+    'wide': ((-9.6, 10.2, 1.65), (2.6, 2.4, 1.9), 28, (1920, 1080), 235, 13),
+    'signal': ((-3.6, -0.2, 1.65), (4.6, -2.6, 3.6), 30, (1920, 1280), 235, 13),
+    'curb': ((-2.3, 9.7, 1.5), (0.2, 4.8, -0.3), 32, (1920, 1080), 235, 13),
+    'props': ((4.7, 3.7, 1.45), (7.6, 0.55, 0.55), 30, (1920, 1080), 235, 13),
+    'manhole': ((-4.15, 6.35, 1.2), (-5.0, 7.6, -0.08), 42, (1920, 1280), 235, 13),
 }
 
 
@@ -71,8 +72,8 @@ def setup_env(scene):
     for i, (x0, y0, x1, y1) in enumerate(curbs):
         FP.box(col, f"env_curb{i}", (x0, y0, -0.45), (x1, y1, 0.0), gran)
     blds = [
-        ((-48, 0, 0), (-22, 24, 4.2), (150, 120, 96)), ((-48, 24, 0), (-22, 50, 44), (120, 110, 100)),
-        ((-48, -60, 0), (-22, -26, 10), (110, 80, 66)), ((-20, -50, 0), (2, -22, 24), (160, 150, 130)), ((2, -50, 0), (30, -22, 52), (120, 116, 112)),
+((-48, 24, 0), (-22, 50, 44), (120, 110, 100)),
+        ((-48, -60, 0), (-22, -26, 5), (110, 80, 66)), ((-20, -50, 0), (2, -22, 24), (160, 150, 130)), ((2, -50, 0), (30, -22, 52), (120, 116, 112)),
         ((30, -50, 0), (60, -22, 20), (150, 146, 140)),
     ]
     for i, (mn, mx, c) in enumerate(blds):
@@ -125,7 +126,7 @@ def main():
     shots = shots or list(CAMS)
     if 'cam' in opt:
         v = [float(x) for x in opt['cam'].split(',')]
-        CAMS['custom'] = (tuple(v[0:3]), tuple(v[3:6]), v[6], (1920, 1080), 235, 14)
+        CAMS['custom'] = (tuple(v[0:3]), tuple(v[3:6]), v[6], (1920, 1080), 235, 13)
         shots = ['custom']
     FP.clean()
     scene = bpy.context.scene
@@ -164,6 +165,20 @@ def main():
         for o in scene.objects:
             if o.name.startswith("PROOF_sun"):
                 o.data.energy = SUN_ENERGY
+                o.data.color = (1.0, 0.60, 0.34)
+        # less (blue) sky fill on lit surfaces; camera still sees the full sky
+        for n in scene.world.node_tree.nodes:
+            if n.bl_idname == 'ShaderNodeBackground':
+                lp = scene.world.node_tree.nodes.new('ShaderNodeLightPath')
+                mx = scene.world.node_tree.nodes.new('ShaderNodeMath')
+                mx.operation = 'ADD'
+                mx.inputs[1].default_value = SKY_FILL
+                mul = scene.world.node_tree.nodes.new('ShaderNodeMath')
+                mul.operation = 'MULTIPLY'
+                mul.inputs[1].default_value = 1.0 - SKY_FILL
+                scene.world.node_tree.links.new(lp.outputs['Is Camera Ray'], mul.inputs[0])
+                scene.world.node_tree.links.new(mul.outputs[0], mx.inputs[0])
+                scene.world.node_tree.links.new(mx.outputs[0], n.inputs['Strength'])
         FP.make_cam(scene, loc, tgt, lens)
         w = int(opt['w'])
         h = int(round(w * res[1] / res[0]))

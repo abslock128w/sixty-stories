@@ -419,7 +419,7 @@ def build_curb(col):
 
 
 def build_slabs(col):
-    mat = K.m_concrete("crn_slab")
+    mat = K.m_concrete("crn_slab", gum=1.5, stain=1.7)
     rng = random.Random(23)
     holes = [TREE_PIT, TRENCH]
     rects = []
@@ -472,8 +472,9 @@ def build_slabs(col):
     ob = finalize(mb, col, {'m': mat}, recalc=False)
     # bedding under the joints
     mb = MB("crn_bed")
-    mb.quad([(0.1, 0.1, -0.03), (EXT, 0.1, -0.03), (EXT, SW, -0.03), (0.1, SW, -0.03)], 'm')
-    mb.quad([(0.1, SW, -0.03), (SW, SW, -0.03), (SW, EXT, -0.03), (0.1, EXT, -0.03)], 'm')
+    mb.quad([(SQ, 0.1, -0.03), (EXT, 0.1, -0.03), (EXT, SW, -0.03), (SQ, SW, -0.03)], 'm')
+    mb.quad([(0.1, SQ, -0.03), (SQ, SQ, -0.03), (SQ, EXT, -0.03), (0.1, EXT, -0.03)], 'm')
+    mb.quad([(SQ, SW, -0.03), (SW, SW, -0.03), (SW, EXT, -0.03), (SQ, EXT, -0.03)], 'm')
     finalize(mb, col, {'m': K.m_soil("crn_bedding")}, recalc=False)
     return ob
 

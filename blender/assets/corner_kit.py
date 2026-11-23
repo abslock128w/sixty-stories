@@ -333,7 +333,7 @@ def m_iron(name, rust=0.5, polish=False, base=(52, 50, 47)):
     n1 = T.noise(pv, 12.0, 6, 0.65)
     n2 = T.noise(pv, 2.5, 4, 0.5)
     rn = T.noise(pv, 40.0, 4, 0.6)
-    rustc = T.mix(rn.outputs['Factor'], srgb((66, 36, 20)), srgb((128, 70, 34)))
+    rustc = T.mix(rn.outputs['Factor'], srgb((58, 40, 30)), srgb((104, 66, 42)))
     occ = T.math('SUBTRACT', 1.0, ao(T, 0.03))
     rm = T.math('MULTIPLY', T.math('ADD', T.smooth(n1.outputs['Factor'], 0.62 - 0.2 * rust, 0.72 - 0.2 * rust), T.math('MULTIPLY', occ, 1.4 * rust)), T.smooth(n2.outputs['Factor'], 0.3, 0.55))
     rm = T.math('MINIMUM', rm, 1.0)
@@ -633,15 +633,15 @@ def m_attr(name, rough=0.5, sss=False, transl=0.0, bump=0.0):
 def m_bark(name):
     m, T, out = new_mat(name)
     p, pv, _ = coords(T)
-    mp = T.n('ShaderNodeMapping', {'Vector': pv, 'Scale': (22.0, 22.0, 3.0)})
-    n1 = T.noise(mp.outputs[0], 1.0, 8, 0.7, distortion=0.5)
-    vo = T.n('ShaderNodeTexVoronoi', {'Vector': mp.outputs[0], 'Scale': 1.5}, feature='DISTANCE_TO_EDGE')
-    ridge = T.smooth(vo.outputs['Distance'], 0.0, 0.12)
-    c = T.mix(ridge, srgb((40, 34, 28)), srgb((104, 96, 86)))
+    mp = T.n('ShaderNodeMapping', {'Vector': pv, 'Scale': (9.0, 9.0, 3.2)})
+    n1 = T.noise(mp.outputs[0], 3.0, 10, 0.75, distortion=1.2)
+    vo = T.n('ShaderNodeTexVoronoi', {'Vector': T.vmath('ADD', mp.outputs[0], T.vmath('SCALE', n1.outputs['Color'], scale=0.35)), 'Scale': 2.2}, feature='DISTANCE_TO_EDGE')
+    ridge = T.math('MULTIPLY', T.smooth(vo.outputs['Distance'], 0.0, 0.10), T.remap(n1.outputs['Factor'], 0.3, 0.7, 0.6, 1.0))
+    c = T.mix(ridge, srgb((44, 38, 32)), srgb((112, 104, 94)))
     lic = T.noise(pv, 5.0, 5, 0.6)
     c = T.mix(T.math('MULTIPLY', T.smooth(lic.outputs['Factor'], 0.6, 0.7), 0.5), c, srgb((110, 118, 90)))
     c, _g = grime(T, c, p, 0.4, 0.6)
-    principled(T, out, c, 0.85, normal=T.bump(T.math('ADD', ridge, T.math('MULTIPLY', n1.outputs['Factor'], 0.4)), 0.8, 0.01))
+    principled(T, out, c, 0.88, normal=T.bump(T.math('ADD', ridge, T.math('MULTIPLY', n1.outputs['Factor'], 0.6)), 1.0, 0.015))
     return m
 
 

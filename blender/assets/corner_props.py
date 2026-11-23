@@ -255,7 +255,7 @@ def bollard(name="PROP_bollard", seed=0, color=(214, 166, 24)):
     mb.lathe([(0, -0.05), (0.084, -0.05), (0.084, 0.74)], 'p', seg=32, M=tilt)
     mb.lathe([(0.0845, 0.74), (0.0845, 0.82)], 'r', seg=32, M=tilt)
     mb.lathe([(0.084, 0.82), (0.084, 0.93), (0.07, 0.965), (0.04, 0.985), (0, 0.99)], 'p', seg=32, M=tilt)
-    finalize(mb, col, {'p': paint, 'r': refl}, smooth=True)
+    finalize(mb, col, {'p': paint, 'r': refl}, smooth=True, bevel=0.003, bevel_seg=2)
     mb = MB(name + "_grout")
     mb.lathe([(0.0, 0.0), (0.12, 0.0), (0.118, 0.006), (0.09, 0.009), (0.085, 0.009), (0, 0.0)], 'g', seg=32)
     finalize(mb, col, {'g': grout}, smooth=True)
@@ -283,14 +283,19 @@ def pay_station(name="PROP_pay_station", seed=0, color=(50, 53, 58)):
     mb.box((-0.08, -0.14, 1.005), (0.08, -0.13, 1.04), 'g')
     mb.box((-0.06, -0.142, 1.018), (0.06, -0.139, 1.026), 'd')
     mb.box((-0.165, -0.14, 0.12), (-0.07, -0.13, 0.25), 'g')        # receipt / coin return
+    mb.box((0.085, -0.142, 0.995), (0.135, -0.13, 1.06), 'g')       # coin slot plate
+    mb.box((0.105, -0.145, 1.01), (0.115, -0.141, 1.045), 'd')
+    mb.box((-0.19, -0.16, 0.05), (0.19, -0.13, 0.08), 'g')          # kick plate
     mb.box((-0.15, -0.142, 0.16), (-0.09, -0.139, 0.2), 'd')
-    finalize(mb, col, {'p': paint, 'g': galv, 'd': dark}, bevel=0.004)
+    finalize(mb, col, {'p': paint, 'g': galv, 'd': dark}, bevel=0.009, bevel_seg=3)
     mb = MB(name + "_panel")
     mb.prism([(-0.19, -0.16, 1.605), (0.19, -0.16, 1.605), (0.19, 0.16, 1.66), (-0.19, 0.16, 1.66)], (0, 0, 0.012), 's')
     finalize(mb, col, {'s': solar})
     mb = MB(name + "_decals")
     decal(mb, (0, -0.1315, 0.56), (0, -1, 0), 0.28, 0.42, 'd')
     decal(mb, (0, -0.1515, 1.17), (0, -1, 0), 0.16, 0.12, 's')
+    for sx in (-1, 1):
+        decal(mb, (sx * 0.1715, 0.0, 0.9), (sx, 0, 0), 0.2, 0.3, 'd', uv=(0, 0.74, 1, 1))
     finalize(mb, col, {'d': K.m_image("crn_pay_decal", "pay_decal.png", rough=0.4, dirt=0.4),
                        's': K.m_image("crn_pay_screen", "pay_screen.png", rough=0.1, emit=1.2, dirt=0.0)}, recalc=False)
     return col
@@ -313,7 +318,7 @@ def bike_rack(name="PROP_bike_rack", seed=0):
         for k in range(3):
             a = TAU * k / 3 + 0.5
             mb.hexnut((sx * 0.33 + 0.048 * math.cos(a), 0.048 * math.sin(a), 0.008), (0, 0, 1), 0.008, 0.01, 'i')
-    finalize(mb, col, {'g': galv, 'i': iron}, smooth=True)
+    finalize(mb, col, {'g': galv, 'i': iron}, smooth=True, bevel=0.002, bevel_seg=2)
     return col
 
 
@@ -530,6 +535,12 @@ def ped_head(mb, dec, c, face, img_key, keys):
     for k in range(1, 6):
         mb.obox(fc + up * (-0.23 + 0.0767 * k) + f * 0.04, r * 0.22, f * 0.04, up * 0.002, keys['visor'])
     decal(dec, fc + f * 0.001, f, 0.42, 0.42, img_key)
+    bc = c - f * 0.11
+    for k in range(-3, 4):
+        mb.obox(bc + up * (0.06 * k) - f * 0.006, r * 0.2, f * 0.006, up * 0.008, keys['house'])
+    mb.obox(bc - f * 0.016, r * 0.07, f * 0.016, up * 0.07, keys['house'])
+    for s_ in (-1, 1):
+        mb.rod(c + r * s_ * 0.236 + up * 0.15, c + r * s_ * 0.236 + up * 0.2, 0.008, keys['house'], seg=8)
 
 
 def signal_pole(name="PROP_signal_pole", seed=0, arm=8.2, heads=(2.25, 5.65), lit=0, walk=True):
@@ -542,8 +553,8 @@ def signal_pole(name="PROP_signal_pole", seed=0, arm=8.2, heads=(2.25, 5.65), li
     yellow = K.m_paint("crn_sig_yellow", srgb((214, 166, 22)), chip=0.25, rust=False, gloss=True, grime_h=0.0, grime_amt=0.0)
     black = K.m_paint("crn_sig_black", srgb((18, 18, 18)), chip=0.15, rust=False, grime_h=0.0, grime_amt=0.0)
     border = K.m_plain("crn_sig_border", (222, 196, 30), 0.35, noise=0.2)
-    keys = dict(house='y', back='k', border='b', visor='k', lens_r='lr', lens_a='la', lens_g='lg', lit_r='Lr', lit_a='La', lit_g='Lg')
-    mats = {'g': galv, 'i': iron, 'y': yellow, 'k': black, 'b': border,
+    keys = dict(house='y', back='k', border='b', visor='v', lens_r='lr', lens_a='la', lens_g='lg', lit_r='Lr', lit_a='La', lit_g='Lg')
+    mats = {'g': galv, 'i': iron, 'y': yellow, 'k': black, 'b': border, 'v': K.m_plain("crn_visor_matte", (14, 14, 14), 0.92, noise=0.1),
             'lr': K.m_lens("crn_lens_r", (0.20, 0.015, 0.01)), 'la': K.m_lens("crn_lens_a", (0.22, 0.10, 0.0)), 'lg': K.m_lens("crn_lens_g", (0.01, 0.12, 0.08)),
             'Lr': K.m_emit("crn_lit_r", (1.0, 0.10, 0.03), 9.0), 'La': K.m_emit("crn_lit_a", (1.0, 0.45, 0.02), 9.0), 'Lg': K.m_emit("crn_lit_g", (0.1, 1.0, 0.55), 9.0)}
     H = 6.7
@@ -652,7 +663,22 @@ def streetlight(name="PROP_streetlight", seed=0, H=8.6, arm=2.3, ped=True, lamp_
         return 0.115 - 0.045 * max(0.0, min(z, H)) / H
     mb = MB(name + "_pole")
     # octagonal cast base
-    mb.lathe([(0, 0), (0.215, 0), (0.215, 0.035), (0.195, 0.06), (0.185, 0.09), (0.165, 0.62), (0.175, 0.65), (0.175, 0.69), (0.14, 0.74), (0.13, 0.9), (0.145, 0.93), (0.12, 0.98), (0, 0.98)], 'b', seg=28)
+    b0 = len(mb.v)
+    prof = [(0, 0), (0.23, 0), (0.23, 0.03), (0.215, 0.045), (0.215, 0.08), (0.195, 0.10)] + [(0.195 - 0.035 * t, 0.10 + 0.52 * t) for t in (0.1, 0.3, 0.5, 0.7, 0.9)] + \
+        [(0.16, 0.62), (0.178, 0.645), (0.178, 0.69), (0.145, 0.74), (0.132, 0.9), (0.148, 0.925), (0.148, 0.95), (0.12, 0.985), (0, 0.985)]
+    mb.lathe(prof, 'b', seg=64)
+    for i in range(b0, len(mb.v)):
+        x, y, z = mb.v[i]
+        if 0.11 < z < 0.61:
+            a = math.atan2(y, x)
+            k = 1.0 + 0.045 * (abs(math.cos(8 * a)) ** 0.5 - 0.6)
+            mb.v[i] = (x * k, y * k, z)
+    mb.obox((0.0, 0.18, 0.36), (0.07, 0, 0), (0, 0.012, 0), (0, 0, 0.13), 'b')
+    for zz in (0.25, 0.47):
+        mb.hexnut((0.0, 0.192, zz), (0, 1, 0), 0.009, 0.008, 'i')
+    for k in range(4):
+        a = TAU * k / 4 + PI / 4
+        mb.hexnut((0.2 * math.cos(a), 0.2 * math.sin(a), 0.03), (0, 0, 1), 0.016, 0.02, 'i')
     mb.lathe([(0, 1.1)] + [(rp(z), z) for z in (1.1, 3.0, 5.0, 7.0, H)] + [(0, H)], 'g', seg=28)
     # davit arm
     pts = [Vector((0, 0, H - 0.25))]
@@ -676,7 +702,8 @@ def streetlight(name="PROP_streetlight", seed=0, H=8.6, arm=2.3, ped=True, lamp_
     if ped:
         mb = MB(name + "_hw")
         dec = MB(name + "_faces")
-        keys = dict(house='y', visor='k')
+        keys = dict(house='y', visor='v')
+        mats['v'] = K.m_plain("crn_visor_matte", (14, 14, 14), 0.92, noise=0.1)
         zp = 2.8
         for dz in (0.18, -0.18):
             mb.obox((0, -rp(zp) - 0.04, zp + dz), (0.04, 0, 0), (0, 0.05, 0), (0, 0, 0.02), 'k')
@@ -753,7 +780,7 @@ def _disk_cover(name, col, image, R, h, mat, zbase, zamp, rot=0.0):
     def hval(X, Y):
         u = (X * ca + Y * sa)
         v = (-X * sa + Y * ca)
-        c = np.clip(((u / (2 * R) + 0.5) * (n - 1)).astype(int), 0, n - 1)
+        c = np.clip(((0.5 - u / (2 * R)) * (n - 1)).astype(int), 0, n - 1)
         r_ = np.clip(((0.5 - v / (2 * R)) * (n - 1)).astype(int), 0, n - 1)
         return im[r_, c]
 
@@ -779,7 +806,7 @@ def manhole(name="PROP_manhole", seed=0, rot=None):
     _disk_cover(name + "_cover", col, "manhole_h.png", 0.355, 0.0024, cov, -0.012, 0.0135, rot=rng.uniform(0, TAU) if rot is None else rot)
     mb = MB(name + "_frame")
     mb.lathe([(0.357, -0.06), (0.357, -0.001), (0.362, 0.0015), (0.425, 0.0015), (0.432, -0.004), (0.432, -0.06)], 'i', seg=72)
-    finalize(mb, col, {'i': iron}, smooth=True)
+    finalize(mb, col, {'i': K.m_iron("crn_frame_iron", rust=0.22, base=(62, 60, 56))}, smooth=True)
     mb = MB(name + "_collar")
     mb.lathe([(0.432, -0.08), (0.432, 0.0005), (0.45, 0.002), (0.6, 0.001), (0.625, -0.006), (0.625, -0.08)], 'c', seg=72)
     b = len(mb.v)
