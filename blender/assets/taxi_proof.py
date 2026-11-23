@@ -92,8 +92,8 @@ def mat_block(i):
     br.inputs["Mortar Size"].default_value = 0.55 + 0.25 * (i % 2)
     br.inputs["Brick Width"].default_value = 2.1 + 0.5 * (i % 3)
     br.inputs["Row Height"].default_value = 3.3 + 0.3 * (i % 2)
-    tones = [(0.34, 0.16, 0.10), (0.55, 0.50, 0.43), (0.22, 0.22, 0.23), (0.50, 0.38, 0.27),
-             (0.62, 0.60, 0.56), (0.28, 0.14, 0.10), (0.40, 0.41, 0.43)]
+    tones = [(0.34, 0.16, 0.10), (0.46, 0.42, 0.36), (0.16, 0.16, 0.17), (0.40, 0.30, 0.21),
+             (0.24, 0.12, 0.08), (0.55, 0.53, 0.50), (0.30, 0.31, 0.33)]
     t = tones[i % len(tones)]
     br.inputs["Color1"].default_value = (0.020, 0.024, 0.028, 1)
     br.inputs["Color2"].default_value = (0.035, 0.040, 0.046, 1)
@@ -163,7 +163,7 @@ def setup_stage(scene):
         i = 0 if side < 0 else 3
         while y < 90.0:
             wdt = rnd.uniform(9.0, 20.0)
-            h = rnd.uniform(14.0, 34.0) if side < 0 else rnd.uniform(9.0, 18.0)
+            h = rnd.uniform(14.0, 34.0) if side < 0 else rnd.uniform(8.0, 15.0)
             dep = 14.0
             setb = rnd.uniform(0.0, 0.6)
             _box(coll, "proof_block", (dep, wdt - 0.4, h),
@@ -201,7 +201,7 @@ def setup_render(scene, res, samples, threads, aspect=(16, 9)):
         scene.view_settings.look = "AgX - Medium High Contrast"
     except Exception:
         pass
-    scene.view_settings.exposure = -1.6
+    scene.view_settings.exposure = -1.9
     scene.render.image_settings.file_format = "PNG"
 
 

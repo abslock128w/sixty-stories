@@ -424,7 +424,7 @@ def make_textures(variant, cfg):
                 text(half, flip, -0.56, 0.434, "$0.75  PER 60 SEC STOPPED", f_sm, blk)
                 text(half, flip, -0.56, 0.408, "NIGHT SURCHARGE  $1.00", f_sm, blk)
                 # medallion number on the front fender
-                text(half, flip, 1.40, 0.875, "7K42", f_num, blk)
+                text(half, flip, 1.36, 0.80, "7K42", f_num, blk)
                 text(half, flip, -1.55, 0.86, "HC-7K42", f_sm, blk)
             im.save(p)
         out["livery"] = _img_to_blender("taxi_livery", p, "sRGB")
@@ -977,9 +977,11 @@ def lathe(profile, segments, axis="X", close=False, uv_v=None, angle=2 * math.pi
 
 
 def sweep_tube(points, radius, segs=8, closed=False, scale_xy=(1.0, 1.0), up=Vector((0, 0, 1))):
-    """Simple tube along a polyline (for trims, lips, wipers, DRL guides)."""
+    """Simple tube along a polyline (for trims, lips, wipers, DRL guides). radius may be a
+    list (one per point) for tapered parts."""
     bm = bmesh.new()
     pts = [Vector(p) for p in points]
+    radii = list(radius) if isinstance(radius, (list, tuple)) else [radius] * len(pts)
     rings = []
     n = len(pts)
     for i, p in enumerate(pts):
@@ -993,7 +995,7 @@ def sweep_tube(points, radius, segs=8, closed=False, scale_xy=(1.0, 1.0), up=Vec
         ring = []
         for s in range(segs):
             a = 2 * math.pi * s / segs
-            off = x * math.cos(a) * radius * scale_xy[0] + y * math.sin(a) * radius * scale_xy[1]
+            off = x * math.cos(a) * radii[i] * scale_xy[0] + y * math.sin(a) * radii[i] * scale_xy[1]
             ring.append(bm.verts.new(p + off))
         rings.append(ring)
     m = n if closed else n - 1
@@ -1004,6 +1006,34 @@ def sweep_tube(points, radius, segs=8, closed=False, scale_xy=(1.0, 1.0), up=Vec
     if not closed:
         bm.faces.new(rings[0][::-1])
         bm.faces.new(rings[-1])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    return bm
+
+
+def loft(stations, segs=24):
+    """Closed loft along +X through superellipse sections.
+    stations: (x, cy, cz, half_depth_front, half_depth_rear, half_height, exp_front, exp_rear)
+    in the YZ plane. Ends are capped with a fan (meant for a Subdivision modifier)."""
+    bm = bmesh.new()
+    rings = []
+    for (x, cy, cz, hf, hr, hh, ef, er) in stations:
+        ring = []
+        for k in range(segs):
+            a = 2 * math.pi * k / segs
+            c, s_ = math.cos(a), math.sin(a)
+            e = ef if c >= 0 else er
+            yy = cy + (hf if c >= 0 else hr) * math.copysign(abs(c) ** (2.0 / e), c)
+            zz = cz + hh * math.copysign(abs(s_) ** (2.0 / e), s_)
+            ring.append(bm.verts.new((x, yy, zz)))
+        rings.append(ring)
+    for i in range(len(rings) - 1):
+        for k in range(segs):
+            bm.faces.new((rings[i][k], rings[i][(k + 1) % segs], rings[i + 1][(k + 1) % segs], rings[i + 1][k]))
+    for ring, rev in ((rings[0], True), (rings[-1], False)):
+        c = bm.verts.new(sum((v.co for v in ring), Vector()) / len(ring))
+        for k in range(segs):
+            f = (c, ring[k], ring[(k + 1) % segs])
+            bm.faces.new(f[::-1] if rev else f)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     return bm
 
@@ -1698,39 +1728,79 @@ def build_details(coll, M, parent, cfg, body, blat, clat, tex):
         fr.rotation_euler = ((tilt if front else -tilt), 0, 0)
         objs.append(fr)
 
-    # ---- mirrors
+    # ---- mirrors: lofted aero housing (rounded nose, flat glass face), stalk, glass, repeater
     for sx in (1, -1):
-        h = on_side(sx, 0.72, 1.0)
+        h = on_side(sx, 0.70, 0.99)
         base = h[0] if h[0] else Vector((sx * 0.9, 0.64, 1.0))
-
-        def mshape(u, v, w):
-            # tapered aero housing: rounded nose (front) and flat glass face (rear)
-            return (0.0, 0.025 * (1 - u * u) * (1 if v > 0 else 0) + (-0.01 * u * sx), -0.012 * w * (u * sx))
-        hous = rounded_box("taxi_mirror_housing", (0.20, 0.085, 0.115), coll, [M["paint"]], parent,
-                           loc=base + Vector((sx * 0.135, 0.0, 0.075)), sup=0.35, shape=mshape, levels=2)
-        hous.rotation_euler = (0, 0, sx * math.radians(-6))
-        arm = rounded_box("taxi_mirror_arm", (0.10, 0.06, 0.035), coll, [M["black_tex"]], parent,
-                          loc=base + Vector((sx * 0.045, 0.0, 0.035)), sup=0.3, levels=2)
-        glass = rounded_box("taxi_mirror_glass", (0.175, 0.006, 0.093), coll, [M["mirror"]], parent,
-                            loc=base + Vector((sx * 0.135, -0.044, 0.075)), sup=0.3, levels=1)
-        glass.rotation_euler = (0, 0, sx * math.radians(-6))
-        rep = rounded_box("taxi_mirror_repeater", (0.09, 0.01, 0.010), coll, [M["amber_led"]], parent,
-                          loc=base + Vector((sx * 0.15, 0.040, 0.050)), sup=0.4, levels=1)
+        frame = Matrix.Translation(base + Vector((0.0, 0.0, 0.055))) @ Matrix.Rotation(sx * math.radians(-7), 4, "Z")
+        if sx < 0:
+            frame = frame @ Matrix.Scale(-1, 4, (1, 0, 0))
+        st = [(0.035, 0.000, 0.000, 0.030, 0.022, 0.040, 2.4, 4.0),
+              (0.050, 0.004, 0.004, 0.048, 0.026, 0.050, 2.4, 4.5),
+              (0.090, 0.008, 0.008, 0.056, 0.028, 0.057, 2.4, 5.0),
+              (0.160, 0.008, 0.010, 0.054, 0.028, 0.058, 2.4, 5.0),
+              (0.205, 0.004, 0.008, 0.046, 0.026, 0.052, 2.4, 4.5),
+              (0.228, 0.000, 0.006, 0.030, 0.022, 0.038, 2.4, 3.5),
+              (0.238, -0.002, 0.005, 0.012, 0.010, 0.016, 2.2, 3.0)]
+        bm = loft(st, 28)
+        bm.transform(frame)
+        if sx < 0:
+            bmesh.ops.reverse_faces(bm, faces=bm.faces)
+        hous = bm_to_obj("taxi_mirror_housing", bm, coll, [M["paint"]], parent)
+        add_subsurf(hous, 1, 2)
+        # stalk from the door skin into the housing (black textured)
+        bm = loft([(-0.02, -0.005, -0.012, 0.040, 0.030, 0.016, 2.5, 2.5),
+                   (0.015, -0.005, -0.010, 0.032, 0.022, 0.014, 2.5, 2.5),
+                   (0.050, -0.002, -0.004, 0.024, 0.018, 0.016, 2.5, 2.5)], 16)
+        bm.transform(frame)
+        if sx < 0:
+            bmesh.ops.reverse_faces(bm, faces=bm.faces)
+        arm = bm_to_obj("taxi_mirror_arm", bm, coll, [M["black_tex"]], parent)
+        add_subsurf(arm, 1, 2)
+        # glass: thin rounded plate set into the rear face, with a black surround
+        bm = loft([(0.062, -0.021, 0.008, 0.004, 0.004, 0.046, 2, 2),
+                   (0.064, -0.023, 0.008, 0.004, 0.004, 0.050, 2, 2),
+                   (0.196, -0.023, 0.008, 0.004, 0.004, 0.050, 2, 2),
+                   (0.200, -0.021, 0.008, 0.004, 0.004, 0.044, 2, 2)], 16)
+        bm.transform(frame)
+        if sx < 0:
+            bmesh.ops.reverse_faces(bm, faces=bm.faces)
+        glass = bm_to_obj("taxi_mirror_glass", bm, coll, [M["mirror"]], parent)
+        add_subsurf(glass, 1, 1)
+        bm = loft([(0.056, -0.020, 0.008, 0.005, 0.005, 0.052, 2, 2),
+                   (0.060, -0.021, 0.008, 0.006, 0.006, 0.055, 2, 2),
+                   (0.200, -0.021, 0.008, 0.006, 0.006, 0.055, 2, 2),
+                   (0.206, -0.020, 0.008, 0.005, 0.005, 0.048, 2, 2)], 16)
+        bm.transform(frame)
+        if sx < 0:
+            bmesh.ops.reverse_faces(bm, faces=bm.faces)
+        objs.append(bm_to_obj("taxi_mirror_surround", bm, coll, [M["black_tex"]], parent))
+        # side repeater: slim amber light guide on the lower front of the cap
+        pts = [frame @ Vector((x, 0.050 - 0.06 * (x - 0.13) ** 2 * 4, -0.030 + 0.04 * (x - 0.10))) for x in np.linspace(0.10, 0.215, 10)]
+        rep = bm_to_obj("taxi_mirror_repeater", sweep_tube(pts, [0.0025] + [0.0042] * 8 + [0.0025], 8, scale_xy=(1.0, 0.7)),
+                        coll, [M["lens_amber"]], parent)
         objs += [hous, arm, glass, rep]
 
-    # ---- door handles (+ recess cup), fuel flap cap
+    # ---- door handles: tapered pull bar standing off a recessed cup (follows the skin)
     for sx in (1, -1):
         for Yh in (0.04, -0.82):
             h = on_side(sx, Yh, 0.905)
             if h[0] is None:
                 continue
             n = h[1]
-            cup = rounded_box("taxi_handle_cup", (0.004, 0.17, 0.05), coll, [M["black_tex"]], parent,
+            cup = rounded_box("taxi_handle_cup", (0.004, 0.15, 0.045), coll, [M["black_tex"]], parent,
                               loc=h[0] - n * 0.0005, sup=0.45, levels=2)
-            hd = rounded_box("taxi_door_handle", (0.018, 0.175, 0.026), coll,
-                             [M["chrome"] if cfg["trim"] == "chrome" else M["paint"]], parent,
-                             loc=h[0] + n * 0.008, sup=0.45, levels=2,
-                             shape=lambda u, v, w: (0.004 * (1 - v * v), 0, 0))
+            cup.rotation_euler = Vector((1, 0, 0)).rotation_difference(n * sx).to_euler()
+            ts = [0.0, 0.025, 0.08, 0.2, 0.35, 0.5, 0.65, 0.8, 0.92, 0.975, 1.0]
+            pts, rad = [], []
+            for t in ts:
+                bulge = math.sin(math.pi * min(1.0, max(0.0, (t - 0.05) / 0.9)))
+                pts.append(h[0] + n * (0.004 + 0.010 * bulge) + Vector((0, (t - 0.55) * 0.178, 0.0)))
+                rad.append(0.0125 * (0.55 + 0.45 * math.sin(math.pi * t) ** 0.35))
+            bm = sweep_tube(pts, rad, 12, scale_xy=(0.62, 1.0))
+            hd = bm_to_obj("taxi_door_handle", bm, coll,
+                           [M["chrome"] if cfg["trim"] == "chrome" else M["paint"]], parent)
+            add_subsurf(hd, 1, 2)
             objs += [cup, hd]
 
     # ---- beltline trim strips (chrome or black) along the glass base
