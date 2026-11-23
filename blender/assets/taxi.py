@@ -1505,7 +1505,7 @@ def rim_parts(coll, M, parent, spokes=10):
     parts.append(o)
     # spokes: swept closed section from hub to lip
     bm = bmesh.new()
-    nr, ns = 9, 8
+    nr, ns = 17, 8
     for sp in range(spokes):
         base = (sp // 2) * (2 * math.pi / (spokes // 2))
         off = math.radians(6.5) * (1 if sp % 2 else -1)
@@ -1531,7 +1531,7 @@ def rim_parts(coll, M, parent, spokes=10):
         for i in range(nr - 1):
             for s in range(ns):
                 f = bm.faces.new((rings[i][s], rings[i][(s + 1) % ns], rings[i + 1][(s + 1) % ns], rings[i + 1][s]))
-                if s == 1 and i < nr - 2:
+                if s == 1 and i < nr - 3:
                     f.material_index = 1          # flat spoke face: diamond-cut
         bm.faces.new(rings[0][::-1])
         bm.faces.new(rings[-1])
@@ -1916,13 +1916,28 @@ def build_details(coll, M, parent, cfg, body, blat, clat, tex):
     objs.append(g)
     for (side_, u, w, r) in (("K", 0.0, 0.84, 0.022), ("F", 0.0, 0.73, 0.036)):
         p, n = blat.normal(u, YR if side_ == "K" else YF, w, side_)
-        em = lathe([(0.0, 0.0), (0.004, 0.0), (0.006, r * 0.55), (0.006, r * 0.75), (0.004, r), (0.0, r + 0.002)], 40, axis="Z")
-        # chevron inside the ring
-        o = bm_to_obj("taxi_emblem", em, coll, [M["chrome"]], parent, sharp=35)
-        o.location = p + n * (0.004 if side_ == "K" else 0.02)
-        o.rotation_euler = Vector((0, 0, 1)).rotation_difference(n).to_euler()
-        o.scale = (1.35, 1.0, 1.0)
-        objs.append(o)
+        # badge: chrome oval bezel ring, gloss-black enamel field, raised chrome chevron,
+        # on a black mounting boss (the front one bridges the gap to the recessed grille)
+        rot = Vector((0, 0, 1)).rotation_difference(n).to_euler()
+        front = side_ == "F"
+        base_ = p + n * (0.003 if front else 0.0015)
+        parts_ = []
+        ring = lathe([(0.0, r * 0.80), (0.0035, r * 0.82), (0.0050, r * 0.90), (0.0035, r * 0.98), (0.0, r)], 48, axis="Z")
+        parts_.append(("taxi_emblem_ring", ring, M["chrome"], 30))
+        field = lathe([(0.0015, 0.0), (0.0020, r * 0.80), (0.0, r * 0.82)], 48, axis="Z")
+        parts_.append(("taxi_emblem_field", field, M["black_gloss"], 60))
+        if front:
+            boss = lathe([(-0.016, 0.0), (-0.016, r * 0.6), (-0.002, r * 0.75), (0.0, r * 0.98), (0.0, 0.0)], 32, axis="Z")
+            parts_.append(("taxi_emblem_boss", boss, M["black_tex"], 40))
+        chev = sweep_tube([(-r * 0.52, r * 0.22, 0.0028), (0.0, -r * 0.38, 0.0028), (r * 0.52, r * 0.22, 0.0028)],
+                          r * 0.10, 4, scale_xy=(1.0, 0.45), up=Vector((0, 0, 1)))
+        parts_.append(("taxi_emblem_chevron", chev, M["chrome"], 30))
+        for nm_, b_, mt_, sh_ in parts_:
+            o = bm_to_obj(nm_, b_, coll, [mt_], parent, sharp=sh_)
+            o.location = base_
+            o.rotation_euler = rot
+            o.scale = (1.35, 1.0, 1.0)
+            objs.append(o)
 
     # ---- exhaust (rear left, under the bumper)
     bm = lathe([(0.0, 0.032), (0.18, 0.032), (0.18, 0.027), (0.02, 0.027)], 24, axis="Z")
