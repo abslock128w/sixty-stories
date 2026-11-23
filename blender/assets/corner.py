@@ -271,16 +271,28 @@ def rect_sub(r, h):
     return [o for o in out if (o[2] - o[0]) > 0.05 and (o[3] - o[1]) > 0.05]
 
 
-def prism_slab(mb, poly, zf, m, cell, ch=0.006, bot=-0.10):
-    """Convex CCW poly -> slab with chamfered top edge; zf(x, y) gives the top height."""
+def prism_slab(mb, poly, zf, m, cell, ch=0.008, bot=-0.10, band=0.06, ev=None):
+    """Convex CCW poly -> slab with a chamfered (tooled) top edge; zf(x, y) gives the top height.
+    The top carries a border ring so the point attribute 'edge' (1 at the joint, 0 inside)
+    can drive joint grime in the shader."""
     ins = inset_poly(poly, ch)
+    inn = inset_poly(poly, ch + band)
     n = len(poly)
-    top = [mb.add_v((p[0], p[1], zf(*p))) for p in ins]
-    mid = [mb.add_v((p[0], p[1], zf(*p) - ch)) for p in poly]
-    low = [mb.add_v((p[0], p[1], bot)) for p in poly]
-    mb.face(top, m, cell)
+    ev = mb.vattr.setdefault('edge', [])
+
+    def add(p, z, e):
+        ev.extend([0.0] * (len(mb.v) - len(ev)))
+        i = mb.add_v((p[0], p[1], z))
+        ev.append(e)
+        return i
+    inner = [add(p, zf(*p), 0.0) for p in inn]
+    top = [add(p, zf(*p), 1.0) for p in ins]
+    mid = [add(p, zf(*p) - ch * 0.8, 1.0) for p in poly]
+    low = [add(p, bot, 1.0) for p in poly]
+    mb.face(inner, m, cell)
     for k in range(n):
         k2 = (k + 1) % n
+        mb.face([top[k], top[k2], inner[k2], inner[k]], m, cell)
         mb.face([mid[k], mid[k2], top[k2], top[k]], m, cell)
         mb.face([low[k], low[k2], mid[k2], mid[k]], m, cell)
 
@@ -323,7 +335,9 @@ def build_puddles(col):
         lvl = float(np.percentile(Z[sel], 70)) + 0.002
         mb = MB(f"crn_puddle_{len(out)}")
         mb.quad([(cx - rx, cy - ry, lvl), (min(cx + rx, -0.005), cy - ry, lvl), (min(cx + rx, -0.005), cy + ry, lvl), (cx - rx, cy + ry, lvl)], 'w')
-        out.append(finalize(mb, col, {'w': mat}, recalc=False))
+        ob = finalize(mb, col, {'w': mat}, recalc=False)
+        ob.visible_shadow = False
+        out.append(ob)
     return out
 
 
@@ -421,7 +435,7 @@ def build_slabs(col):
             rects += rs
     mb = MB("crn_slabs")
     cracked = set(rng.sample(range(len(rects)), 5))
-    g = 0.004
+    g = 0.005
     tp = TREE_PIT
     for k, r in enumerate(rects):
         x0, y0, x1, y1 = r[0] + g, r[1] + g, r[2] - g, r[3] - g

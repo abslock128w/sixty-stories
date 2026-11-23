@@ -91,7 +91,7 @@ def hydrant(name="PROP_hydrant", seed=0, color=(156, 26, 22)):
     col = _col(name)
     paint = K.m_paint("crn_hyd_paint", srgb(color), chip=0.45, rust=True, gloss=True, grime_h=0.3)
     cap = K.m_paint("crn_hyd_cap", srgb((176, 174, 166)), chip=0.5, rust=True, grime_h=0.0, grime_amt=0.0)
-    iron = K.m_iron("crn_iron", rust=0.8)
+    iron = K.m_iron("crn_iron", rust=0.5)
     chm = K.m_iron("crn_chain", rust=0.6, base=(70, 68, 64))
     mb = MB(name + "_body")
     prof = [(0, 0), (0.15, 0), (0.15, 0.035), (0.125, 0.045), (0.106, 0.065), (0.100, 0.10), (0.102, 0.29), (0.126, 0.295), (0.126, 0.33),
@@ -165,7 +165,7 @@ def litter_bin(name="PROP_litter_bin", seed=0, color=(34, 70, 44)):
     mb = MB(name + "_bag")
     prof = [(0, 0.09), (0.18, 0.09)] + [(rr(z) - 0.012, z) for z in (0.12, 0.3, 0.5, 0.7, 0.86)] + [(rt - 0.004, 0.915), (rt + 0.02, 0.905), (rt + 0.028, 0.86), (rt + 0.03, 0.78 + rng.uniform(-0.03, 0.03))]
     b = len(mb.v)
-    mb.lathe(prof, 'g', seg=40)
+    mb.lathe(prof, 'g', seg=40, caps=False)
     ph = [rng.uniform(0, TAU) for _ in range(6)]
     for i in range(b, len(mb.v)):
         x, y, z = mb.v[i]
@@ -203,7 +203,7 @@ def newspaper_box(name="PROP_newspaper_box", seed=0, color=(26, 70, 142)):
     col = _col(name)
     paint = K.m_paint("crn_news_paint", srgb(color), chip=0.5, rust=True, gloss=True, grime_h=0.5)
     galv = K.m_galv("crn_galv")
-    iron = K.m_iron("crn_iron", rust=0.8)
+    iron = K.m_iron("crn_iron", rust=0.5)
     glass = K.m_glass("crn_plexi", dirt=0.35, rough=0.05)
     dark = K.m_dark("crn_void")
     mb = MB(name + "_body")
@@ -300,7 +300,7 @@ def pay_station(name="PROP_pay_station", seed=0, color=(50, 53, 58)):
 def bike_rack(name="PROP_bike_rack", seed=0):
     col = _col(name)
     galv = K.m_galv("crn_galv_rack", col=(140, 142, 140), rough=0.35, grime_amt=0.7)
-    iron = K.m_iron("crn_iron", rust=0.8)
+    iron = K.m_iron("crn_iron", rust=0.5)
     mb = MB(name + "_hoop")
     pts = [(-0.33, 0, 0.0), (-0.33, 0, 0.62)]
     for k in range(1, 12):
@@ -421,7 +421,7 @@ def control_cabinet(name="PROP_control_cabinet", seed=0, color=(150, 154, 140)):
     paint = K.m_paint("crn_cab_paint", srgb(color), chip=0.35, rust=True, grime_h=0.55, grime_amt=0.8)
     conc = K.m_concrete("crn_pad", col=(150, 146, 138), use_cell=False, gum=0, stain=1.0)
     galv = K.m_galv("crn_galv")
-    iron = K.m_iron("crn_iron", rust=0.8)
+    iron = K.m_iron("crn_iron", rust=0.5)
     dark = K.m_dark("crn_void")
     mb = MB(name + "_pad")
     mb.box((-0.66, -0.44, -0.03), (0.66, 0.44, 0.12), 'c')
@@ -491,7 +491,7 @@ def signal_head(mb, base, face, sections, lit, keys):
         M = Matrix.Translation(lc) @ f.to_track_quat('Z', 'Y').to_matrix().to_4x4()
         key = keys['lit_' + col_] if lit == i else keys['lens_' + col_]
         mb.lathe([(0, 0.012), (0.10, 0.008), (0.14, 0.0), (0, 0.0)], key, seg=28, M=M)
-        mb.lathe([(0.143, 0.0), (0.152, 0.0), (0.152, 0.012), (0.143, 0.012)], keys['visor'], seg=28, M=M)
+        mb.lathe([(0.143, 0.0), (0.152, 0.0), (0.152, 0.012), (0.143, 0.012), (0.143, 0.0)], keys['visor'], seg=28, M=M, caps=False)
         # tunnel visor: open at the bottom
         n = 14
         ids_o, ids_i = [], []
@@ -538,14 +538,14 @@ def signal_pole(name="PROP_signal_pole", seed=0, arm=8.2, heads=(2.25, 5.65), li
     rng = random.Random(seed)
     col = _col(name)
     galv = K.m_galv("crn_galv_pole", col=(146, 148, 146), rough=0.45)
-    iron = K.m_iron("crn_iron", rust=0.8)
+    iron = K.m_iron("crn_iron", rust=0.5)
     yellow = K.m_paint("crn_sig_yellow", srgb((214, 166, 22)), chip=0.25, rust=False, gloss=True, grime_h=0.0, grime_amt=0.0)
     black = K.m_paint("crn_sig_black", srgb((18, 18, 18)), chip=0.15, rust=False, grime_h=0.0, grime_amt=0.0)
     border = K.m_plain("crn_sig_border", (222, 196, 30), 0.35, noise=0.2)
     keys = dict(house='y', back='k', border='b', visor='k', lens_r='lr', lens_a='la', lens_g='lg', lit_r='Lr', lit_a='La', lit_g='Lg')
     mats = {'g': galv, 'i': iron, 'y': yellow, 'k': black, 'b': border,
             'lr': K.m_lens("crn_lens_r", (0.20, 0.015, 0.01)), 'la': K.m_lens("crn_lens_a", (0.22, 0.10, 0.0)), 'lg': K.m_lens("crn_lens_g", (0.01, 0.12, 0.08)),
-            'Lr': K.m_emit("crn_lit_r", (1.0, 0.06, 0.02), 30.0), 'La': K.m_emit("crn_lit_a", (1.0, 0.45, 0.02), 30.0), 'Lg': K.m_emit("crn_lit_g", (0.1, 1.0, 0.55), 30.0)}
+            'Lr': K.m_emit("crn_lit_r", (1.0, 0.10, 0.03), 9.0), 'La': K.m_emit("crn_lit_a", (1.0, 0.45, 0.02), 9.0), 'Lg': K.m_emit("crn_lit_g", (0.1, 1.0, 0.55), 9.0)}
     H = 6.7
 
     def rp(z):
@@ -641,8 +641,8 @@ def streetlight(name="PROP_streetlight", seed=0, H=8.6, arm=2.3, ped=True, lamp_
     facing -Y and a push button facing +X."""
     col = _col(name)
     galv = K.m_galv("crn_galv_pole", col=(146, 148, 146), rough=0.45)
-    base = K.m_paint("crn_light_base", srgb((30, 34, 32)), chip=0.4, rust=True, grime_h=0.5)
-    iron = K.m_iron("crn_iron", rust=0.8)
+    base = K.m_paint("crn_light_base", srgb((74, 84, 78)), chip=0.45, rust=True, grime_h=0.5)
+    iron = K.m_iron("crn_iron", rust=0.5)
     black = K.m_paint("crn_sig_black", srgb((18, 18, 18)), chip=0.15, rust=False, grime_h=0.0, grime_amt=0.0)
     shell = K.m_paint("crn_lum_shell", srgb((120, 122, 118)), chip=0.1, rust=False, grime_h=0.0, grime_amt=0.0)
     refr = K.m_emit("crn_lum_lens", (1.0, 0.72, 0.42), lamp_on) if lamp_on > 0 else K.m_glass("crn_lum_glass", tint=(0.9, 0.88, 0.8), dirt=0.4, rough=0.15)
@@ -652,7 +652,7 @@ def streetlight(name="PROP_streetlight", seed=0, H=8.6, arm=2.3, ped=True, lamp_
         return 0.115 - 0.045 * max(0.0, min(z, H)) / H
     mb = MB(name + "_pole")
     # octagonal cast base
-    mb.lathe([(0, 0), (0.27, 0), (0.27, 0.06), (0.24, 0.09), (0.22, 0.5), (0.20, 0.55), (0.18, 0.95), (0.20, 1.0), (0.20, 1.05), (0.15, 1.12), (0, 1.12)], 'b', seg=8)
+    mb.lathe([(0, 0), (0.215, 0), (0.215, 0.035), (0.195, 0.06), (0.185, 0.09), (0.165, 0.62), (0.175, 0.65), (0.175, 0.69), (0.14, 0.74), (0.13, 0.9), (0.145, 0.93), (0.12, 0.98), (0, 0.98)], 'b', seg=28)
     mb.lathe([(0, 1.1)] + [(rp(z), z) for z in (1.1, 3.0, 5.0, 7.0, H)] + [(0, H)], 'g', seg=28)
     # davit arm
     pts = [Vector((0, 0, H - 0.25))]
@@ -699,7 +699,7 @@ def sign_post(name="PROP_sign_post", seed=0, H=2.55):
     """Square perforated sign post with a no-parking sign facing local -Y."""
     col = _col(name)
     galv = K.m_galv("crn_galv_post", col=(156, 158, 156), rough=0.4)
-    iron = K.m_iron("crn_iron", rust=0.8)
+    iron = K.m_iron("crn_iron", rust=0.5)
     mb = MB(name + "_post")
     mb.box((-0.025, -0.025, -0.05), (0.025, 0.025, H), 'g')
     for z in [0.1 + 0.0254 * k for k in range(0, int((H - 0.15) / 0.0254), 2)]:
@@ -774,8 +774,8 @@ def manhole(name="PROP_manhole", seed=0, rot=None):
     rng = random.Random(seed)
     col = _col(name)
     cov = K.m_iron("crn_cover_iron", rust=0.4, polish=True)
-    iron = K.m_iron("crn_iron", rust=0.8)
-    conc = K.m_concrete("crn_collar", col=(128, 126, 120), use_cell=False, gum=0.5, stain=1.0)
+    iron = K.m_iron("crn_iron", rust=0.5)
+    conc = K.m_asphalt("crn_collar_asph", masks=False, patch=0.6, base=(50, 50, 49))
     _disk_cover(name + "_cover", col, "manhole_h.png", 0.355, 0.0024, cov, -0.012, 0.0135, rot=rng.uniform(0, TAU) if rot is None else rot)
     mb = MB(name + "_frame")
     mb.lathe([(0.357, -0.06), (0.357, -0.001), (0.362, 0.0015), (0.425, 0.0015), (0.432, -0.004), (0.432, -0.06)], 'i', seg=72)
@@ -790,7 +790,7 @@ def manhole(name="PROP_manhole", seed=0, rot=None):
 def valve_cover(name="PROP_valve_cover", seed=0):
     col = _col(name)
     cov = K.m_iron("crn_cover_iron", rust=0.4, polish=True)
-    iron = K.m_iron("crn_iron", rust=0.8)
+    iron = K.m_iron("crn_iron", rust=0.5)
     _disk_cover(name + "_cover", col, "valve_h.png", 0.10, 0.0016, cov, -0.008, 0.01, rot=0.3)
     mb = MB(name + "_frame")
     mb.lathe([(0.102, -0.05), (0.102, 0.0), (0.135, 0.001), (0.15, -0.004), (0.15, -0.05)], 'i', seg=40)
@@ -802,7 +802,7 @@ def storm_inlet(name="PROP_storm_inlet", seed=0):
     """Gutter grate (0.58 x 0.88 opening) with frame and dark basin; bars across traffic."""
     rng = random.Random(seed)
     col = _col(name)
-    iron = K.m_iron("crn_grate_iron", rust=0.9)
+    iron = K.m_iron("crn_grate_iron", rust=0.6)
     dark = K.m_dark("crn_void")
     water = K.m_water("crn_water")
     mb = MB(name + "_grate")
@@ -875,7 +875,7 @@ def ramp_tactile(col, zfun, name="crn_tactile"):
 # ============================================================================ tree pit grate + tree
 def tree_grate(name="PROP_tree_grate", seed=0, W=1.32, D=1.48, hole=0.27):
     col = _col(name)
-    iron = K.m_iron("crn_grate_iron", rust=0.9)
+    iron = K.m_iron("crn_grate_iron", rust=0.6)
     mb = MB(name + "_grate")
     t, h = 0.012, 0.03
     x0, x1, y0, y1 = -W / 2, W / 2, -D / 2, D / 2
@@ -994,12 +994,12 @@ def street_tree(name="PROP_street_tree", seed=0, height=7.2, leaf_density=1.0):
         mb.ttube([(0, 0, 0.12), (0.18 * math.cos(a), 0.18 * math.sin(a), -0.01), (0.3 * math.cos(a), 0.3 * math.sin(a), -0.05)], [0.07, 0.045, 0.02], 'b', seg=8)
     grow(pts[-1], Vector((0, 0, 1)), (height - trunk_h) * 0.55, 0.095, 0)
     for (p, d, depth) in tips:
-        nl = int((10 if depth >= 4 else 5) * leaf_density)
+        nl = int((26 if depth >= 4 else 11) * leaf_density)
         for _ in range(nl):
             off = Vector((rng.gauss(0, 0.16), rng.gauss(0, 0.16), rng.gauss(0, 0.12)))
             c = p + off + d * rng.uniform(0, 0.12)
             nrm = (Vector((rng.gauss(0, 0.6), rng.gauss(0, 0.6), 1.0)) + off * 2).normalized()
-            _leaf(lb, rng, c, rng.uniform(0.07, 0.11), nrm, rng.uniform(0, TAU), rng.uniform(0.15, 0.45), 'l', rng.choice(AUTUMN), curl=0.15)
+            _leaf(lb, rng, c, rng.uniform(0.08, 0.13), nrm, rng.uniform(0, TAU), rng.uniform(0.15, 0.45), 'l', rng.choice(AUTUMN), curl=0.15)
     finalize(mb, col, {'b': bark}, smooth=True, angle=80)
     finalize(lb, col, {'l': leafm}, recalc=False)
     return col

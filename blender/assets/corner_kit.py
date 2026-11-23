@@ -41,7 +41,7 @@ class MB(facade.MB):
         i = [self.add_v(p) for p in pts]
         self.face(i, m, cell, uv=list(uvs))
 
-    def lathe(self, prof, m, seg=24, M=None, cell=(0, 0, 0)):
+    def lathe(self, prof, m, seg=24, M=None, cell=(0, 0, 0), caps=True):
         """Revolve [(r, z)] around local Z, transformed by Matrix M. r==0 -> pole vertex."""
         M = M or Matrix.Identity(4)
         rings = []
@@ -61,9 +61,9 @@ class MB(facade.MB):
                     self.face([a[k], b, a[k2]], m, cell)
                 else:
                     self.face([a[k], b[k], b[k2], a[k2]], m, cell)
-        if not isinstance(rings[0], int):
+        if caps and not isinstance(rings[0], int):
             self.face(rings[0][::-1], m, cell)
-        if not isinstance(rings[-1], int):
+        if caps and not isinstance(rings[-1], int):
             self.face(rings[-1], m, cell)
 
     def ttube(self, pts, radii, m, seg=8, caps=(True, True), cell=(0, 0, 0)):
@@ -326,7 +326,7 @@ def m_metal(name, col, rough, metal=1.0):
 
 
 @cache
-def m_iron(name, rust=0.5, polish=False, base=(46, 44, 41)):
+def m_iron(name, rust=0.5, polish=False, base=(52, 50, 47)):
     """Cast iron.  polish=True reads point attribute 'h' (raised = traffic-polished)."""
     m, T, out = new_mat(name)
     p, pv, _ = coords(T)
@@ -354,7 +354,7 @@ def m_iron(name, rust=0.5, polish=False, base=(46, 44, 41)):
 
 
 @cache
-def m_concrete(name, col=(162, 158, 150), use_cell=True, gum=1.0, stain=1.0, fresh=0.0):
+def m_concrete(name, col=(146, 142, 134), use_cell=True, gum=1.0, stain=1.0, fresh=0.0):
     m, T, out = new_mat(name)
     tc = T.n('ShaderNodeTexCoord')
     p = tc.outputs['Object']
@@ -362,7 +362,7 @@ def m_concrete(name, col=(162, 158, 150), use_cell=True, gum=1.0, stain=1.0, fre
     if use_cell:
         at = T.n('ShaderNodeAttribute', attribute_name='cell')
         cx, cy, cz = T.xyz(at.outputs['Vector'])
-        f = T.remap(cx, 0, 1, 0.84, 1.08)
+        f = T.remap(cx, 0, 1, 0.80, 1.07)
         c = T.mul_col(c, T.comb(f, f, T.math('MULTIPLY', f, T.remap(cy, 0, 1, 0.93, 1.03))))
     nb = T.noise(p, 0.55, 4, 0.6)
     nm = T.noise(p, 4.0, 6, 0.65)
@@ -384,13 +384,20 @@ def m_concrete(name, col=(162, 158, 150), use_cell=True, gum=1.0, stain=1.0, fre
         dn = T.noise(p, 8.0, 2, 0.5)
         pg = T.vmath('ADD', p, T.vmath('SCALE', dn.outputs['Color'], scale=0.025))
         vg = T.n('ShaderNodeTexVoronoi', {'Vector': pg, 'Scale': 4.2})
-        sel = T.smooth(sepc(T, vg.outputs['Color'])[1], 1.0 - 0.45 * gum, 1.0 - 0.45 * gum + 0.01)
+        sel = T.smooth(sepc(T, vg.outputs['Color'])[1], 1.0 - 0.6 * gum, 1.0 - 0.6 * gum + 0.01)
         gm = T.math('MULTIPLY', T.smooth(vg.outputs['Distance'], 0.030, 0.022), sel)
         gcol = T.mix(sepc(T, vg.outputs['Color'])[2], srgb((38, 38, 38)), srgb((96, 94, 90)))
         c = T.mix(gm, c, gcol)
-    # joint / edge grime
-    occ = T.math('SUBTRACT', 1.0, ao(T, 0.05))
-    c = T.mix(T.math('MULTIPLY', occ, 0.9), c, T.mul_col(c, srgb((90, 84, 76))))
+    # joint / edge grime: border attribute (slabs) + AO
+    ea = T.n('ShaderNodeAttribute', attribute_name='edge')
+    en = T.noise(p, 9.0, 4, 0.6)
+    eg = T.math('MULTIPLY', T.math('POWER', ea.outputs['Fac'], 2.5), T.remap(en.outputs['Factor'], 0.3, 0.7, 0.35, 1.0))
+    c = T.mix(T.math('MULTIPLY', eg, 0.75), c, T.mul_col(c, srgb((96, 90, 80))))
+    occ = T.math('SUBTRACT', 1.0, ao(T, 0.06))
+    c = T.mix(T.math('MULTIPLY', occ, 1.0), c, T.mul_col(c, srgb((70, 66, 60))))
+    # broad dirt / foot-traffic grime
+    dd = T.noise(p, 0.25, 5, 0.65, distortion=0.6)
+    c = T.mix(T.math('MULTIPLY', T.smooth(dd.outputs['Factor'], 0.42, 0.7), 0.6), c, T.mul_col(c, srgb((150, 140, 124))))
     if fresh > 0:
         c = T.mix(fresh, c, srgb((176, 174, 168)))
     # broom finish + pits
