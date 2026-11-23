@@ -1348,36 +1348,49 @@ class Facade:
         fr = self.M('iron')
         z_top, proj, z_front = 3.72, 1.25, 3.02
         val = 0.26
-        nu = int((c - a) / 0.05) + 1
-        nv = 14
+        nu = int((c - a) / 0.02) + 1
+        nv = 44
         arms = [a + (c - a) * k / 4 for k in range(5)]
-        # fabric grid with sag between arms
+        seams = [x for x in np.arange(a + 0.80, c - 0.2, 0.80)]          # 80 cm canvas widths, sewn with a flat felled seam
+        Rw = random.Random(self.seed + int(a * 100))
+        ph = [Rw.uniform(0, 6.28) for _ in arms]
+        # fabric grid: sag between arms, deeper toward the front bar; tension folds radiating from the arm ends; seam ridges
         grid = []
         for j in range(nv + 1):
             t = j / nv
             row = []
             for i in range(nu + 1):
                 uu = a + (c - a) * i / nu
-                # distance to nearest arm -> sag
-                da = min(abs(uu - x) for x in arms)
-                sag = 0.018 * math.sin(math.pi * min(1, da / ((c - a) / 8))) * math.sin(math.pi * t)
+                k_arm = min(range(len(arms)), key=lambda q: abs(uu - arms[q]))
+                da = abs(uu - arms[k_arm])
+                span = (c - a) / 8
+                sag = (0.012 + 0.03 * t) * math.sin(math.pi * min(1, da / span)) ** 1.5 * math.sin(math.pi * min(1.0, t * 1.08))
+                # diagonal tension folds near each arm, fading with distance from the arm and toward mid-slope
+                w = (uu - arms[k_arm]) * 0.8 + (t - 1.0) * proj * 0.6 * (1 if uu > arms[k_arm] else -1)
+                fold = 0.0035 * math.sin(w * 2 * math.pi / 0.11 + ph[k_arm]) * math.exp(-da / 0.22) * (t ** 2 + 0.3 * (1 - t) ** 4)
+                seam = max([0.0015 * math.exp(-((uu - sx) / 0.008) ** 2) for sx in seams] + [0.0])
                 d = proj * t
-                z = z_top + (z_front - z_top) * t - sag - 0.02 * math.sin(math.pi * t)
+                z = z_top + (z_front - z_top) * t - sag - 0.02 * math.sin(math.pi * t) + fold + seam
                 row.append(fab.add_v(self.wp(F, uu, z, d)))
             grid.append(row)
         for j in range(nv):
             for i in range(nu):
                 fab.face([grid[j][i], grid[j][i + 1], grid[j + 1][i + 1], grid[j + 1][i]], 'awning')
+        self.awning_seams = getattr(self, "awning_seams", []) + list(seams)
         # valance: slight scallop-free flat skirt with a hem
-        top = [self.wp(F, a + (c - a) * i / nu, z_front - 0.0, proj + 0.004) for i in range(nu + 1)]
-        vrow0 = [fab.add_v(p) for p in top]
-        vrow1 = []
-        for i in range(nu + 1):
-            uu = a + (c - a) * i / nu
-            wav = 0.004 * math.sin(uu * 9.0)
-            vrow1.append(fab.add_v(self.wp(F, uu, z_front - val, proj + 0.004 + wav)))
-        for i in range(nu):
-            fab.face([vrow1[i], vrow1[i + 1], vrow0[i + 1], vrow0[i]], 'awning')
+        # valance: hangs from the front bar, swings slightly, bottom hem stiffer than the cloth above it
+        vrows = []
+        for jv in range(7):
+            tv = jv / 6
+            row = []
+            for i in range(nu + 1):
+                uu = a + (c - a) * i / nu
+                wav = (0.006 * math.sin(uu * 5.3 + 1.1) + 0.0025 * math.sin(uu * 23.0)) * tv
+                row.append(fab.add_v(self.wp(F, uu, z_front - val * tv, proj + 0.004 + wav)))
+            vrows.append(row)
+        for jv in range(6):
+            for i in range(nu):
+                fab.face([vrows[jv + 1][i], vrows[jv + 1][i + 1], vrows[jv][i + 1], vrows[jv][i]], 'awning')
         # side panels (triangles)
         for uu in (a, c):
             p0 = fab.add_v(self.wp(F, uu, z_top, 0.0))
@@ -2357,7 +2370,7 @@ class Facade:
         Mt['fire_escape'] = self.mat_paint(tag + "_fe", srgb((24, 24, 23)), wg, chip=0.7, rust=True)
         Mt['door'] = self.mat_paint(tag + "_door", trim, wg, chip=0.3, gloss=True)
         Mt['tile'] = self.mat_tile(tag + "_tile")
-        Mt['awning'] = self.mat_fabric(tag + "_awning", awn, outdoor=True)
+        Mt['awning'] = self.mat_canvas(tag + "_awning", awn, wg)
         Mt['cornice'] = self.mat_paint(tag + "_cornice", srgb((96, 90, 80)) if v['trim'] != 'cream' else srgb((170, 160, 140)), wg, chip=0.5, rust=True)
         Mt['downpipe'] = self.mat_paint(tag + "_pipe", srgb((70, 66, 60)), wg, chip=0.3, rust=True)
         Mt['conduit'] = self.mat_metal(tag + "_conduit", srgb((156, 158, 160)), 0.45, galv=True)
@@ -2856,6 +2869,70 @@ class Facade:
         n1 = T.noise(tc.outputs['Object'], 30.0, 4, 0.6)
         c = T.mix(n1.outputs['Factor'], srgb((150, 90, 40)), srgb((210, 160, 90)))
         principled(T, out, c, 0.7, Subsurface_Weight=0.1)
+        return m
+
+    def mat_canvas(self, name, col, wg):
+        """Acrylic awning duck: woven texture (tex_gen/canvas_*), seams with double stitching, binding on the hem, sun
+        fading on the up-facing slope, rain-borne dirt collecting in the sag pockets and along the valance hem, darker
+        undertone where the cloth is shaded/translucent from below."""
+        m, T, out = new_mat(name)
+        tc = T.n('ShaderNodeTexCoord')
+        p = tc.outputs['Object']
+        ps = T.xyz(p)
+        geo = T.n('ShaderNodeNewGeometry')
+        up = T.xyz(geo.outputs['Normal'])[2]
+        # weave: box-mapped object coords, ~15 cm tile (256 threads)
+        tex_v = T.vmath('SCALE', T.comb(ps[0], T.math('ADD', ps[2], T.math('MULTIPLY', ps[1], 0.8)), 0.0), scale=1.0 / 0.15)
+        tdet = T.n('ShaderNodeTexImage', {'Vector': tex_v}, image=tex_image("tex_gen/canvas_detail.png"), interpolation='Cubic')
+        tnor = T.n('ShaderNodeTexImage', {'Vector': tex_v}, image=tex_image("tex_gen/canvas_nor_gl.png"), interpolation='Cubic')
+        trou = T.n('ShaderNodeTexImage', {'Vector': tex_v}, image=tex_image("tex_gen/canvas_rough.png"), interpolation='Cubic')
+        det = T.vmath('SCALE', tdet.outputs['Color'], scale=2.0)
+        n1 = T.noise(p, 1.6, 4, 0.6)
+        c = T.mul_col(col, det)
+        # sun fading on the slope (upward-facing), stronger in patches
+        fade = T.math('MULTIPLY', T.smooth(up, 0.2, 0.8), T.remap(n1.outputs['Factor'], 0.3, 0.7, 0.12, 0.30))
+        hsv = T.n('ShaderNodeHueSaturation', {'Color': c, 'Saturation': 0.72, 'Value': 1.22})
+        c = T.mix(fade, c, hsv.outputs[0])
+        # seams + stitching (two rows of 3 mm stitches each side of every seam)
+        seams = getattr(self, 'awning_seams', [])
+        x = ps[0]
+        seam_m = 0.0
+        stitch = 0.0
+        for sx in seams:
+            dx = T.math('ABSOLUTE', T.math('SUBTRACT', x, float(sx)))
+            sm = T.smooth(dx, 0.009, 0.006)
+            seam_m = T.math('MAXIMUM', seam_m, sm)
+            row = T.math('MULTIPLY', T.smooth(T.math('ABSOLUTE', T.math('SUBTRACT', dx, 0.007)), 0.0009, 0.0003),
+                         T.math('GREATER_THAN', T.math('FRACT', T.math('MULTIPLY', T.math('ADD', ps[2], ps[1]), 1.0 / 0.005)), 0.35))
+            stitch = T.math('MAXIMUM', stitch, row)
+        c = T.mix(T.math('MULTIPLY', seam_m, 0.25), c, T.mul_col(c, (0.8, 0.8, 0.8, 1)))
+        c = T.mix(T.math('MULTIPLY', stitch, 0.6), c, T.mul_col(c, (0.6, 0.6, 0.6, 1)))
+        # dirt: pockets of the sag (lowest points between arms near the front) and the valance hem
+        dn = T.noise(p, 6.0, 5, 0.65)
+        zf = ps[2]
+        hem = T.smooth(zf, 2.80, 2.76)
+        dirt = T.math('ADD', T.math('MULTIPLY', hem, 0.6), T.math('MULTIPLY', T.smooth(up, 0.55, 0.85), T.smooth(dn.outputs['Factor'], 0.52, 0.68)))
+        tide = T.math('MULTIPLY', T.smooth(up, 0.5, 0.8), T.smooth(T.math('ABSOLUTE', T.math('SUBTRACT', dn.outputs['Factor'], 0.6)), 0.012, 0.004))
+        dirt = T.math('ADD', T.math('MULTIPLY', dirt, T.remap(dn.outputs['Factor'], 0.3, 0.7, 0.5, 1.0)), T.math('MULTIPLY', tide, 0.5), clamp=True)
+        c = T.mix(T.math('MULTIPLY', dirt, 0.55), c, T.mul_col(c, (0.42, 0.40, 0.36, 1)))
+        # hem binding tape (slightly darker, smoother) on the bottom 2.5 cm
+        bind = T.smooth(zf, 2.79, 2.785)
+        c = T.mix(T.math('MULTIPLY', bind, 0.7), c, T.mul_col(col, (0.7, 0.7, 0.7, 1)))
+        rough = T.math('ADD', T.remap(trou.outputs['Color'], 0.8, 1.0, 0.72, 0.92), T.math('MULTIPLY', dirt, 0.05))
+        # tangent-space normal from the weave (object-space box map: X along the awning, slope as V)
+        ns = T.xyz(tnor.outputs['Color'])
+        N = geo.outputs['Normal']
+        Tn = T.vmath('NORMALIZE', T.vmath('CROSS_PRODUCT', N, (1.0, 0.0, 0.0)))
+        Bn = T.vmath('CROSS_PRODUCT', Tn, N)
+        nx = T.math('SUBTRACT', T.math('MULTIPLY', ns[0], 2.0), 1.0)
+        ny = T.math('SUBTRACT', T.math('MULTIPLY', ns[1], 2.0), 1.0)
+        nw = T.vmath('NORMALIZE', T.vmath('ADD', T.vmath('ADD', T.vmath('SCALE', Bn, scale=nx), T.vmath('SCALE', Tn, scale=ny)), N))
+        h = T.math('ADD', T.math('MULTIPLY', seam_m, 1.0), T.math('MULTIPLY', stitch, -0.5))
+        nrm = T.bump(h, 0.6, 0.0015, normal=nw)
+        pr = principled(T, None, c, rough, normal=nrm, Sheen_Weight=0.25, Sheen_Tint=(1, 1, 1, 1))
+        tl = T.n('ShaderNodeBsdfTranslucent', {'Color': T.mul_col(c, (0.8, 0.75, 0.7, 1))})
+        ms = T.n('ShaderNodeMixShader', {'Fac': 0.18})
+        T.L.new(pr.outputs[0], ms.inputs[1]); T.L.new(tl.outputs[0], ms.inputs[2]); T.L.new(ms.outputs[0], out.inputs['Surface'])
         return m
 
     def mat_crust(self, name, pastry=False):
